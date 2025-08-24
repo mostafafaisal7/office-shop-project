@@ -17,8 +17,15 @@ class RegisterRequest(BaseModel):
         return self
     
 class LoginRequest(BaseModel):
-    email: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
     password: str
+
+    @model_validator(mode="after")
+    def check_email_or_phone(self):
+        if not self.email and not self.phone:
+            raise ValueError("Either email or phone is required")
+        return self
     
 class TokenResponse(BaseModel):
     access_token: str

@@ -16,7 +16,7 @@ const RichTextEditor = ({ value, onChange }) => {
           plugins: [
             'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview', 'anchor',
             'searchreplace', 'visualblocks', 'code', 'fullscreen',
-            'insertdatetime', 'media', 'table', 'paste', 'help', 'wordcount'
+            'insertdatetime', 'media', 'table', 'help', 'wordcount'
           ],
           toolbar:
             'undo redo | formatselect | bold italic backcolor | ' +
@@ -61,4 +61,3 @@ const RichTextEditor = ({ value, onChange }) => {
 };
 
 export default RichTextEditor;
-

@@ -50,30 +50,47 @@ export default function ProductForm({ initialValues, onFinish, loading }: Produc
   };
 
   const handleFormFinish = (values: any) => {
+    // Validate required fields
+    if (!values.name || !values.sku || !values.base_price) {
+      message.error('Please fill in all required fields: Name, SKU, and Base Price');
+      return;
+    }
+
+    // Ensure base_price is a valid number greater than 0
+    const basePrice = parseFloat(values.base_price);
+    if (isNaN(basePrice) || basePrice <= 0) {
+      message.error('Base price must be a valid number greater than 0');
+      return;
+    }
+
     // Transform form data to match API requirements
     const formData = {
       ...values,
-      tags: tags,
+      base_price: basePrice, // Ensure it's a number
+      tags: tags || [],
+      category_ids: values.category_ids || [],
       // Send newly uploaded media without ID fields (backend doesn't need them)
       media: uploadedMedia.length > 0 ? uploadedMedia.map(media => {
         // Remove any ID field from media objects
         const { id, ...mediaWithoutId } = media as any;
         return mediaWithoutId;
-      }) : undefined,
+      }) : [],
       dimensions: values.dimensions ? {
-        length: values.dimensions?.length || 0,
-        width: values.dimensions?.width || 0,
-        height: values.dimensions?.height || 0,
-      } : undefined,
+        length: parseFloat(values.dimensions?.length) || 0,
+        width: parseFloat(values.dimensions?.width) || 0,
+        height: parseFloat(values.dimensions?.height) || 0,
+      } : null,
+      weight: values.weight ? parseFloat(values.weight) : null,
     };
 
-    // Remove undefined values
+    // Remove undefined values but keep null values for optional fields
     Object.keys(formData).forEach(key => {
-      if (formData[key] === undefined || formData[key] === null) {
+      if (formData[key] === undefined) {
         delete formData[key];
       }
     });
 
+    console.log('Submitting product data:', formData); // Debug log
     onFinish(formData);
   };
 

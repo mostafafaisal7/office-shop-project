@@ -33,6 +33,9 @@ export default function AntdWarningSuppress() {
          message.includes('[antd: Spin] `tip` only work in nest or fullscreen pattern') ||
          message.includes('[antd: Card] `bodyStyle` is deprecated') ||
          message.includes('[antd: Form.Item] A `Form.Item` with a `name` prop must have a single child element') ||
+         message.includes('[antd: Form.Item] `children` is array of render props cannot have `name`') ||
+         message.includes('Instance created by `useForm` is not connected to any Form element') ||
+         message.includes('useForm` is not connected to any Form element') ||
          message.includes('[antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead') ||
          message.includes('[antd: Dropdown] `overlay` is deprecated. Please use `menu` instead') ||
          message.includes('Can\'t call setState on a component that is not yet mounted') ||

@@ -1,14 +1,25 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.hashing import Hasher
-from app.common.user_repo import get_user_by_email
+from app.common.user_repo import get_user_by_email, get_user_by_phone
 
 from sqlalchemy import select
 from app.users.models import OTPCode
 from datetime import datetime,timezone
+import re
 
 
-async def authenticate_user(email: str, password: str, db: AsyncSession):
-    user = await get_user_by_email(db, email)
+async def authenticate_user(identifier: str, password: str, db: AsyncSession):
+    """
+    Authenticate user by email or phone number
+    identifier: can be either email or phone number
+    """
+    # Check if identifier is email (contains @) or phone number
+    if '@' in identifier:
+        user = await get_user_by_email(db, identifier)
+    else:
+        # Assume it's a phone number
+        user = await get_user_by_phone(db, identifier)
+    
     if not user:
         return None
     if not Hasher.verify_password(password, str(user.hashed_password)):
