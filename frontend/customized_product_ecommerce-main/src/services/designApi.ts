@@ -1,0 +1,734 @@
+const API_BASE_URL = typeof window === 'undefined' 
+  ? 'http://localhost:8000' // Server-side
+  : '/api'; // Client-side (uses proxy)
+
+// New interface matching the backend's expected payload structure
+export interface DesignSaveRequest {
+  user_id: number | null;
+  client_reference_id: string;
+  product_id: number;
+  variation_id: number;
+  design_area: string;
+  canvas_data: {
+    version: string;
+    objects: any[];
+    background?: string;
+    backgroundImage?: any;
+  };
+  design_metadata: {
+    canvas_width: number;
+    canvas_height: number;
+    product_image_url: string;
+    design_name: string;
+    is_completed: boolean;
+  };
+  design_elements: any[];
+}
+
+export interface DesignLoadResponse {
+  id?: number;
+  user_id: number | null;
+  client_reference_id: string;
+  product_id: number;
+  variation_id: number;
+  design_area: string;
+  canvas_data: {
+    version: string;
+    objects: any[];
+    background?: string;
+    backgroundImage?: any;
+  };
+  design_metadata: {
+    canvas_width: number;
+    canvas_height: number;
+    product_image_url: string;
+    design_name: string;
+    is_completed: boolean;
+  };
+  design_elements: any[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Legacy interfaces for backward compatibility
+export interface CustomizationOption {
+  id?: number;
+  product_id: number;
+  option_type?: 'design' | 'text' | 'image' | 'color';
+  option_name?: string;
+  option_data?: {
+    canvas_data?: any;
+    design_area?: string;
+    variation_id?: string;
+    canvas_width?: number;
+    canvas_height?: number;
+    product_image_url?: string;
+    design_elements?: any[];
+    metadata?: any;
+  };
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // New format fields
+  client_reference_id?: string;
+  user_id?: number;
+  variation_id?: number;
+  design_area?: string;
+  canvas_data?: {
+    version: string;
+    objects: any[];
+    background?: string;
+    backgroundImage?: any;
+  };
+  design_metadata?: {
+    canvas_width: number;
+    canvas_height: number;
+    product_image_url: string;
+    created_at?: string;
+    updated_at?: string;
+    design_name: string;
+    is_completed: boolean;
+  };
+  design_elements?: any[];
+  media?: any[];
+}
+
+export interface CreateCustomizationOptionRequest {
+  option_type: 'design' | 'text' | 'image' | 'color';
+  option_name: string;
+  option_data: {
+    canvas_data?: any;
+    design_area?: string;
+    variation_id?: string;
+    canvas_width?: number;
+    canvas_height?: number;
+    product_image_url?: string;
+    design_elements?: any[];
+    metadata?: any;
+  };
+  is_active?: boolean;
+}
+
+export interface UpdateCustomizationOptionRequest extends CreateCustomizationOptionRequest {
+  id: number;
+}
+
+class DesignApiService {
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    // Import auth store dynamically to avoid circular dependencies
+    const { useAuthStore, getValidToken } = await import('@/store/authStore');
+    const { tokens, isAuthenticated } = useAuthStore.getState();
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (isAuthenticated && tokens?.accessToken) {
+      // Try to get a valid token (handles refresh if needed)
+      try {
+        const validToken = await getValidToken();
+        if (validToken) {
+          headers['Authorization'] = `Bearer ${validToken}`;
+          console.log('Using authentication token for API request');
+        } else {
+          console.warn('No valid token available');
+        }
+      } catch (error) {
+        console.error('Error getting valid token:', error);
+        // Fallback to the stored token
+        if (tokens?.accessToken) {
+          headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+          console.log('Using fallback authentication token');
+        }
+      }
+    } else {
+      console.warn('User not authenticated - API request will be made without authentication');
+    }
+    
+    return headers;
+  }
+
+  private async getUserId(): Promise<number | null> {
+    try {
+      const { useAuthStore } = await import('@/store/authStore');
+      const { isAuthenticated } = useAuthStore.getState();
+      
+      if (!isAuthenticated) {
+        return null;
+      }
+
+      // Fetch user details from /users/me endpoint
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        headers,
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch user details:', response.status);
+        return null;
+      }
+      
+      const userData = await response.json();
+      console.log('Fetched user data:', userData);
+      
+      return userData.id || null;
+    } catch (error) {
+      console.error('Error getting user ID:', error);
+      return null;
+    }
+  }
+
+  private generateClientReferenceId(): string {
+    return `design_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Generate a shared client reference ID based on product+variation
+  private generateSharedClientReferenceId(productId: string, variationId: number): string {
+    return `design_${productId}_${variationId}_${Date.now()}`;
+  }
+
+  private convertCanvasDataToDesignElements(canvasData: any): any[] {
+    if (!canvasData?.objects) return [];
+    
+    return canvasData.objects.map((obj: any, index: number) => {
+      if (obj.type === 'textbox' || obj.type === 'text') {
+        return {
+          type: 'text',
+          content: obj.text || '',
+          position: {
+            x: obj.left || 0,
+            y: obj.top || 0,
+            z: index + 1
+          },
+          style: {
+            fontFamily: obj.fontFamily || 'Arial',
+            fontSize: obj.fontSize || 16,
+            color: obj.fill || '#000000',
+            bold: obj.fontWeight === 'bold' || false
+          },
+          dimensions: {
+            width: obj.width || 200,
+            height: obj.height || 50
+          }
+        };
+      } else if (obj.type === 'image') {
+        return {
+          type: 'image',
+          src: obj.src || '',
+          position: {
+            x: obj.left || 0,
+            y: obj.top || 0,
+            z: index + 1
+          },
+          style: {
+            opacity: obj.opacity || 1,
+            borderColor: obj.stroke || '#CCCCCC'
+          },
+          dimensions: {
+            width: obj.width || 150,
+            height: obj.height || 75
+          }
+        };
+      }
+      
+      // Default for other object types
+      return {
+        type: obj.type || 'unknown',
+        position: {
+          x: obj.left || 0,
+          y: obj.top || 0,
+          z: index + 1
+        },
+        dimensions: {
+          width: obj.width || 100,
+          height: obj.height || 100
+        }
+      };
+    });
+  }
+
+  // New method using the correct payload structure with create/update logic
+  async saveDesignWithNewFormat(
+    productId: string,
+    variationId: number,
+    designArea: string,
+    canvasData: any,
+    productImageUrl: string,
+    existingClientReferenceId?: string
+  ): Promise<DesignLoadResponse> {
+    try {
+      const userId = await this.getUserId();
+      
+      // Only save to database if user is authenticated
+      if (!userId) {
+        throw new Error('User not authenticated - cannot save to database');
+      }
+
+      const designElements = this.convertCanvasDataToDesignElements(canvasData);
+      
+      // Check if we have an existing design for this area
+      let clientReferenceId = existingClientReferenceId;
+      let isUpdate = false;
+      let existingDesign = null;
+      
+      if (!clientReferenceId) {
+        // Try to find existing design for this user, product, variation, and area
+        existingDesign = await this.findExistingDesign(userId, parseInt(productId), variationId, designArea);
+        if (existingDesign) {
+          clientReferenceId = existingDesign.client_reference_id;
+          // Only set isUpdate to true if we have a valid ID for this specific area
+          isUpdate = existingDesign.id !== undefined;
+          console.log('Found existing design, will', isUpdate ? 'update' : 'create new with shared client_reference_id:', clientReferenceId, 'with ID:', existingDesign.id);
+        } else {
+          // Generate new shared client reference ID for new design based on product+variation
+          clientReferenceId = this.generateSharedClientReferenceId(productId, variationId);
+          console.log('Creating new design with shared client_reference_id:', clientReferenceId);
+        }
+      } else {
+        // We have existing client reference ID, need to find the design to get the database ID
+        existingDesign = await this.findExistingDesign(userId, parseInt(productId), variationId, designArea);
+        if (existingDesign && existingDesign.id !== undefined) {
+          isUpdate = true;
+          console.log('Updating existing design with client_reference_id:', clientReferenceId, 'and ID:', existingDesign.id);
+        } else {
+          console.log('Client reference ID provided but no existing design found for this area, will create new with shared client_reference_id');
+          isUpdate = false;
+        }
+      }
+      
+      const payload: DesignSaveRequest = {
+        user_id: userId,
+        client_reference_id: clientReferenceId,
+        product_id: parseInt(productId),
+        variation_id: variationId,
+        design_area: designArea,
+        canvas_data: {
+          version: '5.3.0',
+          objects: canvasData?.objects || [],
+          background: canvasData?.background || '#FFFFFF',
+          backgroundImage: canvasData?.backgroundImage || {}
+        },
+        design_metadata: {
+          canvas_width: 800,
+          canvas_height: 600,
+          product_image_url: productImageUrl,
+          design_name: `Design for ${designArea}`,
+          is_completed: false
+        },
+        design_elements: designElements
+      };
+
+      console.log(`${isUpdate ? 'Updating' : 'Creating'} design with payload:`, payload);
+
+      const headers = await this.getAuthHeaders();
+      const method = isUpdate ? 'PUT' : 'POST';
+      const url = isUpdate 
+        ? `${API_BASE_URL}/products/users/me/options/${existingDesign?.id}`
+        : `${API_BASE_URL}/products/users/me/options`;
+      
+      console.log(`Making ${method} request to:`, url);
+      
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to ${isUpdate ? 'update' : 'save'} design: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Design ${isUpdate ? 'updated' : 'created'} successfully:`, data);
+      
+      // Return the data with the client_reference_id for future updates
+      return {
+        ...data,
+        client_reference_id: clientReferenceId
+      };
+    } catch (error) {
+      console.error('Error saving design with new format:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to find existing design
+  async findExistingDesign(
+    userId: number,
+    productId: number,
+    variationId: number,
+    designArea: string
+  ): Promise<DesignLoadResponse | null> {
+    try {
+      const headers = await this.getAuthHeaders();
+      
+      // First, try to find the specific design for this area
+      const specificResponse = await fetch(
+        `${API_BASE_URL}/products/${productId}/options?user_id=${userId}&variation_id=${variationId}&design_area=${designArea}`,
+        {
+          headers,
+          cache: 'no-store',
+        }
+      );
+      
+      if (specificResponse.ok) {
+        const specificData = await specificResponse.json();
+        const designs = Array.isArray(specificData) ? specificData : [specificData];
+        const matchingDesign = designs.find((design: any) => 
+          design.user_id === userId &&
+          design.product_id === productId &&
+          design.variation_id === variationId && 
+          design.design_area === designArea
+        );
+        
+        if (matchingDesign) {
+          return matchingDesign;
+        }
+      }
+      
+      // If no specific design found, look for any design with the same product+variation to get shared client_reference_id
+      const generalResponse = await fetch(
+        `${API_BASE_URL}/products/${productId}/options?user_id=${userId}&variation_id=${variationId}`,
+        {
+          headers,
+          cache: 'no-store',
+        }
+      );
+      
+      if (generalResponse.ok) {
+        const generalData = await generalResponse.json();
+        const allDesigns = Array.isArray(generalData) ? generalData : [generalData];
+        const anyMatchingDesign = allDesigns.find((design: any) => 
+          design.user_id === userId &&
+          design.product_id === productId &&
+          design.variation_id === variationId
+        );
+        
+        // Return the first matching design to get the shared client_reference_id
+        // but mark it as not found for this specific area
+        if (anyMatchingDesign) {
+          return {
+            ...anyMatchingDesign,
+            design_area: designArea, // Override to current area
+            id: undefined, // Mark as new for this area
+            _hasSharedClientReferenceId: true // Flag to indicate we have shared client_reference_id
+          };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error finding existing design:', error);
+      return null;
+    }
+  }
+
+  // New method to load designs with the new format
+  async loadDesignWithNewFormat(
+    productId: string,
+    variationId: number,
+    designArea: string
+  ): Promise<DesignLoadResponse | null> {
+    try {
+      const userId = await this.getUserId();
+      
+      // Only load from database if user is authenticated
+      if (!userId) {
+        return null;
+      }
+
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/products/${productId}/options?variation_id=${variationId}&design_area=${designArea}`,
+        {
+          headers,
+          cache: 'no-store',
+        }
+      );
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('No design found for this variation and area');
+          return null;
+        }
+        throw new Error(`Failed to load design: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Find the design that matches our criteria
+      const designs = Array.isArray(data) ? data : [data];
+      const matchingDesign = designs.find((design: any) => 
+        design.variation_id === variationId && 
+        design.design_area === designArea
+      );
+      
+      if (matchingDesign) {
+        console.log('Design loaded successfully:', matchingDesign);
+        return matchingDesign;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error loading design with new format:', error);
+      return null;
+    }
+  }
+
+  async getCustomizationOptions(productId: string): Promise<CustomizationOption[]> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/${productId}/options`, {
+        headers,
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch customization options: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching customization options:', error);
+      throw error;
+    }
+  }
+
+  async getUserCustomizationOptions(): Promise<CustomizationOption[]> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/users/me/options`, {
+        headers,
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user customization options: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching user customization options:', error);
+      throw error;
+    }
+  }
+
+  async createCustomizationOption(
+    productId: string, 
+    option: CreateCustomizationOptionRequest
+  ): Promise<CustomizationOption> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/users/me/options`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(option),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to create customization option: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating customization option:', error);
+      throw error;
+    }
+  }
+
+  async getCustomizationOption(optionId: number): Promise<CustomizationOption> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/options/${optionId}`, {
+        headers,
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch customization option: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching customization option:', error);
+      throw error;
+    }
+  }
+
+  async updateCustomizationOption(
+    optionId: number, 
+    option: UpdateCustomizationOptionRequest
+  ): Promise<CustomizationOption> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/users/me/options/${optionId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(option),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to update customization option: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error updating customization option:', error);
+      throw error;
+    }
+  }
+
+  async deleteCustomizationOption(optionId: number): Promise<void> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/options/${optionId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete customization option: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error deleting customization option:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to find design option by area and variation
+  async findDesignOption(
+    productId: string, 
+    designArea: string, 
+    variationId?: string
+  ): Promise<CustomizationOption | null> {
+    try {
+      const options = await this.getCustomizationOptions(productId);
+      
+      const designOption = options.find(option => 
+        option.option_type === 'design' &&
+        option.option_data?.design_area === designArea &&
+        (option.option_data?.variation_id === variationId || 
+         (!option.option_data?.variation_id && !variationId))
+      );
+      
+      return designOption || null;
+    } catch (error) {
+      console.error('Error finding design option:', error);
+      return null;
+    }
+  }
+
+  // Helper method to save or update design
+  async saveDesign(
+    productId: string,
+    designArea: string,
+    canvasData: any,
+    productImageUrl: string,
+    variationId?: string
+  ): Promise<CustomizationOption> {
+    try {
+      // First, try to find existing design option
+      const existingOption = await this.findDesignOption(productId, designArea, variationId);
+      
+      const optionData = {
+        canvas_data: canvasData,
+        design_area: designArea,
+        variation_id: variationId || 'default',
+        canvas_width: 600,
+        canvas_height: 600,
+        product_image_url: productImageUrl,
+        design_elements: canvasData?.objects || [],
+        metadata: {
+          created_at: existingOption?.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          design_name: `Design for ${designArea}`,
+          is_completed: false
+        }
+      };
+
+      if (existingOption) {
+        // Update existing option
+        return await this.updateCustomizationOption(existingOption.id!, {
+          id: existingOption.id!,
+          option_type: 'design',
+          option_name: `Design - ${designArea} - ${variationId || 'default'}`,
+          option_data: optionData,
+          is_active: true
+        });
+      } else {
+        // Create new option
+        return await this.createCustomizationOption(productId, {
+          option_type: 'design',
+          option_name: `Design - ${designArea} - ${variationId || 'default'}`,
+          option_data: optionData,
+          is_active: true
+        });
+      }
+    } catch (error) {
+      console.error('Error saving design to database:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to load design
+  async loadDesign(
+    productId: string,
+    designArea: string,
+    variationId?: string
+  ): Promise<any | null> {
+    try {
+      const designOption = await this.findDesignOption(productId, designArea, variationId);
+      
+      if (designOption && designOption.option_data?.canvas_data) {
+        return {
+          design_id: designOption.id?.toString() || '',
+          user_id: undefined, // Will be set by backend
+          product_id: parseInt(productId),
+          variation_id: variationId ? parseInt(variationId) : undefined,
+          design_area: designArea,
+          canvas_data: designOption.option_data.canvas_data,
+          design_metadata: {
+            canvas_width: designOption.option_data.canvas_width || 600,
+            canvas_height: designOption.option_data.canvas_height || 600,
+            product_image_url: designOption.option_data.product_image_url || '',
+            created_at: designOption.created_at || new Date().toISOString(),
+            updated_at: designOption.updated_at || new Date().toISOString(),
+            design_name: designOption.option_data.metadata?.design_name || `Design for ${designArea}`,
+            is_completed: designOption.option_data.metadata?.is_completed || false
+          },
+          design_elements: designOption.option_data.design_elements || []
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error loading design from database:', error);
+      return null;
+    }
+  }
+
+  // Helper method to get customization options by client_reference_id
+  async getCustomizationOptionsByClientReferenceId(clientReferenceId: string): Promise<CustomizationOption[]> {
+    try {
+      const allOptions = await this.getUserCustomizationOptions();
+      return allOptions.filter(option => option.client_reference_id === clientReferenceId);
+    } catch (error) {
+      console.error('Error getting customization options by client reference ID:', error);
+      return [];
+    }
+  }
+}
+
+export const designApi = new DesignApiService();

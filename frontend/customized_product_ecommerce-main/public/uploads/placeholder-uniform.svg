@@ -1,0 +1,7 @@
+<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="400" fill="#f3f4f6"/>
+  <rect x="50" y="50" width="300" height="300" fill="#e5e7eb" stroke="#d1d5db" stroke-width="2"/>
+  <text x="200" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#6b7280">School Uniform</text>
+  <text x="200" y="200" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#9ca3af">Product Image</text>
+  <text x="200" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">Coming Soon</text>
+</svg>

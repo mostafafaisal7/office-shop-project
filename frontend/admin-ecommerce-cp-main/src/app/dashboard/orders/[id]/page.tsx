@@ -1,0 +1,687 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  Card,
+  Row,
+  Col,
+  Typography,
+  Tag,
+  Button,
+  Space,
+  Descriptions,
+  Table,
+  Modal,
+  Input,
+  Select,
+  message,
+  Spin,
+  Alert,
+  Divider,
+  Avatar,
+  Timeline,
+  Statistic
+} from 'antd';
+import {
+  ArrowLeftOutlined,
+  EditOutlined,
+  DownloadOutlined,
+  TruckOutlined,
+  UserOutlined,
+  ShoppingCartOutlined,
+  DollarOutlined,
+  ClockCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  PrinterOutlined
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import { OrderDetailRead, OrderStatus, OrderItemDetailRead } from '@/types/order';
+import { orderService } from '../../../../services/order';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+
+const statusColors: Record<OrderStatus, string> = {
+  pending: 'orange',
+  paid: 'blue',
+  shipped: 'purple',
+  delivered: 'green',
+  cancelled: 'red',
+};
+
+const statusIcons: Record<OrderStatus, React.ReactNode> = {
+  pending: <ClockCircleOutlined />,
+  paid: <DollarOutlined />,
+  shipped: <TruckOutlined />,
+  delivered: <CheckCircleOutlined />,
+  cancelled: <CloseCircleOutlined />,
+};
+
+export default function OrderDetailsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const orderId = params.id as string;
+
+  const [order, setOrder] = useState<OrderDetailRead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [newStatus, setNewStatus] = useState<OrderStatus>('pending');
+  const [trackingInfo, setTrackingInfo] = useState('');
+  const [statusNotes, setStatusNotes] = useState('');
+
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [orderId]);
+
+  const fetchOrderDetails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const orderData = await orderService.getOrderById(orderId);
+      setOrder(orderData);
+      setNewStatus(orderData.status);
+      setTrackingInfo(orderData.tracking_info || '');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to fetch order details';
+      setError(errorMessage);
+      message.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!order) return;
+    
+    try {
+      await orderService.updateOrderStatus(order.id, { status: newStatus, notes: statusNotes });
+      message.success(`Order status updated to ${newStatus}`);
+      setStatusModalVisible(false);
+      setStatusNotes('');
+      await fetchOrderDetails();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to update order status';
+      message.error(errorMessage);
+    }
+  };
+
+  const handleTrackingUpdate = async () => {
+    if (!order) return;
+    
+    try {
+      await orderService.updateOrderTracking(order.id, { tracking_info: trackingInfo, notes: statusNotes });
+      message.success('Order tracking updated successfully');
+      setTrackingModalVisible(false);
+      setStatusNotes('');
+      await fetchOrderDetails();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to update order tracking';
+      message.error(errorMessage);
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!order) return;
+    
+    try {
+      const blob = await orderService.downloadInvoice(order.id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${order.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Invoice downloaded successfully');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to download invoice';
+      message.error(errorMessage);
+    }
+  };
+
+  const itemColumns: ColumnsType<OrderItemDetailRead> = [
+    {
+      title: 'Product',
+      key: 'product',
+      render: (_, record) => (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          {/* Product Image */}
+          {record.variation_details?.media?.[0] && (
+            <Avatar
+              size={64}
+              shape="square"
+              src={record.variation_details.media[0].file_path}
+              alt={record.variation_details.media[0].alt_text || record.product_name}
+            />
+          )}
+          <div style={{ flex: 1 }}>
+            <Text strong>{record.product_name}</Text>
+            {record.variation_details && (
+              <div>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Variation: {record.variation_details.name}
+                </Text>
+              </div>
+            )}
+            {record.variation_details?.sku && (
+              <div>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  SKU: {record.variation_details.sku}
+                </Text>
+              </div>
+            )}
+            {record.variation_details?.attributes && (
+              <div style={{ marginTop: 4 }}>
+                {Object.entries(record.variation_details.attributes).map(([key, value]) => (
+                  <Tag key={key} style={{ marginBottom: 2, fontSize: '11px' }}>
+                    {key}: {value}
+                  </Tag>
+                ))}
+              </div>
+            )}
+            {record.customization_option_id && (
+              <div>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Customization ID: {record.customization_option_id}
+                </Text>
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Stock Info',
+      key: 'stock',
+      width: 120,
+      render: (_, record) => (
+        <div>
+          {record.variation_details && (
+            <>
+              <div>
+                <Text style={{ fontSize: '12px' }}>
+                  Stock: {record.variation_details.stock_quantity}
+                </Text>
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: '11px' }}>
+                  Low: {record.variation_details.low_stock_threshold}
+                </Text>
+              </div>
+            </>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Quantity',
+      dataIndex: 'quantity',
+      key: 'quantity',
+      width: 80,
+      render: (quantity: number) => (
+        <Text strong>{quantity}</Text>
+      ),
+    },
+    {
+      title: 'Price',
+      key: 'price',
+      width: 140,
+      render: (_, record) => (
+        <div>
+          <div>
+            <Text strong>${record.unit_price.toFixed(2)}</Text>
+          </div>
+          {record.variation_details?.price && parseFloat(record.variation_details.price) !== record.unit_price && (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px', textDecoration: 'line-through' }}>
+                ${parseFloat(record.variation_details.price).toFixed(2)}
+              </Text>
+            </div>
+          )}
+          {record.discount_amount && (
+            <div>
+              <Text type="success" style={{ fontSize: '11px' }}>
+                -{record.discount_type === 'percentage' ? `${record.discount_percentage}%` : `$${record.discount_amount}`}
+              </Text>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Total',
+      key: 'total',
+      width: 120,
+      render: (_, record) => (
+        <Text strong>${(record.quantity * record.unit_price).toFixed(2)}</Text>
+      ),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => router.back()}
+          style={{ marginBottom: 16 }}
+        >
+          Back to Orders
+        </Button>
+        <Alert
+          message="Error"
+          description={error || 'Order not found'}
+          type="error"
+          showIcon
+        />
+      </div>
+    );
+  }
+
+  const orderTimeline = [
+    {
+      color: 'green',
+      children: (
+        <div>
+          <Text strong>Order Created</Text>
+          <br />
+          <Text type="secondary">{dayjs(order.created_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+        </div>
+      ),
+    },
+    ...(order.status !== 'pending' ? [{
+      color: statusColors[order.status],
+      children: (
+        <div>
+          <Text strong>Status: {order.status.toUpperCase()}</Text>
+          <br />
+          <Text type="secondary">{order.updated_at ? dayjs(order.updated_at).format('YYYY-MM-DD HH:mm:ss') : 'N/A'}</Text>
+        </div>
+      ),
+    }] : []),
+    ...(order.tracking_info ? [{
+      color: 'blue',
+      children: (
+        <div>
+          <Text strong>Tracking Added</Text>
+          <br />
+          <Text type="secondary">{order.tracking_info}</Text>
+        </div>
+      ),
+    }] : []),
+  ];
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <Space>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => router.back()}
+          >
+            Back to Orders
+          </Button>
+          <Title level={2} style={{ margin: 0 }}>
+            Order #{order.id.slice(-8)}
+          </Title>
+          <Tag
+            color={statusColors[order.status]}
+            icon={statusIcons[order.status]}
+            style={{ fontSize: '14px', padding: '4px 12px' }}
+          >
+            {order.status.toUpperCase()}
+          </Tag>
+        </Space>
+      </div>
+
+      {/* Action Buttons */}
+      <Card style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={() => setStatusModalVisible(true)}
+          >
+            Update Status
+          </Button>
+          <Button
+            icon={<TruckOutlined />}
+            onClick={() => setTrackingModalVisible(true)}
+          >
+            Update Tracking
+          </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handleDownloadInvoice}
+          >
+            Download Invoice
+          </Button>
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={() => window.print()}
+          >
+            Print
+          </Button>
+        </Space>
+      </Card>
+
+      <Row gutter={16}>
+        {/* Order Summary */}
+        <Col xs={24} lg={16}>
+          <Card title="Order Summary" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={8}>
+                <Statistic
+                  title="Total Amount"
+                  value={order.total_price}
+                  prefix={<DollarOutlined />}
+                  precision={2}
+                  valueStyle={{ color: '#1890ff' }}
+                />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic
+                  title="Items Count"
+                  value={order.items.length}
+                  prefix={<ShoppingCartOutlined />}
+                />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic
+                  title="Order Date"
+                  value={dayjs(order.created_at).format('MMM DD, YYYY')}
+                  prefix={<ClockCircleOutlined />}
+                />
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Order Items */}
+          <Card title="Order Items">
+            <Table
+              columns={itemColumns}
+              dataSource={order.items}
+              rowKey="id"
+              pagination={false}
+              summary={(pageData) => {
+                const total = pageData.reduce(
+                  (sum, record) => sum + record.quantity * record.unit_price,
+                  0
+                );
+                return (
+                  <Table.Summary.Row>
+                    <Table.Summary.Cell index={0} colSpan={4}>
+                      <Text strong>Subtotal</Text>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={1}>
+                      <Text strong>${order.subtotal.toFixed(2)}</Text>
+                    </Table.Summary.Cell>
+                  </Table.Summary.Row>
+                );
+              }}
+            />
+          </Card>
+
+          {/* Order Breakdown */}
+          <Card title="Order Breakdown" style={{ marginTop: 16 }}>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Subtotal">
+                <Text strong>${order.subtotal.toFixed(2)}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Shipping Cost">
+                <Text strong>${order.shipping_cost.toFixed(2)}</Text>
+              </Descriptions.Item>
+              {order.estimated_delivery_days && (
+                <Descriptions.Item label="Estimated Delivery">
+                  <Text>{order.estimated_delivery_days} days</Text>
+                </Descriptions.Item>
+              )}
+              <Descriptions.Item label="Total">
+                <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                  ${order.total_price.toFixed(2)}
+                </Text>
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          {/* Shipping Cost Breakdown */}
+          {order.shipping_cost_breakdown && (
+            <Card title="Shipping Cost Details" style={{ marginTop: 16 }}>
+              <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
+                <Descriptions.Item label="Total Shipping Cost">
+                  <Text strong>${order.shipping_cost_breakdown.total_cost.toFixed(2)}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Delivery Days">
+                  <Text>{order.shipping_cost_breakdown.delivery_days} days</Text>
+                </Descriptions.Item>
+              </Descriptions>
+              
+              {order.shipping_cost_breakdown.product_breakdown && order.shipping_cost_breakdown.product_breakdown.length > 0 && (
+                <div>
+                  <Title level={5}>Product-specific Shipping Rules</Title>
+                  {order.shipping_cost_breakdown.product_breakdown.map((breakdown, index) => (
+                    <Card key={index} size="small" style={{ marginBottom: 8 }}>
+                      <Descriptions column={2} size="small">
+                        <Descriptions.Item label="Product ID">
+                          {breakdown.product_id}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Quantity">
+                          {breakdown.quantity}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Base Cost">
+                          ${breakdown.base_cost.toFixed(2)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Final Cost">
+                          <Text strong>${breakdown.final_cost.toFixed(2)}</Text>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Rule Source">
+                          <Tag color="blue">{breakdown.rule_source}</Tag>
+                        </Descriptions.Item>
+                      </Descriptions>
+                      
+                      {breakdown.applied_rules && breakdown.applied_rules.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <Text strong style={{ fontSize: '12px' }}>Applied Rules:</Text>
+                          {breakdown.applied_rules.map((rule, ruleIndex) => (
+                            <div key={ruleIndex} style={{ marginLeft: 16, marginTop: 4 }}>
+                              <Text style={{ fontSize: '11px' }}>
+                                Rule #{rule.rule_id}: {rule.min_quantity}-{rule.max_quantity} qty, 
+                                {rule.adjustment_type === 'per_item' ? ' per item' : ''} 
+                                adjustment: {rule.cost_adjustment > 0 ? '+' : ''}${rule.cost_adjustment.toFixed(2)}
+                                (Total: {rule.total_adjustment > 0 ? '+' : ''}${rule.total_adjustment.toFixed(2)})
+                              </Text>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+        </Col>
+
+        {/* Order Details Sidebar */}
+        <Col xs={24} lg={8}>
+          {/* Customer Information */}
+          <Card title="Customer Information" style={{ marginBottom: 16 }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} />
+                <div>
+                  <div>
+                    <Text strong>
+                      {order.user_name || (order.user_id ? `User #${order.user_id}` : 'Guest')}
+                    </Text>
+                  </div>
+                  {order.user_email && (
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {order.user_email}
+                      </Text>
+                    </div>
+                  )}
+                  {order.guest_id && (
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Guest ID: {order.guest_id}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Space>
+          </Card>
+
+          {/* Shipping Address */}
+          {order.shipping_address && (
+            <Card title="Shipping Address" style={{ marginBottom: 16 }}>
+              <div>
+                <Text>{order.shipping_address.name}</Text>
+                <br />
+                <Text type="secondary">
+                  {order.shipping_address.address_line_1}
+                  {order.shipping_address.address_line_2 && (
+                    <>, {order.shipping_address.address_line_2}</>
+                  )}
+                  <br />
+                  {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
+                  <br />
+                  {order.shipping_address.country}
+                </Text>
+                {order.shipping_address.phone && (
+                  <>
+                    <br />
+                    <Text type="secondary">Phone: {order.shipping_address.phone}</Text>
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Payment Method */}
+          {order.payment_method && (
+            <Card title="Payment Method" style={{ marginBottom: 16 }}>
+              <Text>{order.payment_method.name}</Text>
+              <br />
+              <Text type="secondary">{order.payment_method.type}</Text>
+            </Card>
+          )}
+
+          {/* Order Timeline */}
+          <Card title="Order Timeline">
+            <Timeline items={orderTimeline} />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Status Update Modal */}
+      <Modal
+        title="Update Order Status"
+        open={statusModalVisible}
+        onOk={handleStatusUpdate}
+        onCancel={() => {
+          setStatusModalVisible(false);
+          setStatusNotes('');
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>
+            <Text strong>Order ID: </Text>
+            <Text code>#{order.id.slice(-8)}</Text>
+          </div>
+          <div>
+            <Text strong>Current Status: </Text>
+            <Tag color={statusColors[order.status]}>
+              {order.status.toUpperCase()}
+            </Tag>
+          </div>
+          <div>
+            <Text strong>New Status:</Text>
+            <Select
+              value={newStatus}
+              onChange={setNewStatus}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <Option value="pending">Pending</Option>
+              <Option value="paid">Paid</Option>
+              <Option value="shipped">Shipped</Option>
+              <Option value="delivered">Delivered</Option>
+              <Option value="cancelled">Cancelled</Option>
+            </Select>
+          </div>
+          <div>
+            <Text strong>Notes (Optional):</Text>
+            <Input.TextArea
+              value={statusNotes}
+              onChange={(e) => setStatusNotes(e.target.value)}
+              placeholder="Add notes about this status change..."
+              rows={3}
+              style={{ marginTop: 8 }}
+            />
+          </div>
+        </Space>
+      </Modal>
+
+      {/* Tracking Update Modal */}
+      <Modal
+        title="Update Order Tracking"
+        open={trackingModalVisible}
+        onOk={handleTrackingUpdate}
+        onCancel={() => {
+          setTrackingModalVisible(false);
+          setStatusNotes('');
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>
+            <Text strong>Order ID: </Text>
+            <Text code>#{order.id.slice(-8)}</Text>
+          </div>
+          <div>
+            <Text strong>Current Tracking: </Text>
+            <Text>{order.tracking_info || 'No tracking info'}</Text>
+          </div>
+          <div>
+            <Text strong>Tracking Information:</Text>
+            <Input
+              value={trackingInfo}
+              onChange={(e) => setTrackingInfo(e.target.value)}
+              placeholder="Enter tracking number or URL..."
+              style={{ marginTop: 8 }}
+            />
+          </div>
+          <div>
+            <Text strong>Notes (Optional):</Text>
+            <Input.TextArea
+              value={statusNotes}
+              onChange={(e) => setStatusNotes(e.target.value)}
+              placeholder="Add notes about this tracking update..."
+              rows={3}
+              style={{ marginTop: 8 }}
+            />
+          </div>
+        </Space>
+      </Modal>
+    </div>
+  );
+}

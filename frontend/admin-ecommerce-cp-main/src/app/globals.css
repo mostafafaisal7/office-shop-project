@@ -1,0 +1,294 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom CSS Variables for Theme */
+:root {
+  --sidebar-width: 256px;
+  --header-height: 64px;
+  --primary-color: #1890ff;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --error-color: #ff4d4f;
+  --info-color: #1890ff;
+}
+
+/* Dark theme variables */
+[data-theme="dark"] {
+  --primary-color: #177ddc;
+  --success-color: #49aa19;
+  --warning-color: #d89614;
+  --error-color: #dc4446;
+  --info-color: #177ddc;
+}
+
+/* Global styles */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Dark theme scrollbar */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #2f2f2f;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #555;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Layout styles */
+.admin-layout {
+  min-height: 100vh;
+  display: flex;
+}
+
+.admin-sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  transition: all 0.2s;
+}
+
+.admin-sidebar.collapsed {
+  width: 80px;
+}
+
+.admin-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  transition: all 0.2s;
+}
+
+.admin-content.sidebar-collapsed {
+  margin-left: 80px;
+}
+
+.admin-header {
+  height: var(--header-height);
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  background: #001529;
+  border-bottom: 1px solid #303030;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-theme="dark"] .admin-header {
+  background: #001529;
+  border-bottom-color: #303030;
+}
+
+/* Header text colors for theme support - same light colors for both themes */
+.header-user-name {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.header-user-role {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+[data-theme="dark"] .header-user-name {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+[data-theme="dark"] .header-user-role {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* Header icons - same light colors for both themes */
+.header-icon {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+[data-theme="dark"] .header-icon {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.admin-main {
+  padding: 24px;
+  min-height: calc(100vh - var(--header-height));
+}
+
+/* Custom Ant Design overrides */
+.ant-layout-sider-trigger {
+  position: fixed !important;
+  bottom: 0;
+  z-index: 1001;
+  width: var(--sidebar-width) !important;
+  transition: all 0.2s;
+}
+
+.ant-layout-sider-collapsed .ant-layout-sider-trigger {
+  width: 80px !important;
+}
+
+/* Table responsive */
+.ant-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Card shadows */
+.ant-card {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+/* Status tags */
+.status-tag {
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Loading states */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.loading-container.full-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 100vh;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 9999;
+}
+
+[data-theme="dark"] .loading-container.full-screen {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* Form styles */
+.form-section {
+  margin-bottom: 24px;
+}
+
+.form-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+[data-theme="dark"] .form-section-title {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Statistics cards */
+.stats-card {
+  text-align: center;
+  padding: 24px;
+}
+
+.stats-card .stats-number {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stats-card .stats-label {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+[data-theme="dark"] .stats-card .stats-label {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.mb-24 {
+  margin-bottom: 24px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mt-24 {
+  margin-top: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    transform: translateX(-100%);
+  }
+  
+  .admin-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .admin-content {
+    margin-left: 0;
+  }
+  
+  .admin-main {
+    padding: 16px;
+  }
+}
