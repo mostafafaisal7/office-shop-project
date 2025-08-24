@@ -1,50 +1,23 @@
 # Token and LoginRequest schemas
-from pydantic import BaseModel, EmailStr, model_validator, Field, field_validator, ValidationInfo,constr  
-from typing import Optional,Annotated
-
-# class RegisterRequest(BaseModel):
-#     name: str
-#     email: EmailStr
-#     # phone: str
-#     phone: Optional[str] = '' # UPDATE FAYSAL
-#     password: str
-#     confirm_password: str
-
-#     @model_validator(mode="after")
-#     def check_passwords_match(self):
-#         if self.password != self.confirm_password:
-#             raise ValueError("Passwords do not match")
-#         return self
+from pydantic import BaseModel, EmailStr, model_validator, Field, field_validator, ValidationInfo
+from typing import Optional
 
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
-    phone: Annotated[
-        str,
-        Field(
-            min_length=11,
-            max_length=14,
-            pattern=r'^(?:\+8801|01)[3-9]\d{8}$'
-        )
-    ]
+    # phone: str
+    phone: Optional[str] = None # UPDATE FAYSAL
     password: str
-    confirm_password: str  # <-- must exist if you validate it
+    confirm_password: str
 
     @model_validator(mode="after")
     def check_passwords_match(self):
         if self.password != self.confirm_password:
             raise ValueError("Passwords do not match")
         return self
-
-
     
-# class LoginRequest(BaseModel):
-#     email: str
-#     password: str
-
 class LoginRequest(BaseModel):
-    email: Optional[str] = None # ✅ added email by fasal
-    phone: Optional[str] = None
+    email: str
     password: str
     
 class TokenResponse(BaseModel):
@@ -75,8 +48,3 @@ class PasswordResetConfirm(BaseModel):
         if new_password and v != new_password:
             raise ValueError("Passwords do not match")
         return v
-
-
-class OtpVerifyRequest(BaseModel):
-    userId: int
-    otp: str
