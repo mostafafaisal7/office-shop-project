@@ -11,8 +11,9 @@ const { Title, Text } = Typography;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAuth();
+  const { login, verifyOtp, isAuthenticated, isLoading, error, clearError, otpRequired } = useAuth();
   const [form] = Form.useForm();
+  const [otpForm] = Form.useForm();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -28,10 +29,21 @@ export default function LoginPage() {
   const handleSubmit = async (values: LoginRequest) => {
     try {
       await login(values);
-      router.push('/dashboard');
+      if (!otpRequired) {
+        router.push('/dashboard');
+      }
     } catch (error) {
       // Error is handled by the auth store
       console.error('Login failed:', error);
+    }
+  };
+
+  const handleOtpSubmit = async (values: { otp: string }) => {
+    try {
+      await verifyOtp(values.otp);
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('OTP verification failed:', error);
     }
   };
 
@@ -76,55 +88,97 @@ export default function LoginPage() {
           />
         )}
 
-        <Form
-          form={form}
-          name="login"
-          onFinish={handleSubmit}
-          layout="vertical"
-          size="large"
-        >
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, message: 'Please input your email!' },
-              { type: 'email', message: 'Please enter a valid email!' }
-            ]}
+        {!otpRequired ? (
+          <Form
+            form={form}
+            name="login"
+            onFinish={handleSubmit}
+            layout="vertical"
+            size="large"
           >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="Enter your email"
-              autoComplete="email"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            label="Password"
-            rules={[
-              { required: true, message: 'Please input your password!' },
-              { min: 6, message: 'Password must be at least 6 characters!' }
-            ]}
-          >
-            <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isLoading}
-              block
-              icon={<LoginOutlined />}
+            <Form.Item
+              name="email"
+              label="Email"
+              rules={[
+                { required: true, message: 'Please input your email!' },
+                { type: 'email', message: 'Please enter a valid email!' }
+              ]}
             >
-              Sign In
-            </Button>
-          </Form.Item>
-        </Form>
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="Enter your email"
+                autoComplete="email"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              label="Password"
+              rules={[
+                { required: true, message: 'Please input your password!' },
+                { min: 6, message: 'Password must be at least 6 characters!' }
+              ]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+              />
+            </Form.Item>
+
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={isLoading}
+                block
+                icon={<LoginOutlined />}
+              >
+                Sign In
+              </Button>
+            </Form.Item>
+          </Form>
+        ) : (
+          <Form
+            form={otpForm}
+            name="otp"
+            onFinish={handleOtpSubmit}
+            layout="vertical"
+            size="large"
+          >
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <Text type="secondary">
+                We've sent an OTP to your registered email/phone. Please enter it below to complete your login.
+              </Text>
+            </div>
+
+            <Form.Item
+              name="otp"
+              label="Enter OTP"
+              rules={[
+                { required: true, message: 'Please input the OTP!' },
+                { len: 6, message: 'OTP must be 6 digits!' }
+              ]}
+            >
+              <Input
+                placeholder="Enter 6-digit OTP"
+                maxLength={6}
+                style={{ textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
+              />
+            </Form.Item>
+
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={isLoading}
+                block
+              >
+                Verify OTP
+              </Button>
+            </Form.Item>
+          </Form>
+        )}
 
         <div style={{ textAlign: 'center', marginTop: 24 }}>
           <Space direction="vertical" size="small">

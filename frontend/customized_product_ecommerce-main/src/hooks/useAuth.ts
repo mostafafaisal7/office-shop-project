@@ -1,8 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, LoginRequest } from '@/types/auth';
-import { authService } from '@/services/auth';
-import { LOCAL_STORAGE_KEYS } from '@/utils/constants';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isEmailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LoginRequest {
+  email?: string;
+  phone?: string;
+  password: string;
+}
 
 interface AuthState {
   user: User | null;
@@ -24,6 +37,75 @@ interface AuthActions {
 
 type AuthStore = AuthState & AuthActions;
 
+// Customer auth service
+const customerAuthService = {
+  async login(credentials: LoginRequest) {
+    const response = await fetch('http://127.0.0.1:8000/auth/customer/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Login failed');
+    }
+    
+    return response.json();
+  },
+
+  async verifyOtp(userId: number, otp: string) {
+    const response = await fetch('http://127.0.0.1:8000/auth/customer/login/verify-otp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, otp }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'OTP verification failed');
+    }
+    
+    return response.json();
+  },
+
+  async logout() {
+    const token = localStorage.getItem('customer_access_token');
+    if (token) {
+      await fetch('http://127.0.0.1:8000/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    }
+  },
+
+  async getProfile() {
+    const token = localStorage.getItem('customer_access_token');
+    if (!token) {
+      throw new Error('No access token');
+    }
+
+    const response = await fetch('http://127.0.0.1:8000/users/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get profile');
+    }
+    
+    return response.json();
+  }
+};
+
 export const useAuth = create<AuthStore>()(
   persist(
     (set, get) => ({
@@ -40,32 +122,26 @@ export const useAuth = create<AuthStore>()(
         try {
           set({ isLoading: true, error: null, otpRequired: false, userId: null });
           
-          const response = await authService.login(credentials);
+          const response = await customerAuthService.login(credentials);
           
           // Check if OTP is required
-          if ((response.data as any)?.data?.otpRequired) {
+          if (response.data?.otpRequired) {
             set({
               isLoading: false,
               otpRequired: true,
-              userId: (response.data as any).data.userId,
+              userId: response.data.userId,
               error: null,
             });
             return;
           }
           
           // Handle direct token response (fallback)
-          let loginData: any = null;
-          if (response.data?.data) {
-            loginData = response.data.data;
-          } else if (response.data && 'access_token' in response.data) {
-            loginData = response.data;
-          }
-          
-          if (loginData && loginData.access_token) {
-            const { access_token, refresh_token, user } = loginData;
+          if (response.tokens) {
+            const { accessToken, refreshToken } = response.tokens;
+            const user = response.user;
             
-            localStorage.setItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN, access_token);
-            localStorage.setItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN, refresh_token);
+            localStorage.setItem('customer_access_token', accessToken);
+            localStorage.setItem('customer_refresh_token', refreshToken);
             
             set({
               user,
@@ -80,11 +156,7 @@ export const useAuth = create<AuthStore>()(
           console.error('Login error:', error);
           let errorMessage = 'Login failed';
           
-          if (error.response?.data?.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.response?.data?.detail) {
-            errorMessage = error.response.data.detail;
-          } else if (error.message) {
+          if (error.message) {
             errorMessage = error.message;
           }
           
@@ -109,14 +181,14 @@ export const useAuth = create<AuthStore>()(
 
           set({ isLoading: true, error: null });
           
-          const response = await authService.verifyOtp(userId, otp);
+          const response = await customerAuthService.verifyOtp(userId, otp);
           
-          if ((response.data as any)?.tokens) {
-            const { accessToken, refreshToken } = (response.data as any).tokens;
-            const user = (response.data as any).user;
+          if (response.tokens) {
+            const { accessToken, refreshToken } = response.tokens;
+            const user = response.user;
             
-            localStorage.setItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN, accessToken);
-            localStorage.setItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+            localStorage.setItem('customer_access_token', accessToken);
+            localStorage.setItem('customer_refresh_token', refreshToken);
             
             set({
               user,
@@ -133,11 +205,7 @@ export const useAuth = create<AuthStore>()(
           console.error('OTP verification error:', error);
           let errorMessage = 'OTP verification failed';
           
-          if (error.response?.data?.detail) {
-            errorMessage = error.response.data.detail;
-          } else if (error.response?.data?.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.message) {
+          if (error.message) {
             errorMessage = error.message;
           }
           
@@ -151,18 +219,20 @@ export const useAuth = create<AuthStore>()(
 
       logout: async () => {
         try {
-          await authService.logout();
+          await customerAuthService.logout();
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
           // Clear tokens from localStorage
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN);
+          localStorage.removeItem('customer_access_token');
+          localStorage.removeItem('customer_refresh_token');
           
           set({
             user: null,
             isAuthenticated: false,
             error: null,
+            otpRequired: false,
+            userId: null,
           });
         }
       },
@@ -171,22 +241,11 @@ export const useAuth = create<AuthStore>()(
         try {
           set({ isLoading: true });
           
-          const response = await authService.getProfile();
+          const response = await customerAuthService.getProfile();
           
-          
-          // Handle both possible response structures for getProfile
-          let userData: any = null;
-          if (response.data?.data) {
-            // Nested structure: response.data.data
-            userData = response.data.data;
-          } else if (response.data && 'id' in response.data) {
-            // Direct structure: response.data (check if it has user properties)
-            userData = response.data;
-          }
-          
-          if (userData && userData.id) {
+          if (response.data && response.data.id) {
             set({
-              user: userData,
+              user: response.data,
               isAuthenticated: true,
               isLoading: false,
             });
@@ -197,9 +256,9 @@ export const useAuth = create<AuthStore>()(
           console.error('Get profile error:', error);
           
           // If unauthorized, clear auth data
-          if (error.response?.status === 401) {
-            localStorage.removeItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
-            localStorage.removeItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN);
+          if (error.message.includes('401') || error.message.includes('unauthorized')) {
+            localStorage.removeItem('customer_access_token');
+            localStorage.removeItem('customer_refresh_token');
             
             set({
               user: null,
@@ -217,7 +276,7 @@ export const useAuth = create<AuthStore>()(
       setLoading: (loading: boolean) => set({ isLoading: loading }),
     }),
     {
-      name: 'admin-auth-storage',
+      name: 'customer-auth-storage',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
@@ -228,7 +287,7 @@ export const useAuth = create<AuthStore>()(
 
 // Initialize auth state on app start
 export const initializeAuth = async () => {
-  const token = localStorage.getItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+  const token = localStorage.getItem('customer_access_token');
   
   if (token) {
     try {

@@ -19,6 +19,7 @@ from app.common.user_repo import get_user_by_id, get_user_by_email, construct_us
 from app.common.email_templates import password_reset_email, verification_email
 from app.common.email_utils import send_email
 from app.common.otp_utils import create_otp
+from app.common.sms_utils import send_sms
 from app.users.models import User
 from sqlalchemy import select
 
@@ -467,8 +468,10 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
             html_content=f"Hello {user.name}, your login OTP is <b>{otp}</b>"
         )
     else:
-        # For phone login, we'll print the OTP to console for now
-        print(f"SMS OTP for {user.phone}: {otp}")
+        # Send SMS OTP using GreenWeb API
+        sms_sent = send_sms(user.phone, f"Hello {user.name}, your login OTP is {otp}")
+        if not sms_sent:
+            print(f"Failed to send SMS to {user.phone}, OTP: {otp}")
 
     # Return consistent response format expected by frontend
     response_data = {
@@ -696,6 +699,252 @@ async def confirm_password_reset(data: PasswordResetConfirm, db: AsyncSession = 
     return {"detail": "Password reset successful"}
 
 
+# -------------------------------
+# SEPARATE ADMIN AND CUSTOMER LOGIN ENDPOINTS
+# -------------------------------
+
+@router.post("/admin/login")
+async def admin_login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """Admin-specific login endpoint - only allows admin users"""
+    user = None
+    method = None
+
+    if data.email:
+        user = await get_user_by_email(db, data.email)
+        method = "email"
+    elif data.phone:
+        user = await get_user_by_phone(db, data.phone)
+        method = "phone"
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Email or phone is required", "data": {}}
+        )
+
+    if not user or not Hasher.verify_password(data.password, user.hashed_password):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"success": False, "message": "Invalid credentials", "data": {}}
+        )
+
+    # Check if user is admin
+    if user.role != "admin":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": "Access denied. Admin privileges required.", "data": {}}
+        )
+
+    if method == "email" and not user.is_verified:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": "Email not verified", "data": {}}
+        )
+
+    # Generate OTP
+    otp = await create_otp(db, user.id, method)
+    if method == "email":
+        send_email(
+            to_email=user.email,
+            subject="Admin Login OTP",
+            html_content=f"Hello {user.name}, your admin login OTP is <b>{otp}</b>"
+        )
+    else:
+        sms_sent = send_sms(user.phone, f"Hello {user.name}, your admin login OTP is {otp}")
+        if not sms_sent:
+            print(f"Failed to send SMS to {user.phone}, OTP: {otp}")
+
+    response_data = {
+        "success": True,
+        "message": f"Admin OTP sent via {method}. Please verify to complete login.",
+        "data": {
+            "otpRequired": True,
+            "userId": user.id,
+            "userType": "admin",
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "isEmailVerified": user.is_verified,
+                "createdAt": user.created_at.isoformat(),
+                "updatedAt": user.updated_at.isoformat()
+            }
+        }
+    }
+
+    print("ADMIN LOGIN RESPONSE:", response_data)
+    return JSONResponse(status_code=200, content=response_data)
+
+
+@router.post("/customer/login")
+async def customer_login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """Customer-specific login endpoint - only allows customer users"""
+    user = None
+    method = None
+
+    if data.email:
+        user = await get_user_by_email(db, data.email)
+        method = "email"
+    elif data.phone:
+        user = await get_user_by_phone(db, data.phone)
+        method = "phone"
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Email or phone is required", "data": {}}
+        )
+
+    if not user or not Hasher.verify_password(data.password, user.hashed_password):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"success": False, "message": "Invalid credentials", "data": {}}
+        )
+
+    # Check if user is customer
+    if user.role != "customer":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": "Access denied. Customer account required.", "data": {}}
+        )
+
+    if method == "email" and not user.is_verified:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": "Email not verified", "data": {}}
+        )
+
+    # Generate OTP
+    otp = await create_otp(db, user.id, method)
+    if method == "email":
+        send_email(
+            to_email=user.email,
+            subject="Customer Login OTP",
+            html_content=f"Hello {user.name}, your login OTP is <b>{otp}</b>"
+        )
+    else:
+        sms_sent = send_sms(user.phone, f"Hello {user.name}, your login OTP is {otp}")
+        if not sms_sent:
+            print(f"Failed to send SMS to {user.phone}, OTP: {otp}")
+
+    response_data = {
+        "success": True,
+        "message": f"Customer OTP sent via {method}. Please verify to complete login.",
+        "data": {
+            "otpRequired": True,
+            "userId": user.id,
+            "userType": "customer",
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "isEmailVerified": user.is_verified,
+                "createdAt": user.created_at.isoformat(),
+                "updatedAt": user.updated_at.isoformat()
+            }
+        }
+    }
+
+    print("CUSTOMER LOGIN RESPONSE:", response_data)
+    return JSONResponse(status_code=200, content=response_data)
+
+
+@router.post("/admin/login/verify-otp")
+async def verify_admin_login_otp(data: OtpVerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Verify OTP for admin login"""
+    if not await verify_otp(db, data.userId, data.otp):
+        raise HTTPException(status_code=400, detail="OTP verification failed")
+
+    user = await get_user_by_id(db, data.userId)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Double-check admin role
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied. Admin privileges required.")
+
+    # Create tokens
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "role": user.role})
+
+    db_token = RefreshToken(
+        user_id=user.id,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db_token.set_token(refresh_token)
+    db.add(db_token)
+    await db.commit()
+    
+    response_data = {
+        "detail": "Admin OTP verified successfully",
+        "user": {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "isEmailVerified": user.is_verified,
+            "createdAt": user.created_at.isoformat(),
+            "updatedAt": user.updated_at.isoformat()
+        },
+        "tokens": {
+            "accessToken": access_token,
+            "refreshToken": refresh_token
+        }
+    }
+
+    print("ADMIN VERIFY OTP RESPONSE:", response_data)
+    return JSONResponse(status_code=200, content=response_data)
+
+
+@router.post("/customer/login/verify-otp")
+async def verify_customer_login_otp(data: OtpVerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Verify OTP for customer login"""
+    if not await verify_otp(db, data.userId, data.otp):
+        raise HTTPException(status_code=400, detail="OTP verification failed")
+
+    user = await get_user_by_id(db, data.userId)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Double-check customer role
+    if user.role != "customer":
+        raise HTTPException(status_code=403, detail="Access denied. Customer account required.")
+
+    # Create tokens
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "role": user.role})
+
+    db_token = RefreshToken(
+        user_id=user.id,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db_token.set_token(refresh_token)
+    db.add(db_token)
+    await db.commit()
+    
+    response_data = {
+        "detail": "Customer OTP verified successfully",
+        "user": {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "isEmailVerified": user.is_verified,
+            "createdAt": user.created_at.isoformat(),
+            "updatedAt": user.updated_at.isoformat()
+        },
+        "tokens": {
+            "accessToken": access_token,
+            "refreshToken": refresh_token
+        }
+    }
+
+    print("CUSTOMER VERIFY OTP RESPONSE:", response_data)
+    return JSONResponse(status_code=200, content=response_data)
 
 
 # @router.post("/login/verify-otp", response_model=TokenResponse)

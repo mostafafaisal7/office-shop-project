@@ -12,7 +12,11 @@ import { ApiResponse } from '@/types/api';
 
 class AuthService {
   async login(credentials: LoginRequest): Promise<AxiosResponse<ApiResponse<TokenResponse & { user: UserResponse }>>> {
-    return await apiService.post('/auth/login', credentials);
+    return await apiService.post('/auth/admin/login', credentials);
+  }
+
+  async verifyOtp(userId: number, otp: string): Promise<AxiosResponse<ApiResponse<TokenResponse & { user: UserResponse }>>> {
+    return await apiService.post('/auth/admin/login/verify-otp', { userId, otp });
   }
 
   async logout(): Promise<ApiResponse> {
