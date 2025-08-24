@@ -19,7 +19,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onForgotPassword,
   onClose,
 }) => {
-  const [formData, setFormData] = useState<LoginCredentials>({
+  const [formData, setFormData] = useState({
     email: "",
     password: "",
     otp: "",
@@ -31,7 +31,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   
 
 
-  const { login, verifyOtp, setTokens } = useAuthStore();
+  const { login, verifyOtp } = useAuthStore();
   const { showToast } = useToast();
 
   const validateForm = (): boolean => {
@@ -59,26 +59,35 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   
     try {
       if (!otpRequired) {
-        const response = await login({
-          email: formData.email,
+        // Detect if input is phone number or email
+        const isPhoneNumber = /^(\+?88)?01[3-9]\d{8}$/.test(formData.email.trim());
+        
+        const loginCredentials: LoginCredentials = {
           password: formData.password,
-        });
+        };
+        
+        if (isPhoneNumber) {
+          loginCredentials.phone = formData.email.trim();
+        } else {
+          loginCredentials.email = formData.email.trim();
+        }
+        
+        const response = await login(loginCredentials);
   
         if (response?.otpRequired) {
           if (!response.userId) throw new Error("User ID missing for OTP verification");
           setOtpRequired(true);
-          setUserId(response.userId); // ✅ this will now be defined
+          setUserId(response.userId);
           showToast(response.message || "OTP sent", "info");
           return; // stop redirect
         }
   
-        showToast(response.message || "Login successful", "success");
+        showToast(response?.message || "Login successful", "success");
         onClose?.();
       } else {
         if (!userId) throw new Error("User ID missing for OTP verification");
   
-        const tokens = await verifyOtp({ userId, otp: formData.otp });
-        setTokens(tokens); // save tokens
+        await verifyOtp({ userId, otp: formData.otp });
         showToast("Login successful!", "success");
         onClose?.();
       }

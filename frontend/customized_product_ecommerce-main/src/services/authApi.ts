@@ -182,7 +182,7 @@ async register(credentials: RegisterCredentials): Promise<AuthApiResponse> {
 
   async login(credentials: LoginCredentials): Promise<AuthApiResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/auth/customer/login`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(credentials),
@@ -246,7 +246,7 @@ async register(credentials: RegisterCredentials): Promise<AuthApiResponse> {
 
   async verifyOtp(payload: { userId: number; otp: string }): Promise<AuthApiResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login/verify-otp`, {
+      const response = await fetch(`${API_BASE_URL}/auth/customer/login/verify-otp`, {
         method: "POST",
         headers: this.getAuthHeaders(),
         body: JSON.stringify(payload),
