@@ -7,7 +7,7 @@ def test_admin_phone_login():
     # Test data with admin phone number
     test_data = {
         "phone": "01303151830",  # User ID 1 - Admin role
-        "password": "testpass123"  # Test password
+        "password": "*%#789Sal"  # Test password
     }
     
     print("Testing admin phone number login...")

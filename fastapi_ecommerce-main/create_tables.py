@@ -8,6 +8,7 @@ from app.core.hashing import Hasher  # your hashing class
 ADMIN_EMAIL = "progfaysal@gmail.com"
 ADMIN_PASSWORD = "admin123"
 ADMIN_NAME = "Admin"
+ADMIN_PHONE = "01303151830"
 
 
 async def initialize_database():
@@ -63,7 +64,7 @@ async def create_admin():
         admin_user = User(
             name=ADMIN_NAME,
             email=ADMIN_EMAIL,
-            phone="01303151830",
+            phone=ADMIN_PHONE,
             hashed_password=hashed_password,
             role="admin",
             is_active=True,

@@ -26,9 +26,22 @@ export default function LoginPage() {
     clearError();
   }, [clearError]);
 
-  const handleSubmit = async (values: LoginRequest) => {
+  const handleSubmit = async (values: any) => {
     try {
-      await login(values);
+      // Transform the form values to match backend expectations
+      const loginData: LoginRequest = {
+        password: values.password
+      };
+
+      // Detect if the input is email or phone
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(values.email)) {
+        loginData.email = values.email;
+      } else {
+        loginData.phone = values.email; // Form field is named 'email' but contains phone
+      }
+
+      await login(loginData);
       if (!otpRequired) {
         router.push('/dashboard');
       }
@@ -98,16 +111,31 @@ export default function LoginPage() {
           >
             <Form.Item
               name="email"
-              label="Email"
+              label="Email or Phone"
               rules={[
-                { required: true, message: 'Please input your email!' },
-                { type: 'email', message: 'Please enter a valid email!' }
+                { required: true, message: 'Please input your email or phone number!' },
+                {
+                  validator: (_, value) => {
+                    if (!value) {
+                      return Promise.reject(new Error('Email or phone is required'));
+                    }
+                    // Check if it's a phone number (starts with + or digits)
+                    const phoneRegex = /^(\+?[0-9]{10,15}|[0-9]{10,15})$/;
+                    // Check if it's an email
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    
+                    if (phoneRegex.test(value) || emailRegex.test(value)) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Please enter a valid email or phone number'));
+                  }
+                }
               ]}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Enter your email"
-                autoComplete="email"
+                placeholder="Enter your email or phone number"
+                autoComplete="username"
               />
             </Form.Item>
 
