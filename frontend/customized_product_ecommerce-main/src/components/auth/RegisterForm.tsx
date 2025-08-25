@@ -145,9 +145,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             onChange={handleInputChange}
             error={errors.name}
             disabled={isLoading}
-            className="pl-10"
+            className="pl-10 text-gray-500"
           />
-          <User className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+          <User className="absolute left-3 top-9 h-4 w-4 text-gray-500" />
         </div>
 
         <div className="relative">
@@ -160,9 +160,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             onChange={handleInputChange}
             error={errors.email}
             disabled={isLoading}
-            className="pl-10"
+            className="pl-10 text-gray-500"
           />
-          <Mail className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+          <Mail className="absolute left-3 top-9 h-4 w-4 text-gray-400" />
         </div>
 
         <div className="relative">
@@ -175,11 +175,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             onChange={handleInputChange}
             error={errors.phone}
             disabled={isLoading}
-            className="pl-10"
+            className="pl-10 text-gray-500"
           />
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="absolute left-3 top-8 h-4 w-4 text-gray-400"
+            className="absolute left-3 top-9 h-4 w-4 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -204,9 +204,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             onChange={handleInputChange}
             error={errors.password}
             disabled={isLoading}
-            className="pl-10 pr-10"
+            className="pl-10 pr-10 text-gray-500"
           />
-          <Lock className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+          <Lock className="absolute left-3 top-9.5 h-4 w-4 text-gray-400" />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
@@ -246,9 +246,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             onChange={handleInputChange}
             error={errors.confirmPassword}
             disabled={isLoading}
-            className="pl-10 pr-10"
+            className="pl-10 pr-10 text-gray-500"
           />
-          <Lock className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+          <Lock className="absolute left-3 top-9.5 h-4 w-4 text-gray-400" />
           <button
             type="button"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}

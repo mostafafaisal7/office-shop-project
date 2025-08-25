@@ -6,8 +6,9 @@ import {
   DollarSign, Copy, Trash, ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
   RotateCw, Maximize, MinusCircle, Type, ChevronDown, ChevronRight,
   Move, Palette, Settings, ChevronsUp, ChevronUp, ChevronDown as ChevronDownIcon, ChevronsDown,
-  ImageIcon
+  ImageIcon, AlertCircle
 } from 'lucide-react';
+import { useDesignStore } from '@/store/designStore';
 
 interface RightSidebarProps {
   onSave: () => void;
@@ -36,6 +37,50 @@ const RightSidebar = ({
   onImageAdjust,
   selectedObjectType
 }: RightSidebarProps) => {
+  
+  // Get design store functions
+  const { validateVariationSelection, syncStatus } = useDesignStore();
+  
+  // State for error messages
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
+  
+  // Enhanced save handler with validation
+  const handleSave = async () => {
+    try {
+      // Clear any previous errors
+      setErrorMessage(null);
+      setShowError(false);
+      
+      // Validate variation selection before saving
+      const validation = validateVariationSelection();
+      if (!validation.isValid) {
+        setErrorMessage(validation.error || 'Please select a product variation before saving your design');
+        setShowError(true);
+        
+        // Auto-hide error after 5 seconds
+        setTimeout(() => {
+          setShowError(false);
+        }, 5000);
+        
+        return;
+      }
+      
+      // Call the original save function
+      await onSave();
+      
+    } catch (error) {
+      console.error('Save error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to save design. Please try again.';
+      setErrorMessage(errorMsg);
+      setShowError(true);
+      
+      // Auto-hide error after 5 seconds
+      setTimeout(() => {
+        setShowError(false);
+      }, 5000);
+    }
+  };
   
   // Popular Google Fonts list
   const googleFonts = [
@@ -551,13 +596,30 @@ const RightSidebar = ({
         </div>
         )}
 
+        {/* Error Message */}
+        {showError && errorMessage && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+            <div className="flex items-start">
+              <AlertCircle className="w-4 h-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-700">
+                {errorMessage}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="space-y-2 pt-4 border-t border-gray-200">
           <button 
-            onClick={onSave}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg text-sm"
+            onClick={handleSave}
+            disabled={syncStatus === 'syncing'}
+            className={`w-full py-2 px-4 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg text-sm ${
+              syncStatus === 'syncing'
+                ? 'bg-gray-400 cursor-not-allowed text-white'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+            }`}
           >
-            Save Design
+            {syncStatus === 'syncing' ? 'Saving...' : 'Save Design'}
           </button>
           <button 
             onClick={onClearCanvas}

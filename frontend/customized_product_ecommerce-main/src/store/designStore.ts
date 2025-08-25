@@ -44,6 +44,7 @@ interface DesignState {
   setSelectedObject: (object: any) => void;
   setSelectedVariation: (variation: { size?: string; color?: string; variationId?: number } | null) => void;
   setCurrentDesignArea: (area: string) => void;
+  validateVariationSelection: () => { isValid: boolean; error?: string };
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => void;
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => DesignData | null;
   saveDesignToDatabase: (canvasData: any, productImageUrl: string) => Promise<void>;
@@ -125,6 +126,24 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   setSelectedVariation: (variation: { size?: string; color?: string; variationId?: number } | null) => set({ selectedVariation: variation }),
   
   setCurrentDesignArea: (area: string) => set({ currentDesignArea: area }),
+
+  validateVariationSelection: () => {
+    const state = get();
+    
+    if (!state.productId) {
+      return { isValid: false, error: 'Product ID is required' };
+    }
+    
+    if (!state.selectedVariation) {
+      return { isValid: false, error: 'Please select a product variation before saving your design' };
+    }
+    
+    if (!state.selectedVariation.variationId) {
+      return { isValid: false, error: 'Please select a product variation before saving your design' };
+    }
+    
+    return { isValid: true };
+  },
 
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => {
     const state = get();
@@ -217,19 +236,22 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
   saveDesignToDatabase: async (canvasData: any, productImageUrl: string) => {
     const state = get();
-    if (!state.productId) return;
+    if (!state.productId) {
+      throw new Error('Product ID is required to save design');
+    }
 
     try {
       set({ syncStatus: 'syncing' });
       
-      // Use the actual variation ID if available, otherwise throw error
+      // Validate variation ID before proceeding
       let variationId: number;
       if (state.selectedVariation?.variationId) {
         variationId = state.selectedVariation.variationId;
         console.log('Using variation ID from selectedVariation:', variationId);
       } else {
         console.error('No variation ID available in selectedVariation:', state.selectedVariation);
-        throw new Error('Variation ID is required but not available');
+        set({ syncStatus: 'error' });
+        throw new Error('Please select a product variation before saving your design');
       }
       
       // Generate key for tracking shared client reference ID (without design area)
@@ -370,24 +392,51 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     try {
       set({ syncStatus: 'syncing' });
       
+      let migratedCount = 0;
+      let skippedCount = 0;
+      
       for (const design of localDesigns) {
         try {
+          // Validate design data before migration
+          if (!design.product_id) {
+            console.warn('Skipping design with missing product_id:', design.design_id);
+            skippedCount++;
+            continue;
+          }
+          
+          // Use variation_id if available, otherwise default to 1
+          const variationId = design.variation_id ? parseInt(design.variation_id.toString()) : 1;
+          
+          // Validate required fields
+          if (!design.design_area || !design.canvas_data || !design.design_metadata?.product_image_url) {
+            console.warn('Skipping design with missing required fields:', design.design_id, {
+              hasDesignArea: !!design.design_area,
+              hasCanvasData: !!design.canvas_data,
+              hasProductImageUrl: !!design.design_metadata?.product_image_url
+            });
+            skippedCount++;
+            continue;
+          }
+          
           await designApi.saveDesignWithNewFormat(
             design.product_id.toString(),
-            design.variation_id ? parseInt(design.variation_id.toString()) : 1,
+            variationId,
             design.design_area,
             design.canvas_data,
             design.design_metadata.product_image_url
           );
           
           console.log('Migrated design to database:', design.design_id);
+          migratedCount++;
         } catch (error) {
           console.error('Failed to migrate design:', design.design_id, error);
+          skippedCount++;
+          // Continue with other designs instead of failing completely
         }
       }
       
       set({ syncStatus: 'success' });
-      console.log('Migration completed for', localDesigns.length, 'designs');
+      console.log(`Migration completed: ${migratedCount} designs migrated, ${skippedCount} designs skipped`);
     } catch (error) {
       console.error('Migration failed:', error);
       set({ syncStatus: 'error' });

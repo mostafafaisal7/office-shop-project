@@ -338,7 +338,24 @@ class DesignApiService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error Response:', errorText);
-        throw new Error(`Failed to ${isUpdate ? 'update' : 'save'} design: ${response.status} - ${errorText}`);
+        
+        // Provide user-friendly error messages based on status code
+        let userFriendlyMessage = '';
+        if (response.status === 400) {
+          userFriendlyMessage = 'Invalid design data. Please check your design and try again.';
+        } else if (response.status === 401) {
+          userFriendlyMessage = 'You need to be logged in to save your design.';
+        } else if (response.status === 403) {
+          userFriendlyMessage = 'You do not have permission to save this design.';
+        } else if (response.status === 404) {
+          userFriendlyMessage = 'The product or variation was not found.';
+        } else if (response.status >= 500) {
+          userFriendlyMessage = 'Server error occurred while saving your design. Please try again later.';
+        } else {
+          userFriendlyMessage = `Failed to ${isUpdate ? 'update' : 'save'} design. Please try again.`;
+        }
+        
+        throw new Error(userFriendlyMessage);
       }
       
       const data = await response.json();

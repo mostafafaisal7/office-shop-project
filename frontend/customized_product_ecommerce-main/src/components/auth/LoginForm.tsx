@@ -119,9 +119,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 value={formData.email}
                 onChange={handleInputChange}
                 error={errors.email}
-                className="pl-10"
+                className="pl-10 text-gray-500"
               />
-              <Mail className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+              <Mail className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
             </div>
 
             <div className="relative">
@@ -132,13 +132,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 value={formData.password}
                 onChange={handleInputChange}
                 error={errors.password}
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 text-gray-500"
               />
-              <Lock className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+              <Lock className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -153,9 +153,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               value={formData.otp}
               onChange={handleInputChange}
               error={errors.otp}
-              className="pl-10"
+              className="pl-10 text-gray-500"
             />
-            <Smartphone className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+            <Smartphone className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
           </div>
         )}
 
