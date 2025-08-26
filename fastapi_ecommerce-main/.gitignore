@@ -2,3 +2,12 @@ venv_linux/
 venv_windows/
 __pycache__/
 *.pyc
+
+
+# Ignore everything in a folder but keep the folder
+./frontend/customized_product_ecommerce-main/public/uploads/*
+# !..//frontend/customized_product_ecommerce-main/public/uploads/.gitkeep
+
+
+./frontend/admin-ecommerce-cp-main/public/uploads/*
+# !../frontend/admin-ecommerce-cp-main/public/uploads/.gitkeep
