@@ -10,6 +10,23 @@ class AdjustmentType(enum.Enum):
     PER_ITEM = "per_item"
     FLAT_RATE = "flat_rate"
 
+# class ShippingAddress(Base):
+#     __tablename__ = "shipping_addresses"
+
+#     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+#     user_id = Column(Integer, nullable=True)  # nullable for guest checkout
+#     guest_id = Column(String(255), nullable=True)
+#     full_name = Column(String(255), nullable=False)
+#     phone = Column(String(255), nullable=False)
+#     email = Column(String(255), nullable=False)
+#     address_line = Column(String(255), nullable=False)
+#     city = Column(String(255), nullable=False)
+#     state = Column(String(255), nullable=False)
+#     postal_code = Column(String(255), nullable=False)
+#     country = Column(String(255), nullable=False)  # or Enum(CountryCode)
+
+
+
 class ShippingAddress(Base):
     __tablename__ = "shipping_addresses"
 
@@ -19,11 +36,16 @@ class ShippingAddress(Base):
     full_name = Column(String(255), nullable=False)
     phone = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False)
-    address_line = Column(String(255), nullable=False)
-    city = Column(String(255), nullable=False)
-    state = Column(String(255), nullable=False)
-    postal_code = Column(String(255), nullable=False)
+    delivery_address = Column(String(255), nullable=False)#address_line
     country = Column(String(255), nullable=False)  # or Enum(CountryCode)
+    division = Column(String(255), nullable=False)  # or Enum(CountryCode)
+
+    district = Column(String(255), nullable=False)#it was city
+    thana = Column(String(255), nullable=False)#state
+    postal_code = Column(String(255), nullable=False)
+    
+
+    
 
 
 class ShippingMethod(Base):

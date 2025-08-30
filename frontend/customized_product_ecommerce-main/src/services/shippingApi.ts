@@ -4,18 +4,33 @@ const API_BASE_URL = typeof window === 'undefined'
   ? 'http://localhost:8000' // Server-side
   : '/api'; // Client-side (uses proxy)
 
+// export interface ShippingAddress {
+//   user_id: number;
+//   guest_id: null;
+//   full_name: string;
+//   phone: string;
+//   email: string;
+//   address_line: string;
+//   city: string;
+//   state: string;
+//   postal_code: string;
+//   country: string;
+// }
+
 export interface ShippingAddress {
   user_id: number;
   guest_id: null;
   full_name: string;
   phone: string;
   email: string;
-  address_line: string;
-  city: string;
-  state: string;
-  postal_code: string;
   country: string;
+  division: string;
+  district: string;
+  thana: string;
+  postal_code: string;
+  delivery_address: string;
 }
+
 
 export interface ShippingMethod {
   id: number;

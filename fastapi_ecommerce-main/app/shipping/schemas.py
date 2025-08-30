@@ -14,11 +14,13 @@ class ShippingAddressCreate(BaseModel):
     full_name: str
     phone: str
     email: str
-    address_line: str
-    city: str
-    state: str
-    postal_code: str
     country: str
+    division: str
+    district: str
+    thana: str
+    postal_code: str
+    delivery_address: str
+    
 
 class ShippingAddressOut(ShippingAddressCreate):
     id: str
@@ -36,11 +38,12 @@ class ShippingAddressUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
-    address_line: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    postal_code: Optional[str] = None
     country: Optional[str] = None
+    division: Optional[str] = None
+    district: Optional[str] = None
+    thana: Optional[str] = None
+    postal_code: Optional[str] = None
+    delivery_address: Optional[str] = None
 
 class ShippingMethodUpdate(BaseModel):
     name: Optional[str] = None

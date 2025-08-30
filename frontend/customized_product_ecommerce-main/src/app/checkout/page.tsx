@@ -9,14 +9,16 @@ import { shippingApi, ShippingAddress, ShippingMethod, ShippingCostCalculation, 
 import { paymentApi, PaymentMethod as ApiPaymentMethod } from '@/services/paymentApi';
 
 interface ShippingInfo {
-  fullName: string;
-  email: string;
+  full_name: string;
   phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
+  email: string;
   country: string;
+  division: string;
+  district: string;
+  thana: string;
+  postal_code: string;
+  delivery_address: string;
+
 }
 
 interface PaymentInfo {
@@ -44,14 +46,15 @@ export default function CheckoutPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
-    fullName: '',
+    full_name: '',
     email: '',
     phone: '',
-    address: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    country: 'United States'
+    country: 'Bangladesh',
+    division: 'Dhaka',
+    district: '',
+    thana: '',
+    postal_code:'',
+    delivery_address: '',
   });
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('card');
@@ -324,14 +327,15 @@ export default function CheckoutPage() {
         const shippingData: ShippingAddress = {
           user_id: fallbackUserId,
           guest_id: null,
-          full_name: shippingInfo.fullName,
+          full_name: shippingInfo.full_name,
           phone: shippingInfo.phone,
           email: shippingInfo.email,
-          address_line: shippingInfo.address,
-          city: shippingInfo.city,
-          state: shippingInfo.state,
-          postal_code: shippingInfo.zipCode,
+          delivery_address: shippingInfo.delivery_address,
           country: shippingInfo.country,
+          division: shippingInfo.division,
+          district: shippingInfo.district,
+          thana: shippingInfo.thana,
+          postal_code: shippingInfo.postal_code,
         };
 
         console.log('Using fallback shipping data:', shippingData);
@@ -366,14 +370,16 @@ export default function CheckoutPage() {
       const shippingData: ShippingAddress = {
         user_id: userIdNumber,
         guest_id: null,
-        full_name: shippingInfo.fullName,
+
+        full_name: shippingInfo.full_name,
         phone: shippingInfo.phone,
         email: shippingInfo.email,
-        address_line: shippingInfo.address,
-        city: shippingInfo.city,
-        state: shippingInfo.state,
-        postal_code: shippingInfo.zipCode,
+        delivery_address: shippingInfo.delivery_address,
         country: shippingInfo.country,
+        division: shippingInfo.division,
+        district: shippingInfo.district,
+        thana: shippingInfo.thana,
+        postal_code: shippingInfo.postal_code,
       };
 
       // Save shipping address
@@ -555,9 +561,9 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
+  
+  return(
+  <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-6xl mx-auto flex items-center gap-4">
@@ -633,14 +639,16 @@ export default function CheckoutPage() {
                               setSelectedAddressId(address.id?.toString() || '');
                               // Auto-fill form with selected address
                               setShippingInfo({
-                                fullName: address.full_name || '',
+                                full_name: address.full_name || '',
                                 email: address.email || '',
                                 phone: address.phone || '',
-                                address: address.address_line || '',
-                                city: address.city || '',
-                                state: address.state || '',
-                                zipCode: address.postal_code || '',
-                                country: address.country || 'United States'
+                                delivery_address: address.delivery_address || '',
+                                country: address.country || 'Bangladesh',
+                                division: address.division || '',
+                                district: address.district || '',
+                                thana: address.thana || '',
+                                postal_code: address.postal_code || '',
+                                
                               });
                             }}
                           >
@@ -659,9 +667,9 @@ export default function CheckoutPage() {
                                   </span>
                                 </div>
                                 <div className="text-sm text-gray-600 ml-6">
-                                  <p>{address.address_line}</p>
-                                  <p>{address.city}, {address.state} {address.postal_code}</p>
-                                  <p>{address.country}</p>
+                                  <p>{address.country}{address.division} {address.district}</p>
+                                  <p>{address.thana}, {address.postal_code}</p>
+                                  <p>{address.delivery_address}</p>
                                   <p className="mt-1">
                                     <span className="text-gray-500">Phone:</span> {address.phone}
                                   </p>
@@ -679,14 +687,15 @@ export default function CheckoutPage() {
                             onClick={() => {
                               setSelectedAddressId('');
                               setShippingInfo({
-                                fullName: '',
+                                full_name: '',
                                 email: '',
                                 phone: '',
-                                address: '',
-                                city: '',
-                                state: '',
-                                zipCode: '',
-                                country: 'United States'
+                                country: 'Bangladesh',
+                                division: 'Dhaka',
+                                district: '',
+                                thana: '',
+                                postal_code:'',
+                                delivery_address: '',
                               });
                             }}
                             className="text-blue-600 hover:text-blue-700 text-sm font-medium"
@@ -707,8 +716,8 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       required
-                      value={shippingInfo.fullName}
-                      onChange={(e) => setShippingInfo({...shippingInfo, fullName: e.target.value})}
+                      value={shippingInfo.full_name}
+                      onChange={(e) => setShippingInfo({...shippingInfo, full_name: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter your full name"
                     />
@@ -741,59 +750,10 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Street Address *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={shippingInfo.address}
-                      onChange={(e) => setShippingInfo({...shippingInfo, address: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        City *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={shippingInfo.city}
-                        onChange={(e) => setShippingInfo({...shippingInfo, city: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        State *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={shippingInfo.state}
-                        onChange={(e) => setShippingInfo({...shippingInfo, state: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ZIP Code *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={shippingInfo.zipCode}
-                        onChange={(e) => setShippingInfo({...shippingInfo, zipCode: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Country *
                     </label>
@@ -803,11 +763,87 @@ export default function CheckoutPage() {
                       onChange={(e) => setShippingInfo({...shippingInfo, country: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="United States">United States</option>
-                      <option value="Canada">Canada</option>
+                      <option value="Bangladesh">Bangladesh</option>
+                      {/* <option value="Canada">Canada</option>
                       <option value="United Kingdom">United Kingdom</option>
-                      <option value="Australia">Australia</option>
+                      <option value="Australia">Australia</option> */}
                     </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Division *
+                      </label>
+                        <select
+                        required
+                        value={shippingInfo.division}
+                        onChange={(e) => setShippingInfo({...shippingInfo, division: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Dhaka">Dhaka</option>
+                        <option value="Chattogram">Chattogram</option>
+                        <option value="Khulna">Khulna</option>
+                        <option value="Barishal">Barishal</option>
+                        <option value="Sylhet">Sylhet</option>
+                        <option value="Rangpur">Chattogram</option>
+                        <option value="Rajshahi">Rajshahi</option>
+                        <option value="Mymensingh">Mymensingh</option>
+                      </select>
+                    </div>
+                    
+                    
+                    
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        District *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={shippingInfo.district}
+                        onChange={(e) => setShippingInfo({...shippingInfo, district: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Thana *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={shippingInfo.thana}
+                        onChange={(e) => setShippingInfo({...shippingInfo, thana: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        postal_code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={shippingInfo.postal_code}
+                        onChange={(e) => setShippingInfo({...shippingInfo, postal_code: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Address *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingInfo.delivery_address}
+                      onChange={(e) => setShippingInfo({...shippingInfo, delivery_address: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   <button
@@ -845,10 +881,10 @@ export default function CheckoutPage() {
                     </button>
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p>{shippingInfo.fullName}</p>
-                    <p>{shippingInfo.address}</p>
-                    <p>{shippingInfo.city}, {shippingInfo.state} {shippingInfo.zipCode}</p>
+                    <p>{shippingInfo.full_name}</p>
                     <p>{shippingInfo.country}</p>
+                    <p>{shippingInfo.division}, {shippingInfo.district} {shippingInfo.district}</p>
+                    <p>{shippingInfo.thana} {shippingInfo.postal_code}</p>
                   </div>
                 </div>
 
@@ -1030,9 +1066,9 @@ export default function CheckoutPage() {
                     </button>
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p>{shippingInfo.fullName}</p>
-                    <p>{shippingInfo.address}</p>
-                    <p>{shippingInfo.city}, {shippingInfo.state} {shippingInfo.zipCode}</p>
+                    <p>{shippingInfo.full_name}</p>
+                    <p>{shippingInfo.country}</p>
+                    <p>{shippingInfo.division}, {shippingInfo.district} {shippingInfo.thana}</p>
                     <p>{shippingInfo.country}</p>
                   </div>
                 </div>
