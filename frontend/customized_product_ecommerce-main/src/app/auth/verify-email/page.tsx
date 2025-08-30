@@ -67,15 +67,20 @@ export default function VerifyEmailPage() {
                 localStorage.setItem('showVerificationToast', 'true');
                 localStorage.setItem('verificationToastMessage', 'Email verified successfully! You are now logged in and can continue with your checkout.');
                 localStorage.setItem('verificationToastType', 'success');
+                
+                // Add URL parameter to indicate coming from verification
+                const checkoutUrl = targetPath.includes('?') ? `${targetPath}&verified=true` : `${targetPath}?verified=true`;
+                clearGuestCheckoutContext();
+                router.push(checkoutUrl);
               } else {
                 // Store success message for other pages
                 localStorage.setItem('showVerificationToast', 'true');
                 localStorage.setItem('verificationToastMessage', 'Email verified successfully! Welcome to our platform.');
                 localStorage.setItem('verificationToastType', 'success');
+                
+                clearGuestCheckoutContext();
+                router.push(targetPath);
               }
-              
-              clearGuestCheckoutContext();
-              router.push(targetPath);
             }, 2000); // 2 second delay to show success message
           } else {
             // If no auto-login data, still redirect but user will need to login manually

@@ -61,6 +61,7 @@ export const useShippingStore = create<ShippingStore>()(
       guestCheckoutContext: null,
 
       setShippingInfo: (info: ShippingInfo) => {
+        console.log('ShippingStore: Setting shipping info:', info);
         set({ shippingInfo: info });
       },
 
@@ -83,12 +84,12 @@ export const useShippingStore = create<ShippingStore>()(
 
       // Guest checkout specific actions
       setGuestCheckoutContext: (context: GuestCheckoutContext) => {
-        console.log('Setting guest checkout context:', context);
+        console.log('ShippingStore: Setting guest checkout context:', context);
         set({ guestCheckoutContext: context });
       },
 
       clearGuestCheckoutContext: () => {
-        console.log('Clearing guest checkout context');
+        console.log('ShippingStore: Clearing guest checkout context');
         set({ guestCheckoutContext: null });
       },
 
@@ -123,25 +124,32 @@ export const useShippingStore = create<ShippingStore>()(
       getStoredShippingData: () => {
         const { guestCheckoutContext, shippingInfo } = get();
         
+        console.log('ShippingStore: getStoredShippingData called');
+        console.log('ShippingStore: guestCheckoutContext:', guestCheckoutContext);
+        console.log('ShippingStore: shippingInfo:', shippingInfo);
+        
         // Priority: guest checkout context first, then regular shipping info
         if (guestCheckoutContext?.shippingData) {
-          console.log('Returning guest checkout shipping data:', guestCheckoutContext.shippingData);
+          console.log('ShippingStore: Returning guest checkout shipping data:', guestCheckoutContext.shippingData);
           return guestCheckoutContext.shippingData;
         }
         
         if (shippingInfo) {
-          console.log('Returning regular shipping info:', shippingInfo);
+          console.log('ShippingStore: Returning regular shipping info:', shippingInfo);
           return shippingInfo;
         }
         
-        console.log('No stored shipping data found');
+        console.log('ShippingStore: No stored shipping data found');
         return null;
       },
 
       // Method to check if we should restore data
       shouldRestoreCheckoutData: () => {
         const { guestCheckoutContext } = get();
-        return !!(guestCheckoutContext?.fromCheckout && guestCheckoutContext?.shippingData);
+        const shouldRestore = !!(guestCheckoutContext?.fromCheckout && guestCheckoutContext?.shippingData);
+        console.log('ShippingStore: shouldRestoreCheckoutData:', shouldRestore);
+        console.log('ShippingStore: guestCheckoutContext for restore check:', guestCheckoutContext);
+        return shouldRestore;
       },
     }),
     {

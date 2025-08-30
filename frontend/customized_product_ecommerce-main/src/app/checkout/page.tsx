@@ -92,39 +92,59 @@ export default function CheckoutPage() {
     setIsHydrated(true);
   }, []);
 
-  // Restore shipping data after login or when component mounts
+  // Comprehensive data restoration effect
   useEffect(() => {
-    if (isHydrated && isAuthenticated && user) {
-      const { shouldRestoreCheckoutData, getStoredShippingData, clearGuestCheckoutContext } = useShippingStore.getState();
+    if (!isHydrated) return;
+
+    console.log('=== CHECKOUT DATA RESTORATION DEBUG ===');
+    console.log('isHydrated:', isHydrated);
+    console.log('isAuthenticated:', isAuthenticated);
+    console.log('user:', user);
+    console.log('current shippingInfo.full_name:', shippingInfo.full_name);
+    
+    const { shouldRestoreCheckoutData, getStoredShippingData, clearGuestCheckoutContext, guestCheckoutContext } = useShippingStore.getState();
+    
+    console.log('shouldRestoreCheckoutData():', shouldRestoreCheckoutData());
+    console.log('guestCheckoutContext:', guestCheckoutContext);
+    
+    const storedData = getStoredShippingData();
+    console.log('getStoredShippingData():', storedData);
+    
+    // Check if we just came back from email verification
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromVerification = urlParams.get('verified') === 'true';
+    console.log('fromVerification URL param:', fromVerification);
+    
+    // Restore data if:
+    // 1. User is authenticated
+    // 2. We have stored data
+    // 3. Current form is empty OR we're coming from verification
+    if (isAuthenticated && user && storedData) {
+      const shouldRestore = !shippingInfo.full_name || fromVerification || shouldRestoreCheckoutData();
+      console.log('shouldRestore:', shouldRestore);
       
-      // Check if we should restore checkout data and current form is empty
-      if (shouldRestoreCheckoutData() && !shippingInfo.full_name) {
-        const storedData = getStoredShippingData();
-        if (storedData) {
-          console.log('Restoring shipping data after login:', storedData);
-          setShippingInfo(storedData);
-          
-          // Clear the guest context after restoring data (with delay to ensure data is set)
+      if (shouldRestore) {
+        console.log('RESTORING shipping data:', storedData);
+        setShippingInfo(storedData);
+        
+        // Clear the guest context after restoring data
+        if (shouldRestoreCheckoutData()) {
           setTimeout(() => {
+            console.log('Clearing guest checkout context after restoration');
             clearGuestCheckoutContext();
           }, 1000);
         }
+        
+        // Clean up the URL parameter if present
+        if (fromVerification) {
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
       }
     }
-  }, [isHydrated, isAuthenticated, user, shippingInfo.full_name]);
-
-  // Also check for data restoration on component mount (for already authenticated users)
-  useEffect(() => {
-    if (isHydrated && isAuthenticated && user && !shippingInfo.full_name) {
-      const { getStoredShippingData } = useShippingStore.getState();
-      const storedData = getStoredShippingData();
-      
-      if (storedData) {
-        console.log('Restoring shipping data on mount:', storedData);
-        setShippingInfo(storedData);
-      }
-    }
-  }, [isHydrated, isAuthenticated, user]);
+    
+    console.log('=== END CHECKOUT DATA RESTORATION DEBUG ===');
+  }, [isHydrated, isAuthenticated, user]); // Simplified dependencies
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -336,17 +356,28 @@ export default function CheckoutPage() {
       
       if (!isAuthenticated || !user) {
         console.log('User not authenticated, opening login modal');
+        console.log('Current shipping info to save:', shippingInfo);
+        
         // Save current shipping info and context for after login
         const { setGuestCheckoutContext, setRedirectAfterAuth } = useShippingStore.getState();
         
-        setGuestCheckoutContext({
+        const contextToSave = {
           fromCheckout: true,
           originalPath: '/checkout',
           shippingData: shippingInfo,
           timestamp: Date.now()
-        });
+        };
         
+        console.log('Saving guest checkout context:', contextToSave);
+        setGuestCheckoutContext(contextToSave);
         setRedirectAfterAuth('/checkout');
+        
+        // Verify the data was saved
+        setTimeout(() => {
+          const { getStoredShippingData, shouldRestoreCheckoutData } = useShippingStore.getState();
+          console.log('Verification - stored data after save:', getStoredShippingData());
+          console.log('Verification - should restore:', shouldRestoreCheckoutData());
+        }, 100);
         
         // Automatically open the login modal from navigation
         const { openAuthModal } = useAuthStore.getState();
