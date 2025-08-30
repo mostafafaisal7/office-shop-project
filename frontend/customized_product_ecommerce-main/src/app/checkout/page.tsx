@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, CreditCard, Lock, Truck, MapPin, User, Mail, Phone, CheckCircle, AlertCircle, Wallet, DollarSign } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore, getCurrentUserId } from '@/store/authStore';
+import { useShippingStore } from '@/store/shippingStore';
+import { VerificationSuccessAlert } from '@/components/common/VerificationSuccessAlert';
 import { shippingApi, ShippingAddress, ShippingMethod, ShippingCostCalculation, ProductShippingCostCalculation, ShippingProductCostRequest } from '@/services/shippingApi';
 import { paymentApi, PaymentMethod as ApiPaymentMethod } from '@/services/paymentApi';
 
@@ -89,6 +91,40 @@ export default function CheckoutPage() {
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Restore shipping data after login or when component mounts
+  useEffect(() => {
+    if (isHydrated && isAuthenticated && user) {
+      const { shouldRestoreCheckoutData, getStoredShippingData, clearGuestCheckoutContext } = useShippingStore.getState();
+      
+      // Check if we should restore checkout data and current form is empty
+      if (shouldRestoreCheckoutData() && !shippingInfo.full_name) {
+        const storedData = getStoredShippingData();
+        if (storedData) {
+          console.log('Restoring shipping data after login:', storedData);
+          setShippingInfo(storedData);
+          
+          // Clear the guest context after restoring data (with delay to ensure data is set)
+          setTimeout(() => {
+            clearGuestCheckoutContext();
+          }, 1000);
+        }
+      }
+    }
+  }, [isHydrated, isAuthenticated, user, shippingInfo.full_name]);
+
+  // Also check for data restoration on component mount (for already authenticated users)
+  useEffect(() => {
+    if (isHydrated && isAuthenticated && user && !shippingInfo.full_name) {
+      const { getStoredShippingData } = useShippingStore.getState();
+      const storedData = getStoredShippingData();
+      
+      if (storedData) {
+        console.log('Restoring shipping data on mount:', storedData);
+        setShippingInfo(storedData);
+      }
+    }
+  }, [isHydrated, isAuthenticated, user]);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -290,14 +326,31 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Check authentication status
-      console.log('Auth state:', { user, isAuthenticated });
-      console.log('Full user object:', user);
-      console.log('User object keys:', user ? Object.keys(user) : 'No user');
-      console.log('User object values:', user ? Object.values(user) : 'No user');
+      // Check authentication status - logged in users can proceed directly
+      console.log('Checkout auth check:', { 
+        isAuthenticated, 
+        hasUser: !!user, 
+        userId: user?.id || 'none',
+        isHydrated 
+      });
       
       if (!isAuthenticated || !user) {
-        alert('Please log in to continue with checkout');
+        console.log('User not authenticated, opening login modal');
+        // Save current shipping info and context for after login
+        const { setGuestCheckoutContext, setRedirectAfterAuth } = useShippingStore.getState();
+        
+        setGuestCheckoutContext({
+          fromCheckout: true,
+          originalPath: '/checkout',
+          shippingData: shippingInfo,
+          timestamp: Date.now()
+        });
+        
+        setRedirectAfterAuth('/checkout');
+        
+        // Automatically open the login modal from navigation
+        const { openAuthModal } = useAuthStore.getState();
+        openAuthModal('login');
         setIsProcessing(false);
         return;
       }
@@ -564,6 +617,7 @@ export default function CheckoutPage() {
   
   return(
   <div className="min-h-screen bg-gray-50">
+      <VerificationSuccessAlert />
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-6xl mx-auto flex items-center gap-4">

@@ -8,6 +8,7 @@ from datetime import timedelta, datetime, timezone
 from typing import Optional
 
 from app.core.database import get_db
+from app.core.config import FRONTEND_URL
 from app.auth.schemas import RegisterRequest, LoginRequest, TokenResponse, RefreshTokenRequest, PasswordResetRequest, PasswordResetConfirm
 from app.auth.utils import create_access_token, create_refresh_token, decode_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 from app.auth.service import authenticate_user
@@ -71,7 +72,7 @@ router = APIRouter()
 #     return new_user
 
 @router.post("/register", status_code=201)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(data: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     # Check if email or phone already exists
     if await get_user_by_email(db, data.email):
         raise HTTPException(status_code=400, detail="Email already exists")
@@ -84,8 +85,17 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_user)
 
-    # Send verification email (existing verification system)
-    verify_link = f"http://127.0.0.1:8000/auth/verify-email?token={new_user.verification_token}"
+    # Get redirect parameters from request headers or query params
+    redirect_param = request.query_params.get('redirect', '')
+    from_param = request.query_params.get('from', '')
+    
+    # Build verification link with redirect parameters - use frontend URL
+    verify_link = f"{FRONTEND_URL}/auth/verify-email?token={new_user.verification_token}"
+    if redirect_param:
+        verify_link += f"&redirect={redirect_param}"
+    if from_param:
+        verify_link += f"&from={from_param}"
+    
     html = verification_email(name=new_user.name, link=verify_link)
     send_email(to_email=new_user.email, subject="Verify Your Email", html_content=html)
 
@@ -145,7 +155,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/verify-email")
-async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+async def verify_email(token: str, redirect: str = None, from_param: str = None, request: Request = None, db: AsyncSession = Depends(get_db)):
     user = await get_user_by_verification_token(db, token)
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
@@ -156,7 +166,42 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(user)
 
-    return {"detail": "Email verified successfully. You can now log in."}
+    # Auto-login after verification (first time only)
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "role": user.role})
+
+    # Create refresh token record
+    db_token = RefreshToken(
+        user_id=user.id,
+        user_agent=request.headers.get("user-agent") if request else None,
+        ip_address=request.client.host if request and request.client else None,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db_token.set_token(refresh_token)
+    db.add(db_token)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": "Email verified successfully. You are now logged in.",
+        "data": {
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "isEmailVerified": user.is_verified,
+                "createdAt": user.created_at.isoformat(),
+                "updatedAt": user.updated_at.isoformat()
+            },
+            "tokens": {
+                "accessToken": access_token,
+                "refreshToken": refresh_token
+            }
+        },
+        "redirect": redirect,
+        "from": from_param
+    }
 
 
 @router.post("/resend-verification-email")
@@ -178,7 +223,7 @@ async def resend_verification_email(
     user.token_expires_at = expires_at
     await db.commit()
 
-    verify_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
+    verify_link = f"{FRONTEND_URL}/auth/verify-email?token={token}"
     html = verification_email(name=user.name or "User", link=verify_link)
 
     send_email(to_email=user.email, subject="Verify Your Email", html_content=html)
@@ -325,9 +370,9 @@ async def resend_verification_email(
     #     "otp_required": True  # frontend will use this to show OTP field
     # }
     return {
-    "success": True,
-    "message": f"OTP sent via {method}. Please verify to complete login.",
-    "data": {"user_id": user.id, "otpRequired": True}
+        "success": True,
+        "message": f"OTP sent via {method}. Please verify to complete login.",
+        "data": {"user_id": user.id, "otpRequired": True}
     }
 
 
@@ -667,7 +712,7 @@ async def request_password_reset(data: PasswordResetRequest, db: AsyncSession = 
         print(f"[ERROR] Password reset error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-    reset_link = f"http://127.0.0.1:8000/reset-password?token={token}"
+    reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
     html = password_reset_email(name=user.name or "User", reset_link=reset_link)
 
     send_email(to_email=user.email, subject="Reset Your Password", html_content=html)

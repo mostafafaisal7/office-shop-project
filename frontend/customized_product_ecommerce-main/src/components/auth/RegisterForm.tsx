@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/store/authStore';
+import { useShippingStore } from '@/store/shippingStore';
 import { useToast } from '@/contexts/ToastContext';
 import { RegisterCredentials } from '@/types/auth';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -36,8 +38,24 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Partial<RegisterCredentials>>({});
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { register, isLoading } = useAuthStore();
+  const { getAutoFillData } = useShippingStore();
   const { showToast } = useToast();
+
+  // Auto-fill form data from shipping info if available
+  useEffect(() => {
+    const autoFillData = getAutoFillData();
+    if (autoFillData) {
+      setFormData(prev => ({
+        ...prev,
+        email: autoFillData.email || prev.email,
+        phone: autoFillData.phone || prev.phone,
+      }));
+    }
+  }, [getAutoFillData]);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<RegisterCredentials> = {};
@@ -92,6 +110,16 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     }
 
     try {
+      // Get redirect information for email verification
+      const { isFromCheckout } = useShippingStore.getState();
+      const redirectPath = searchParams?.get('redirect') || (isFromCheckout() ? '/checkout' : pathname || '/');
+      
+      // Store redirect info for after email verification
+      if (isFromCheckout() || redirectPath !== '/') {
+        localStorage.setItem('postVerificationRedirect', redirectPath);
+        localStorage.setItem('fromCheckout', isFromCheckout().toString());
+      }
+
       await register(formData);
       showToast('Registration successful! Please check your email to verify your account.', 'success');
       onClose?.();

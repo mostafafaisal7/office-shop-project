@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { useSearchParams, usePathname } from 'next/navigation';
 
 type AuthView = 'login' | 'register' | 'forgot-password';
 

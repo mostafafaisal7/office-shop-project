@@ -605,6 +605,12 @@ interface AuthStore extends AuthState {
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // Modal control
+  authModalOpen: boolean;
+  authModalView: 'login' | 'register';
+  openAuthModal: (view?: 'login' | 'register') => void;
+  closeAuthModal: () => void;
+  // Auth actions
   login: (credentials: LoginCredentials) => Promise<{ otpRequired?: boolean; message?: string; userId?: number } | void>;
   verifyOtp: (data: { userId: number; otp: string }) => Promise<AuthTokens | null>;
   register: (credentials: RegisterCredentials) => Promise<void>;
@@ -627,6 +633,17 @@ export const useAuthStore = create<AuthStore>()(
       isLoading: true,
       isAuthenticated: false,
       isOtpRequired: false,
+      // Modal state
+      authModalOpen: false,
+      authModalView: 'login',
+
+      // Modal actions
+      openAuthModal: (view: 'login' | 'register' = 'login') => {
+        set({ authModalOpen: true, authModalView: view });
+      },
+      closeAuthModal: () => {
+        set({ authModalOpen: false });
+      },
 
       // Actions
       login: async (credentials: LoginCredentials) => {

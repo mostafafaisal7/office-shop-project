@@ -351,7 +351,7 @@ async register(credentials: RegisterCredentials): Promise<AuthApiResponse> {
     }
   }
 
-  async verifyEmail(request: VerifyEmailRequest): Promise<ApiResponse> {
+  async verifyEmail(request: VerifyEmailRequest): Promise<AuthApiResponse> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/verify-email?token=${request.token}`, {
         method: 'GET',
@@ -361,15 +361,23 @@ async register(credentials: RegisterCredentials): Promise<AuthApiResponse> {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Email verification failed');
+        // Handle specific error cases more gracefully
+        const errorMessage = data.detail || data.message || 'Email verification failed';
+        console.error('Email verification failed:', errorMessage);
+        throw new Error(errorMessage);
       }
 
+      // Handle the backend response format with auto-login
       return {
-        success: true,
-        message: data.message || 'Email verified successfully',
+        success: data.success || true,
+        message: data.message || data.detail || 'Email verified successfully',
+        data: data.data || null,
+        user: data.data?.user || null,
+        tokens: data.data?.tokens || null,
       };
     } catch (error) {
       console.error('Email verification error:', error);
+      // Re-throw the error to be handled by the calling component
       throw error;
     }
   }

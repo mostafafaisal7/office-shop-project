@@ -28,11 +28,13 @@ async def get_user_by_id(db: AsyncSession, user_id: int | Column[int]) -> User |
 async def get_user_by_verification_token(db: AsyncSession, token: str) -> User | None:
     stmt = select(User).where(
         User.verification_token == token,
-        User.token_expires_at >= datetime.now(timezone.utc),
-        User.is_verified == False
+        User.token_expires_at >= datetime.now(timezone.utc)
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    
+    # Return user even if already verified to allow frontend to handle gracefully
+    return user
 
 def construct_user(data: RegisterRequest) -> User:
     verification_token = str(uuid.uuid4())

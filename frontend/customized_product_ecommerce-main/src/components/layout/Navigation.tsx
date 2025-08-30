@@ -6,19 +6,18 @@ import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { ensureUserData } from "@/store/authStore";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { UserDropdown } from "@/components/auth/UserDropdown";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { useShippingStore } from "@/store/shippingStore";
 
 export const Navigation = () => {
   const [mounted, setMounted] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   const [userDataLoading, setUserDataLoading] = useState(false);
   
   const pathname = usePathname();
-  const { isAuthenticated, user, initializeAuth,isLoading  } = useAuthStore();
+  const { isAuthenticated, user, initializeAuth, isLoading, authModalOpen, authModalView, openAuthModal, closeAuthModal } = useAuthStore();
   const cartCount = useCartStore((state) => state.getUniqueProductCount());
 
   // // Close auth modal when user becomes authenticated
@@ -30,9 +29,9 @@ export const Navigation = () => {
 
   useEffect(() => {
     if (isAuthenticated && authModalOpen) {
-      setAuthModalOpen(false);
+      closeAuthModal();
     }
-  }, [isAuthenticated, authModalOpen]);
+  }, [isAuthenticated, authModalOpen, closeAuthModal]);
   
 
   // useEffect(() => {
@@ -70,8 +69,7 @@ export const Navigation = () => {
   }, [isAuthenticated, user?.name, mounted]); // Removed userDataLoading from dependencies to prevent loops
 
   const handleAuthClick = (view: 'login' | 'register') => {
-    setAuthView(view);
-    setAuthModalOpen(true);
+    openAuthModal(view);
   };
 
   return (
@@ -197,8 +195,8 @@ export const Navigation = () => {
 
       <AuthModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        initialView={authView}
+        onClose={closeAuthModal}
+        initialView={authModalView}
       />
     </>
   );

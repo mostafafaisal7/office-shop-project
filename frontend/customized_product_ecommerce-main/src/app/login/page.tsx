@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useShippingStore } from '@/store/shippingStore';
 
 interface LoginFormData {
   email?: string;
@@ -12,7 +13,10 @@ interface LoginFormData {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, verifyOtp, isAuthenticated, isLoading, error, clearError, otpRequired } = useAuth();
+  const { getAutoFillData, getRedirectPath, clearGuestCheckoutContext } = useShippingStore();
+  
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     phone: '',
@@ -21,11 +25,26 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
 
+  // Handle redirect after successful authentication
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/dashboard');
+      const redirectPath = searchParams.get('redirect') || getRedirectPath();
+      clearGuestCheckoutContext();
+      router.replace(redirectPath);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, searchParams, getRedirectPath, clearGuestCheckoutContext]);
+
+  // Auto-fill email from shipping info if available
+  useEffect(() => {
+    const autoFillData = getAutoFillData();
+    if (autoFillData) {
+      setFormData(prev => ({
+        ...prev,
+        email: autoFillData.email || prev.email,
+        phone: autoFillData.phone || prev.phone,
+      }));
+    }
+  }, [getAutoFillData]);
 
   useEffect(() => {
     clearError();

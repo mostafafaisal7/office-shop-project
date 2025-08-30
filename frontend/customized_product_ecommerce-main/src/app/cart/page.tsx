@@ -264,7 +264,7 @@ export default function CartPage() {
                       {group.sizes.length > 1 ? (
                         <span className="text-blue-600">Various prices</span>
                       ) : (
-                        <span>৳{group.sizes[0].price.toFixed(2)} each</span>
+                        <span>৳{(group.sizes[0]?.price ?? 0).toFixed(2)} each</span>
                       )}
                     </div>
                   </div>
@@ -299,7 +299,7 @@ export default function CartPage() {
                             {sizeInfo.size}:
                           </span>
                           <span className="text-sm text-gray-600">
-                            ৳{sizeInfo.price.toFixed(2)} each
+                            ৳{(sizeInfo.price ?? 0).toFixed(2)} each
                           </span>
                         </div>
                         
@@ -342,7 +342,7 @@ export default function CartPage() {
                           </button>
                           
                           <span className="text-sm font-medium text-gray-900 min-w-[60px] text-right">
-                            ৳{(sizeInfo.price * sizeInfo.quantity).toFixed(2)}
+                            ৳{((sizeInfo.price ?? 0) * (sizeInfo.quantity ?? 0)).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -354,7 +354,7 @@ export default function CartPage() {
                 <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
                   <span className="text-gray-600 font-medium">Product Total:</span>
                   <span className="text-xl font-bold text-gray-900">
-                    ৳{group.totalPrice.toFixed(2)}
+                    ৳{(group.totalPrice ?? 0).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -407,33 +407,33 @@ export default function CartPage() {
               <div className="space-y-3 mb-6 text-gray-700">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal ({getCartTotalQuantity()} items)</span>
-                  <span className="font-medium">৳{getSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">৳{(getSubtotal() ?? 0).toFixed(2)}</span>
                 </div>
                 
                 {isPromoApplied && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount (SAVE10)</span>
-                    <span>-৳{getDiscount().toFixed(2)}</span>
+                    <span>-৳{(getDiscount() ?? 0).toFixed(2)}</span>
                   </div>
                 )}
                 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">
-                    {getShipping() === 0 ? 'Free' : `৳${getShipping().toFixed(2)}`}
+                    {getShipping() === 0 ? 'Free' : `৳${(getShipping() ?? 0).toFixed(2)}`}
                   </span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tax</span>
-                  <span className="font-medium">৳{getTax().toFixed(2)}</span>
+                  <span className="font-medium">৳{(getTax() ?? 0).toFixed(2)}</span>
                 </div>
                 
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between">
                     <span className="text-lg font-bold text-gray-900">Total</span>
                     <span className="text-lg font-bold text-gray-900">
-                      ৳{getTotal().toFixed(2)}
+                      ৳{(getTotal() ?? 0).toFixed(2)}
                     </span>
                   </div>
                 </div>

@@ -11,3 +11,6 @@ if not DATABASE_URL:
 
 # Base URL for internal service calls
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
+
+# Frontend URL for email verification links
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

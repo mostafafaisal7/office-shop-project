@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, Mail, Lock, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/store/authStore";
 import { useToast } from "@/contexts/ToastContext";
 import { LoginCredentials } from "@/types/auth";
+import { useShippingStore } from "@/store/shippingStore";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -29,10 +31,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [otpRequired, setOtpRequired] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
   
-
-
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { login, verifyOtp } = useAuthStore();
   const { showToast } = useToast();
+  const { getAutoFillData } = useShippingStore();
+
+  // Auto-fill email from shipping data when component mounts
+  useEffect(() => {
+    const autoFillData = getAutoFillData();
+    if (autoFillData?.email && !formData.email) {
+      setFormData(prev => ({ ...prev, email: autoFillData.email || "" }));
+    }
+  }, [getAutoFillData, formData.email]);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<LoginCredentials> = {};
@@ -83,12 +95,24 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         }
   
         showToast(response?.message || "Login successful", "success");
+        
+        // Handle redirect after successful login
+        const redirectPath = searchParams?.get('redirect');
+        if (redirectPath) {
+          router.push(redirectPath);
+        }
         onClose?.();
       } else {
         if (!userId) throw new Error("User ID missing for OTP verification");
   
         await verifyOtp({ userId, otp: formData.otp });
         showToast("Login successful!", "success");
+        
+        // Handle redirect after successful OTP verification
+        const redirectPath = searchParams?.get('redirect');
+        if (redirectPath) {
+          router.push(redirectPath);
+        }
         onClose?.();
       }
     } catch (error) {

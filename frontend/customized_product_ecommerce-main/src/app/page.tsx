@@ -4,6 +4,7 @@ import { FeaturesSection } from "@/components/home/FeaturesSection";
 import { ProductGrid } from "@/components/home/ProductGrid";
 import { SchoolUniformsSection } from "@/components/home/SchoolUniformsSection";
 import { ContactSection } from "@/components/home/ContactSection";
+import { VerificationSuccessAlert } from "@/components/common/VerificationSuccessAlert";
 import { 
   fetchProducts, 
   fetchCategories, 
@@ -137,6 +138,7 @@ export default async function Home() {
       />
       
       <div className="min-h-screen bg-white">
+        <VerificationSuccessAlert />
         <HeroSection />
         <FeaturesSection />
         
