@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartApi, CartApiItem, CartApiItemWithCustomizations } from '@/services/cartApi';
 import { useAuthStore } from './authStore';
+import { useAuth } from '@/hooks/useAuth';
 import { previewGenerator } from '@/utils/previewGenerator';
 
 export interface CartItem {
@@ -50,6 +51,18 @@ interface CartStore {
   addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string, customizationId?: number) => Promise<void>;
 }
 
+// Helper function to generate or get guest ID
+const getOrCreateGuestId = (): string => {
+  if (typeof window === 'undefined') return 'guest-' + Date.now();
+  
+  let guestId = localStorage.getItem('guest_id');
+  if (!guestId) {
+    guestId = 'guest-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('guest_id', guestId);
+  }
+  return guestId;
+};
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
@@ -60,15 +73,30 @@ export const useCartStore = create<CartStore>()(
       isGeneratingPreviews: false,
       previewGenerationProgress: {},
       
-      // Initialize cart - load from server if authenticated
+      // Initialize cart - load from server if authenticated, ensure guest ID exists for guests
       initializeCart: async () => {
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
+        
         if (isAuthenticated) {
           try {
             await get().syncWithServer();
           } catch (error) {
-            console.warn('Cart initialization failed, will continue with localStorage:', error);
+            console.warn('Cart initialization failed for authenticated user, will continue with localStorage:', error);
             // Don't throw error, just continue with localStorage
+          }
+        } else {
+          // For guest users, ensure guest ID exists and load any persisted cart
+          const guestId = getOrCreateGuestId();
+          console.log('Guest cart initialized with ID:', guestId);
+          
+          // Mark existing items as guest items if they aren't already marked
+          const currentItems = get().items;
+          if (currentItems.length > 0) {
+            const updatedItems = currentItems.map(item => ({
+              ...item,
+              isGuest: item.isGuest !== false // Keep existing isGuest value, default to true for unmarked items
+            }));
+            set({ items: updatedItems });
           }
         }
       },
@@ -80,7 +108,7 @@ export const useCartStore = create<CartStore>()(
       
       // Add item with hybrid approach
       addItem: async (item) => {
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
         const id = `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
         const existingItem = get().items.find(i => i.id === id);
         
@@ -113,6 +141,9 @@ export const useCartStore = create<CartStore>()(
           } catch (error) {
             console.error('Failed to save to server, storing locally:', error);
           }
+        } else {
+          // For guest users, ensure guest ID exists
+          getOrCreateGuestId();
         }
         
         if (existingItem) {
@@ -143,7 +174,7 @@ export const useCartStore = create<CartStore>()(
       
       // Remove item with hybrid approach
       removeItem: async (id) => {
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
         const item = get().items.find(i => i.id === id);
         
         if (isAuthenticated && item?.serverId) {
@@ -166,7 +197,7 @@ export const useCartStore = create<CartStore>()(
           return;
         }
         
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
         const item = get().items.find(i => i.id === id);
         
         if (isAuthenticated && item?.serverId) {
@@ -186,7 +217,7 @@ export const useCartStore = create<CartStore>()(
       
       // Clear cart with hybrid approach
       clearCart: async () => {
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
         
         if (isAuthenticated) {
           try {
@@ -201,16 +232,32 @@ export const useCartStore = create<CartStore>()(
       
       // Sync with server
       syncWithServer: async () => {
-        const { isAuthenticated } = useAuthStore.getState();
+        const { isAuthenticated } = useAuth.getState();
         if (!isAuthenticated) return;
         
         set({ isSyncing: true, isGeneratingPreviews: true });
         
         try {
           const response = await cartApi.getCart();
-          if (response.success && response.data) {
-            // First, create cart items without preview images
-            const serverItems: CartItem[] = response.data.map((apiItem: CartApiItem) => ({
+          if (response.success) {
+            // Handle different response structures - server might return array directly or wrapped in data
+            let serverData: CartApiItem[] = [];
+            
+            if (Array.isArray(response.data)) {
+              serverData = response.data;
+            } else if (response.data && Array.isArray(response.data.items)) {
+              serverData = response.data.items;
+            } else if (response.data && typeof response.data === 'object') {
+              // If it's an object but not an array, try to extract items
+              const dataKeys = Object.keys(response.data);
+              const itemsKey = dataKeys.find(key => Array.isArray(response.data[key]));
+              if (itemsKey) {
+                serverData = response.data[itemsKey];
+              }
+            }
+            
+            // Convert server data to cart items
+            const serverItems: CartItem[] = serverData.map((apiItem: CartApiItem) => ({
               id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
               productId: apiItem.product_id.toString(),
               name: apiItem.product_name,
@@ -446,8 +493,38 @@ export const useCartStore = create<CartStore>()(
         items: state.items.map(item => ({
           ...item,
           designImages: undefined // Exclude design images from persistence
-        }))
-      })
+        })),
+        lastSyncTime: state.lastSyncTime
+      }),
+      // Custom storage to handle guest ID persistence
+      storage: {
+        getItem: (name: string) => {
+          if (typeof window === 'undefined') return null;
+          const str = localStorage.getItem(name);
+          if (!str) return null;
+          
+          try {
+            const parsed = JSON.parse(str);
+            // Ensure guest ID exists when loading persisted state
+            if (parsed.state && parsed.state.items) {
+              getOrCreateGuestId();
+            }
+            return parsed;
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name: string, value: any) => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(name, JSON.stringify(value));
+          }
+        },
+        removeItem: (name: string) => {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(name);
+          }
+        }
+      }
     }
   )
 );

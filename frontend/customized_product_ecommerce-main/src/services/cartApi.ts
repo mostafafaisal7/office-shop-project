@@ -1,4 +1,8 @@
-import { getValidToken } from '@/store/authStore';
+// Helper function to get customer token
+const getCustomerToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('customer_access_token');
+};
 
 export interface CartApiItem {
   id?: number;
@@ -68,7 +72,7 @@ class CartApiService {
     options: RequestInit = {}
   ): Promise<CartApiResponse> {
     try {
-      const token = await getValidToken();
+      const token = getCustomerToken();
       
       // If no token available, return early for cart operations
       if (!token) {
@@ -145,9 +149,10 @@ class CartApiService {
 
   // Add item to server cart
   async addItem(item: Omit<CartApiItem, 'id' | 'user_id'>): Promise<CartApiResponse> {
-    // Get user ID from auth store using the helper function
-    const { getCurrentUserId } = await import('@/store/authStore');
-    const userId = getCurrentUserId();
+    // Get user ID from useAuth hook
+    const { useAuth } = await import('@/hooks/useAuth');
+    const { user } = useAuth.getState();
+    const userId = user?.id ? parseInt(user.id) : null;
     
     const payload = {
       ...item,

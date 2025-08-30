@@ -151,6 +151,16 @@ export const useAuth = create<AuthStore>()(
               otpRequired: false,
               userId: null,
             });
+
+            // Merge guest cart with user cart after successful direct login
+            try {
+              const { useCartStore } = await import('@/store/cartStore');
+              await useCartStore.getState().mergeGuestCart();
+              console.log('Guest cart merged successfully after direct login');
+            } catch (cartError) {
+              console.error('Failed to merge guest cart after direct login:', cartError);
+              // Don't throw error - login was successful, cart merge is secondary
+            }
           }
         } catch (error: any) {
           console.error('Login error:', error);
@@ -198,6 +208,16 @@ export const useAuth = create<AuthStore>()(
               otpRequired: false,
               userId: null,
             });
+
+            // Merge guest cart with user cart after successful login
+            try {
+              const { useCartStore } = await import('@/store/cartStore');
+              await useCartStore.getState().mergeGuestCart();
+              console.log('Guest cart merged successfully after OTP verification');
+            } catch (cartError) {
+              console.error('Failed to merge guest cart after OTP verification:', cartError);
+              // Don't throw error - login was successful, cart merge is secondary
+            }
           } else {
             throw new Error('No tokens received from OTP verification');
           }
