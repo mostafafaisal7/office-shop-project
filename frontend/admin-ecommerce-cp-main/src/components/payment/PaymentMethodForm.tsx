@@ -90,18 +90,21 @@ const PaymentMethodForm: React.FC<PaymentMethodFormProps> = ({
   };
 
   const paymentTypes = [
-    { value: 'credit_card', label: 'Credit Card' },
-    { value: 'debit_card', label: 'Debit Card' },
+    // { value: 'cod', label: 'Credit Card' },
+    // { value: 'debit_card', label: 'Debit Card' },
+    // { value: 'paypal', label: 'PayPal' },
+    // { value: 'bank_transfer', label: 'Bank Transfer' },
+    // { value: 'cash_on_delivery', label: 'Cash on Delivery' },
+    // { value: 'digital_wallet', label: 'Digital Wallet' },
+    // { value: 'cryptocurrency', label: 'Cryptocurrency' },
+    // { value: 'other', label: 'Other' },
+    { value: 'card', label: 'Credit/Debit Card' }, // matches enum
     { value: 'paypal', label: 'PayPal' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'cash_on_delivery', label: 'Cash on Delivery' },
-    { value: 'digital_wallet', label: 'Digital Wallet' },
-    { value: 'cryptocurrency', label: 'Cryptocurrency' },
-    { value: 'other', label: 'Other' },
+    { value: 'cod', label: 'Cash on Delivery' },
   ];
 
   const currencies = [
-    'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'SEK', 'NZD',
+    'BDT','USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'SEK', 'NZD',
     'MXN', 'SGD', 'HKD', 'NOK', 'TRY', 'RUB', 'INR', 'BRL', 'ZAR', 'KRW'
   ];
 

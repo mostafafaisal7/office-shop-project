@@ -30,6 +30,15 @@ export interface OrderItemRead extends BaseEntity {
   unit_price: number;
   customized_images?: string;
   order_id: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+    role?: string;
+    is_active?: boolean;
+    is_verified?: boolean;
+  };
 }
 
 export interface OrderItemDetailRead extends OrderItemRead {

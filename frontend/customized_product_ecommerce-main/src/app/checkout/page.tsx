@@ -59,7 +59,7 @@ export default function CheckoutPage() {
     delivery_address: '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cod');
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>({
     cardNumber: '',
     expiryDate: '',
@@ -201,8 +201,8 @@ export default function CheckoutPage() {
           
           // Set default payment method to the first active one
           if (activePaymentMethods.length > 0) {
-            setPaymentMethod(activePaymentMethods[0].type);
-            setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
+            // setPaymentMethod(activePaymentMethods[0].type);
+            // setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
           }
         } else {
           console.log('No payment methods found or error:', response.message);
@@ -1231,6 +1231,7 @@ export default function CheckoutPage() {
                                   return <CreditCard className="w-5 h-5 text-gray-600" />;
                               }
                             };
+                            <p className="text-sm text-gray-500 mt-2">Selected Payment Method: {paymentMethod}</p>
 
                             const getDefaultDescription = () => {
                               switch (method.type) {
@@ -1267,7 +1268,9 @@ export default function CheckoutPage() {
                                     checked={paymentMethod === method.type}
                                     onChange={() => {
                                       console.log('Changed payment method:', method.type);
-                                      setPaymentMethod(method.type as PaymentMethodType);
+                                      // setPaymentMethod(method.type as PaymentMethodType);
+                                      // setSelectedPaymentMethodId(method.id.toString());
+                                      setPaymentMethod(method.type);
                                       setSelectedPaymentMethodId(method.id.toString());
                                     }}
                                     className="text-blue-600"
@@ -1442,7 +1445,7 @@ export default function CheckoutPage() {
                         <>
                           {paymentMethod === 'card' && <CreditCard className="w-4 h-4" />}
                           {paymentMethod === 'paypal' && <Wallet className="w-4 h-4" />}
-                          {paymentMethod === 'cod' && <DollarSign className="w-4 h-4" />}
+                          {/* {paymentMethod === 'cod' && <DollarSign className="w-4 h-4" />} */}
                           {paymentMethod === 'card' && `Pay Now - ৳${getTotal().toFixed(2)}`}
                           {paymentMethod === 'paypal' && `Pay with PayPal - ৳${getTotal().toFixed(2)}`}
                           {paymentMethod === 'cod' && `Place Order - ৳${getTotal().toFixed(2)}`}

@@ -523,7 +523,7 @@ export default function OrderDetailsPage() {
         {/* Order Details Sidebar */}
         <Col xs={24} lg={8}>
           {/* Customer Information */}
-          <Card title="Customer Information" style={{ marginBottom: 16 }}>
+          {/* <Card title="Customer Information" style={{ marginBottom: 16 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Avatar icon={<UserOutlined />} />
@@ -550,32 +550,94 @@ export default function OrderDetailsPage() {
                 </div>
               </div>
             </Space>
+          </Card> */}
+
+          <Card title="Customer Information" style={{ marginBottom: 16 }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} />
+                <div>
+                  <div>
+                    <Text strong>
+                      {order.user?.name || (order.user_id ? `User #${order.user_id}` : 'Guest')}
+                    </Text>
+                  </div>
+                  {order.user?.email && (
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {order.user.email}
+                      </Text>
+                    </div>
+                  )}
+                  {order.guest_id && (
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Guest ID: {order.guest_id}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Space>
           </Card>
+
+        
+
 
           {/* Shipping Address */}
           {order.shipping_address && (
+            // <Card title="Shipping Address" style={{ marginBottom: 16 }}>
+            //   <div>
+            //     <Text>{order.shipping_address.name}</Text>
+            //     <br />
+            //     <Text type="secondary">
+            //       {order.shipping_address.address_line_1}
+            //       {order.shipping_address.address_line_2 && (
+            //         <>, {order.shipping_address.address_line_2}</>
+            //       )}
+            //       <br />
+            //       {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
+            //       <br />
+            //       {order.shipping_address.country}
+            //     </Text>
+            //     {order.shipping_address.phone && (
+            //       <>
+            //         <br />
+            //         <Text type="secondary">Phone: {order.shipping_address.phone}</Text>
+            //       </>
+            //     )}
+            //   </div>
+            // </Card>
             <Card title="Shipping Address" style={{ marginBottom: 16 }}>
-              <div>
-                <Text>{order.shipping_address.name}</Text>
-                <br />
-                <Text type="secondary">
-                  {order.shipping_address.address_line_1}
-                  {order.shipping_address.address_line_2 && (
-                    <>, {order.shipping_address.address_line_2}</>
-                  )}
+            <div>
+              <Text strong>Recipient:</Text> {order.shipping_address.full_name}
+              <br />
+              {order.shipping_address.phone && (
+                <>
+                  <Text strong>Phone:</Text> {order.shipping_address.phone}
+                </>
+              )}
+              {order.shipping_address.email && (
+                <>
                   <br />
-                  {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
+                  <Text strong>Email:</Text> {order.shipping_address.email}
                   <br />
-                  {order.shipping_address.country}
-                </Text>
-                {order.shipping_address.phone && (
-                  <>
-                    <br />
-                    <Text type="secondary">Phone: {order.shipping_address.phone}</Text>
-                  </>
-                )}
-              </div>
-            </Card>
+                </>
+              )}
+              <br />
+              <Text strong>Delivery Address:</Text> {order.shipping_address.delivery_address}
+              <br />
+              <Text strong>Postal Code:</Text> {order.shipping_address.postal_code}
+              <br />
+              <Text strong>District:</Text> {order.shipping_address.district}
+              <br />
+              <Text strong>Division:</Text> {order.shipping_address.division}
+              <br />
+              <Text strong>Country:</Text> {order.shipping_address.country}
+              
+            </div>
+          </Card>
+
           )}
 
           {/* Payment Method */}

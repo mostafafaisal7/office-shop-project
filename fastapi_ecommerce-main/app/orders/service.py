@@ -10,6 +10,10 @@ import os
 import asyncio
 from decimal import Decimal
 
+from app.users.service import get_user_details
+from app.users.schemas import UserResponse
+
+
 
 async def list_all_orders(db: AsyncSession) -> List[models.Order]:
     return await crud.get_all_orders(db)
@@ -110,39 +114,207 @@ async def fetch_payment_method_details(method_id: int) -> Optional[PaymentMethod
     return None
 
 
+# async def fetch_shipping_address_details(address_id: str) -> Optional[ShippingAddressDetail]:
+#     """Fetch shipping address details from the shipping service"""
+#     try:
+#         base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+#         url = f"{base_url}/shipping/addresses/{address_id}"
+        
+#         response = await http_get(url)
+#         print(f"Shipping address API response for {address_id}: {response}")  # <-- debug log
+
+#         if response and response.get("id"):
+#             return ShippingAddressDetail(
+#                 # id=response.get("id"),
+#                 # full_name=response.get("full_name"),
+#                 # phone=response.get("phone"),
+#                 # email=response.get("email"),
+#                 # address_line=response.get("address_line"),
+#                 # city=response.get("city"),
+#                 # state=response.get("state"),
+#                 # postal_code=response.get("postal_code"),
+#                 # country=response.get("country")
+#                 id=str(response.get("id")),
+#                 full_name=response.get("full_name", ""),
+#                 phone=response.get("phone", ""),
+#                 email=response.get("email", ""),
+#                 address_line=response.get("delivery_address", ""),  # map from delivery_address
+#                 city=response.get("district", ""),                  # map from district
+#                 state=response.get("division", ""),                # map from division
+#                 postal_code=response.get("postal_code", ""),
+#                 country=response.get("country", "")
+#             )
+#     except Exception as e:
+#         print(f"Error fetching shipping address details for address_id {address_id}: {str(e)}")
+#         return None
+    
+#     return None
+
+
 async def fetch_shipping_address_details(address_id: str) -> Optional[ShippingAddressDetail]:
-    """Fetch shipping address details from the shipping service"""
     try:
         base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         url = f"{base_url}/shipping/addresses/{address_id}"
-        
         response = await http_get(url)
+        print(f"Shipping address API response for {address_id}: {response}")
+
         if response and response.get("id"):
-            return ShippingAddressDetail(
-                id=response.get("id"),
-                full_name=response.get("full_name"),
-                phone=response.get("phone"),
-                email=response.get("email"),
-                address_line=response.get("address_line"),
-                city=response.get("city"),
-                state=response.get("state"),
-                postal_code=response.get("postal_code"),
-                country=response.get("country")
-            )
+            return ShippingAddressDetail(**response)  # Directly pass API dict
     except Exception as e:
         print(f"Error fetching shipping address details for address_id {address_id}: {str(e)}")
         return None
+
+
+# async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDetailRead]:
+#     """Get order with enriched details including variation, shipping, and payment information"""
+#     order_dict = {
+#         "id": order.id,
+#         "user_id": order.user_id,
+#         "guest_id": order.guest_id,
+#         ...
+#         "items": []
+#     }
+#     order = await crud.get_order_by_id(db, order_id)
+#     if not order:
+#         return None
     
-    return None
+#     user_data = None
+#     if order.user_id:
+#         try:
+#             user = await get_user_details(db, order.user_id)
+#             user_data = UserResponse.model_validate(user).model_dump()
+#         except Exception as e:
+#             print(f"Error fetching user details for user_id {order.user_id}: {str(e)}")
+#     # Convert order to dict for manipulation
+#     order_dict = {
+#         "id": order.id,
+#         "user_id": order.user_id,
+#         "guest_id": order.guest_id,
+#         "subtotal": order.subtotal,
+#         "shipping_cost": order.shipping_cost,
+#         "total_price": order.total_price,
+#         "shipping_method_id": order.shipping_method_id,
+#         "estimated_delivery_days": order.estimated_delivery_days,
+#         "shipping_cost_breakdown": order.shipping_cost_breakdown,
+#         "payment_method_id": order.payment_method_id,
+#         "shipping_address_id": order.shipping_address_id,
+#         "status": order.status,
+#         "tracking_info": order.tracking_info,
+#         "created_at": order.created_at,
+#         "payment_method": None,
+#         "shipping_method": None,
+#         "shipping_address": None,
+#         "items": []
+#     }
+    
+#     # Collect all unique IDs that need to be fetched
+#     variation_ids = set()
+#     item_shipping_method_ids = set()
+    
+#     # Prepare tasks for concurrent HTTP calls
+#     fetch_tasks = []
+    
+#     # Add order-level fetch tasks
+#     if order.payment_method_id is not None:
+#         fetch_tasks.append(("payment_method", fetch_payment_method_details(order.payment_method_id)))
+    
+#     if order.shipping_method_id is not None:
+#         fetch_tasks.append(("order_shipping_method", fetch_shipping_method_details(order.shipping_method_id)))
+    
+#     if order.shipping_address_id is not None:
+#         fetch_tasks.append(("shipping_address", fetch_shipping_address_details(order.shipping_address_id)))
+    
+#     # Process each order item and collect IDs
+#     for item in order.items:
+#         item_dict = {
+#             "id": item.id,
+#             "product_id": item.product_id,
+#             "product_name": item.product_name,
+#             "variation_id": item.variation_id,
+#             "customization_option_id": item.customization_option_id,
+#             "customized_images": item.customized_images,
+#             "quantity": item.quantity,
+#             "unit_price": item.unit_price,
+#             "shipping_method_id": item.shipping_method_id,
+#             "discount_rule_id": item.discount_rule_id,
+#             "original_unit_price": item.original_unit_price,
+#             "discount_percentage": item.discount_percentage,
+#             "discount_amount": item.discount_amount,
+#             "discount_type": item.discount_type,
+#             "shipping_method": None,
+#             "variation_details": None
+#         }
+        
+#         # Collect unique IDs for batch fetching
+#         if item.variation_id:
+#             variation_ids.add(item.variation_id)
+        
+#         if item.shipping_method_id:
+#             item_shipping_method_ids.add(item.shipping_method_id)
+        
+#         order_dict["items"].append(item_dict)
+    
+#     # Add variation fetch tasks
+#     for variation_id in variation_ids:
+#         fetch_tasks.append((f"variation_{variation_id}", fetch_variation_details(variation_id)))
+    
+#     # Add item shipping method fetch tasks
+#     for method_id in item_shipping_method_ids:
+#         fetch_tasks.append((f"shipping_method_{method_id}", fetch_shipping_method_details(method_id)))
+    
+#     # Execute all HTTP calls concurrently
+#     if fetch_tasks:
+#         task_names, tasks = zip(*fetch_tasks)
+#         results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+#         # Create lookup dictionaries for fetched data
+#         fetched_data = {}
+#         for task_name, result in zip(task_names, results):
+#             if not isinstance(result, Exception) and result is not None:
+#                 fetched_data[task_name] = result
+#     else:
+#         fetched_data = {}
+    
+#     # Populate order-level details
+#     order_dict["payment_method"] = fetched_data.get("payment_method")
+#     order_dict["shipping_method"] = fetched_data.get("order_shipping_method")
+#     order_dict["shipping_address"] = fetched_data.get("shipping_address")
+    
+#     # Populate item-level details
+#     for item_dict in order_dict["items"]:
+#         # Set variation details
+#         if item_dict["variation_id"]:
+#             variation_key = f"variation_{item_dict['variation_id']}"
+#             item_dict["variation_details"] = fetched_data.get(variation_key)
+        
+#         # Set item shipping method details
+#         if item_dict["shipping_method_id"]:
+#             shipping_method_key = f"shipping_method_{item_dict['shipping_method_id']}"
+#             item_dict["shipping_method"] = fetched_data.get(shipping_method_key)
+    
+#     return schemas.OrderDetailRead.model_validate(order_dict)
+
 
 
 async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDetailRead]:
     """Get order with enriched details including variation, shipping, and payment information"""
+    # 1️⃣ Fetch the order first
     order = await crud.get_order_by_id(db, order_id)
     if not order:
         return None
-    
-    # Convert order to dict for manipulation
+
+    # 2️⃣ Fetch user details if order has a user_id
+    user_data = None
+    if order.user_id:
+        try:
+            user = await get_user_details(db, order.user_id)
+            user_data = UserResponse.model_validate(user)
+            print("DEBUG: user_data =", user_data)   # <-- debug here
+
+        except Exception as e:
+            print(f"Error fetching user details for user_id {order.user_id}: {str(e)}")
+
+    # 3️⃣ Build order_dict exactly like before, just add `user` field
     order_dict = {
         "id": order.id,
         "user_id": order.user_id,
@@ -161,27 +333,24 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
         "payment_method": None,
         "shipping_method": None,
         "shipping_address": None,
-        "items": []
+        "items": [],
+        "user": user_data  # 🔹 add user info here
     }
     
-    # Collect all unique IDs that need to be fetched
+    print("DEBUG: order_dict['user'] =", order_dict.get("user"))  # <-- debug
+
+    # 4️⃣ The rest is exactly the same
     variation_ids = set()
     item_shipping_method_ids = set()
-    
-    # Prepare tasks for concurrent HTTP calls
     fetch_tasks = []
-    
-    # Add order-level fetch tasks
+
     if order.payment_method_id is not None:
         fetch_tasks.append(("payment_method", fetch_payment_method_details(order.payment_method_id)))
-    
     if order.shipping_method_id is not None:
         fetch_tasks.append(("order_shipping_method", fetch_shipping_method_details(order.shipping_method_id)))
-    
     if order.shipping_address_id is not None:
         fetch_tasks.append(("shipping_address", fetch_shipping_address_details(order.shipping_address_id)))
-    
-    # Process each order item and collect IDs
+
     for item in order.items:
         item_dict = {
             "id": item.id,
@@ -201,55 +370,44 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
             "shipping_method": None,
             "variation_details": None
         }
-        
-        # Collect unique IDs for batch fetching
+
         if item.variation_id:
             variation_ids.add(item.variation_id)
-        
         if item.shipping_method_id:
             item_shipping_method_ids.add(item.shipping_method_id)
-        
+
         order_dict["items"].append(item_dict)
-    
-    # Add variation fetch tasks
+
     for variation_id in variation_ids:
         fetch_tasks.append((f"variation_{variation_id}", fetch_variation_details(variation_id)))
-    
-    # Add item shipping method fetch tasks
     for method_id in item_shipping_method_ids:
         fetch_tasks.append((f"shipping_method_{method_id}", fetch_shipping_method_details(method_id)))
-    
-    # Execute all HTTP calls concurrently
+
     if fetch_tasks:
         task_names, tasks = zip(*fetch_tasks)
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Create lookup dictionaries for fetched data
+
         fetched_data = {}
         for task_name, result in zip(task_names, results):
             if not isinstance(result, Exception) and result is not None:
                 fetched_data[task_name] = result
     else:
         fetched_data = {}
-    
-    # Populate order-level details
+
     order_dict["payment_method"] = fetched_data.get("payment_method")
     order_dict["shipping_method"] = fetched_data.get("order_shipping_method")
     order_dict["shipping_address"] = fetched_data.get("shipping_address")
-    
-    # Populate item-level details
+
     for item_dict in order_dict["items"]:
-        # Set variation details
         if item_dict["variation_id"]:
             variation_key = f"variation_{item_dict['variation_id']}"
             item_dict["variation_details"] = fetched_data.get(variation_key)
-        
-        # Set item shipping method details
         if item_dict["shipping_method_id"]:
             shipping_method_key = f"shipping_method_{item_dict['shipping_method_id']}"
             item_dict["shipping_method"] = fetched_data.get(shipping_method_key)
-    
+
     return schemas.OrderDetailRead.model_validate(order_dict)
+
 
 
 async def change_order_status(

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import {
   Table,
   Button,
@@ -55,6 +55,10 @@ const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
     updateMethod,
     fetchMethods,
   } = usePaymentMethods();
+
+  React.useEffect(() => {
+  console.log("Fetched methods:", methods);
+}, [methods]);
 
   const handleSearch = (value: string) => {
     setSearchText(value);
@@ -255,13 +259,13 @@ const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
       key: 'actions',
       render: (_, record: PaymentMethod) => (
         <Space>
-          {/* <Button
+          <Button
             type="link"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
           >
             Edit
-          </Button> */}
+          </Button>
           <Popconfirm
             title="Are you sure you want to delete this payment method?"
             description="This action cannot be undone."
@@ -269,13 +273,13 @@ const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
             okText="Yes"
             cancelText="No"
           >
-            {/* <Button
+            <Button
               type="link"
               danger
               icon={<DeleteOutlined />}
             >
               Delete
-            </Button> */}
+            </Button>
           </Popconfirm>
         </Space>
       ),
@@ -301,14 +305,17 @@ const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
                   value={typeFilter}
                   onChange={handleTypeFilter}
                 >
-                  <Option value="credit_card">Credit Card</Option>
+                  <Option value="card">Credit/Debit Card</Option>
+                  <Option value="paypal">PayPal</Option>
+                  <Option value="cod">Cash on Delivery</Option>
+                  {/* <Option value="credit_card">Credit Card</Option>
                   <Option value="debit_card">Debit Card</Option>
                   <Option value="paypal">PayPal</Option>
                   <Option value="bank_transfer">Bank Transfer</Option>
-                  <Option value="cash_on_delivery">Cash on Delivery</Option>
+                  <Option value="cod">Cash on Delivery</Option>
                   <Option value="digital_wallet">Digital Wallet</Option>
                   <Option value="cryptocurrency">Cryptocurrency</Option>
-                  <Option value="other">Other</Option>
+                  <Option value="other">Other</Option> */}
                 </Select>
               </Col>
               <Col>
@@ -321,13 +328,13 @@ const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
                 />
               </Col>
               <Col>
-                {/* <Button
+                <Button
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => setIsModalVisible(true)}
                 >
                   Add Method
-                </Button> */}
+                </Button>
               </Col>
             </Row>
           </Col>

@@ -112,11 +112,14 @@ export const useCartStore = create<CartStore>()(
         const id = `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
         const existingItem = get().items.find(i => i.id === id);
         
+        
         // Create item for storage
         const itemForStorage: CartItem = {
           ...item,
           id,
           isGuest: !isAuthenticated,
+          price: Number(item.price) || 0,
+          quantity: Number(item.quantity) || 0,
         };
         
         if (isAuthenticated) {
@@ -258,18 +261,18 @@ export const useCartStore = create<CartStore>()(
             
             // Convert server data to cart items
             const serverItems: CartItem[] = serverData.map((apiItem: CartApiItem) => ({
-              id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
-              productId: apiItem.product_id.toString(),
-              name: apiItem.product_name,
-              image: undefined, // Will be generated asynchronously
-              quantity: apiItem.quantity,
-              price: apiItem.product_price,
-              size: apiItem.size,
-              color: apiItem.color,
-              customizationId: apiItem.customization_id,
-              customDesign: !!apiItem.customization_id,
-              serverId: apiItem.id,
-              isGuest: false,
+                id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
+                productId: apiItem.product_id.toString(),
+                name: apiItem.product_name,
+                image: undefined,
+                quantity: Number(apiItem.quantity) || 0,
+                price: parseFloat(apiItem.product_price as any) || 0,
+                size: apiItem.size,
+                color: apiItem.color,
+                customizationId: apiItem.customization_id,
+                customDesign: !!apiItem.customization_id,
+                serverId: apiItem.id,
+                isGuest: false,
             }));
             
             // Update state with items (without preview images yet)
@@ -455,8 +458,8 @@ export const useCartStore = create<CartStore>()(
             productId,
             name: productName,
             size: sq.size,
-            quantity: sq.quantity,
-            price: sq.price,
+            quantity: Number(sq.quantity) || 0,
+            price: Number(sq.price) || 0,
             customDesign: !!customizationId,
             customizationId: customizationId,
           };
@@ -477,8 +480,8 @@ export const useCartStore = create<CartStore>()(
           image,
           size,
           color,
-          quantity,
-          price,
+          quantity: Number(quantity) || 0,
+          price: Number(price) || 0,
           customDesign: !!customizationId,
           customizationId: customizationId,
         };

@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, model_validator
 from app.common.enums import OrderStatus
 from decimal import Decimal
+from app.users.schemas import UserResponse
 
 
 class OrderItemCreate(BaseModel):
@@ -57,12 +58,20 @@ class ShippingMethodDetail(BaseModel):
 
 class ShippingAddressDetail(BaseModel):
     id: str
+    # full_name: str
+    # phone: str
+    # email: str
+    # address_line: str
+    # city: str
+    # state: str
+    # postal_code: str
+    # country: str
     full_name: str
     phone: str
     email: str
-    address_line: str
-    city: str
-    state: str
+    delivery_address: str
+    district: str
+    division: str
     postal_code: str
     country: str
 
@@ -211,6 +220,8 @@ class OrderDetailRead(BaseModel):
     shipping_address: Optional[ShippingAddressDetail] = None
 
     model_config = ConfigDict(from_attributes=True)
+    user: Optional[UserResponse] = None
+
 
 
 # New lightweight schemas for the list endpoint
