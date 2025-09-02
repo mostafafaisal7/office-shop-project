@@ -91,6 +91,23 @@ export const useProducts = (initialParams: PaginationParams = {}) => {
     }));
   };
 
+ const uploadProductMedia = async (productId: number, files: File[]) => {
+  try {
+    const data = await productService.uploadProductMedia(productId, files);
+
+    if (!data.success) throw new Error(data.error || 'Upload failed');
+
+    // Update local product state with new media
+    setProducts(prev =>
+      prev.map(p => p.id === productId ? { ...p, media: [...(p.media || []), ...data.files] } : p)
+    );
+
+    return data.files;
+  } catch (err) {
+    console.error('Upload error:', err);
+    throw err;
+  }
+};
   return {
     response,
     products,
@@ -105,5 +122,6 @@ export const useProducts = (initialParams: PaginationParams = {}) => {
     deleteProduct,
     handleTableChange,
     updateFilters,
+    uploadProductMedia, // ← add this
   };
 };

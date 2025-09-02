@@ -5,7 +5,62 @@ from app.products import schemas, service, crud, models
 from app.core.database import get_db
 from app.common.dependencies import get_current_user, require_admin
 
+
+
+from fastapi import UploadFile, File
+from uuid import uuid4
+import os
+# from sqlalchemy.ext.asyncio import AsyncSession
+# from fastapi import Depends, HTTPException
+
+# Folder to store product images
+UPLOAD_DIR = "app/static/products/"
+
 router = APIRouter()
+
+
+
+@router.post("/{product_id}/upload-image", status_code=201)
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Upload an image for a product. Only admins can upload.
+    Saves the file in app/static/products/ and creates a ProductMedia entry.
+    """
+    # Admin check
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Ensure folder exists
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    
+    # Generate unique filename
+    file_ext = file.filename.split(".")[-1]
+    filename = f"{uuid4()}.{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    
+    # Save file to disk
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    
+    # Save media record in DB using existing service
+    from app.products import service, schemas
+    media_data = schemas.ProductMediaCreate(
+        product_id=product_id,
+        file_path=f"/images/products/{filename}",
+        file_name=file.filename,
+        media_type=file.content_type,
+    )
+    media = await service.create_product_media(db, product_id, media_data)
+    
+    return media
+
+
+
 
 
 @router.post(

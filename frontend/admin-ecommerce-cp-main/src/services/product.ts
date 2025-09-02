@@ -121,6 +121,19 @@ class ProductService {
   async deleteProductMedia(mediaId: number): Promise<void> {
     await apiService.delete(`/products/medias/${mediaId}`);
   }
+  async uploadProductMedia(productId: number, files: File[]): Promise<any> {
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+
+  const response = await apiService.post(`/media/product/${productId}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+
+  return response.data;
+}
+
 }
 
 export const productService = new ProductService();

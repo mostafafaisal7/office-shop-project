@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.core.database import database
 from app.users.router import router as users_router
@@ -13,6 +14,12 @@ from app.checkout.router import router as checkout_router
 from app.payment.router import router as payment_router
 from app.reviews.router import router as reviews_router
 from app.discounts.router import router as discounts_router
+import os
+
+# Ensure static folders exist
+os.makedirs("app/static/products", exist_ok=True)
+os.makedirs("app/static/users", exist_ok=True)
+os.makedirs("app/static/categories", exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +30,9 @@ async def lifespan(app: FastAPI):
     await database.disconnect()
 
 app = FastAPI(title="eCommerce API", lifespan=lifespan)
+
+# Serve static images
+app.mount("/images", StaticFiles(directory="app/static"), name="images")
 
 # Add CORS middleware
 app.add_middleware(
