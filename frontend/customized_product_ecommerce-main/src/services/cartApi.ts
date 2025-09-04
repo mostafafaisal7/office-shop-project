@@ -9,7 +9,7 @@ export interface CartApiItem {
   product_id: number;
   user_id?: number;
   product_name: string;
-  product_price: number;
+  product_price: number | string; // Allow both number and string from backend
   quantity: number;
   size?: string;
   color?: string;
@@ -63,8 +63,8 @@ export interface CartApiResponse {
 }
 
 const API_BASE_URL = typeof window === 'undefined' 
-  ? 'http://localhost:3000/api' 
-  : '/api';
+  ? 'http://localhost:8000' 
+  : 'http://localhost:8000';
 
 class CartApiService {
   private async makeRequest(

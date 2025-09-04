@@ -108,10 +108,15 @@ export const useCartStore = create<CartStore>()(
       
       // Add item with hybrid approach
       addItem: async (item) => {
+        console.log('🔧 addItem called with:', item);
+        
         const { isAuthenticated } = useAuth.getState();
         const id = `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
         const existingItem = get().items.find(i => i.id === id);
         
+        console.log('🔧 isAuthenticated:', isAuthenticated);
+        console.log('🔧 Generated ID:', id);
+        console.log('🔧 Existing item:', existingItem);
         
         // Create item for storage
         const itemForStorage: CartItem = {
@@ -122,28 +127,45 @@ export const useCartStore = create<CartStore>()(
           quantity: Number(item.quantity) || 0,
         };
         
+        console.log('🔧 Item for storage:', itemForStorage);
+        
         if (isAuthenticated) {
-          // Authenticated user - save to server
           try {
             const apiItem: Omit<CartApiItem, 'id' | 'user_id'> = {
               product_id: parseInt(item.productId),
               product_name: item.name,
-              product_price: item.price,
+              product_price: item.price, // here price is sent to server
               quantity: item.quantity,
               size: item.size,
               color: item.color,
               customization_id: item.customizationId,
             };
-            
+
             const response = await cartApi.addItem(apiItem);
             if (response.success && response.data) {
               itemForStorage.serverId = response.data.id;
-            } else {
-              console.warn('Failed to save to server, storing locally:', response.message);
+              
+              // Parse server price with same robust logic
+              if (response.data.product_price !== null && response.data.product_price !== undefined) {
+                let serverPrice = 0;
+                if (typeof response.data.product_price === 'number') {
+                  serverPrice = response.data.product_price;
+                } else if (typeof response.data.product_price === 'string') {
+                  const cleanPrice = response.data.product_price.toString().trim().replace(/[$৳,\s]/g, '');
+                  const numericValue = Number(cleanPrice);
+                  serverPrice = !isNaN(numericValue) && isFinite(numericValue) ? numericValue : 0;
+                } else {
+                  const numericValue = Number(response.data.product_price);
+                  serverPrice = !isNaN(numericValue) && isFinite(numericValue) ? numericValue : 0;
+                }
+                itemForStorage.price = Math.max(0, serverPrice); // Ensure positive price
+              }
             }
           } catch (error) {
             console.error('Failed to save to server, storing locally:', error);
           }
+        
+
         } else {
           // For guest users, ensure guest ID exists
           getOrCreateGuestId();
@@ -236,7 +258,11 @@ export const useCartStore = create<CartStore>()(
       // Sync with server
       syncWithServer: async () => {
         const { isAuthenticated } = useAuth.getState();
-        if (!isAuthenticated) return;
+        console.log('🔄 syncWithServer called, isAuthenticated:', isAuthenticated);
+        if (!isAuthenticated) {
+          console.log('🔄 Not authenticated, skipping server sync');
+          return;
+        }
         
         set({ isSyncing: true, isGeneratingPreviews: true });
         
@@ -260,20 +286,65 @@ export const useCartStore = create<CartStore>()(
             }
             
             // Convert server data to cart items
-            const serverItems: CartItem[] = serverData.map((apiItem: CartApiItem) => ({
+            // Convert server data to cart items with robust price parsing
+            const serverItems: CartItem[] = serverData.map((apiItem: CartApiItem) => {
+              // Log raw price for debugging
+              console.log('Server item raw price:', apiItem.product_price, 'type:', typeof apiItem.product_price);
+
+              let parsedPrice = 0;
+
+              try {
+                if (apiItem.product_price !== null && apiItem.product_price !== undefined) {
+                  // Handle different price formats more robustly
+                  if (typeof apiItem.product_price === 'number') {
+                    parsedPrice = apiItem.product_price;
+                  } else if (typeof apiItem.product_price === 'string') {
+                    // More robust string parsing - handle Decimal strings, currency, etc.
+                    let cleanPrice = apiItem.product_price.toString().trim();
+                    
+                    // Remove currency symbols and common formatting
+                    cleanPrice = cleanPrice.replace(/[$৳,\s]/g, '');
+                    
+                    // Handle scientific notation or decimal strings
+                    const numericValue = Number(cleanPrice);
+                    if (!isNaN(numericValue) && isFinite(numericValue)) {
+                      parsedPrice = numericValue;
+                    } else {
+                      // Fallback: extract first valid number from string
+                      const match = cleanPrice.match(/\d+\.?\d*/);
+                      parsedPrice = match ? parseFloat(match[0]) : 0;
+                    }
+                  } else {
+                    // Handle other types by converting to number
+                    const numericValue = Number(apiItem.product_price);
+                    parsedPrice = !isNaN(numericValue) && isFinite(numericValue) ? numericValue : 0;
+                  }
+
+                  // Ensure price is positive
+                  if (parsedPrice < 0) parsedPrice = 0;
+                }
+              } catch (error) {
+                console.warn('Failed to parse price for cart item:', apiItem.product_price, error);
+                parsedPrice = 0;
+              }
+
+              console.log('Final parsed price:', parsedPrice);
+
+              return {
                 id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
                 productId: apiItem.product_id.toString(),
                 name: apiItem.product_name,
-                image: undefined,
                 quantity: Number(apiItem.quantity) || 0,
-                price: parseFloat(apiItem.product_price as any) || 0,
+                price: parsedPrice, // ✅ robust parsed price
                 size: apiItem.size,
                 color: apiItem.color,
                 customizationId: apiItem.customization_id,
-                customDesign: !!apiItem.customization_id,
                 serverId: apiItem.id,
                 isGuest: false,
-            }));
+              };
+            });
+
+
             
             // Update state with items (without preview images yet)
             set({ 
@@ -459,21 +530,35 @@ export const useCartStore = create<CartStore>()(
             name: productName,
             size: sq.size,
             quantity: Number(sq.quantity) || 0,
-            price: Number(sq.price) || 0,
+            price: Number(sq.price) || 0, // temporary, will be updated after sync
             customDesign: !!customizationId,
             customizationId: customizationId,
           };
           
           try {
             await get().addItem(item);
+
+            // Immediately sync with server to get the correct price
+            await get().syncWithServer();
+
           } catch (error) {
             console.error('Error adding item to cart:', error);
             throw new Error('Unable to add item to cart.');
           }
         }
       },
+
       
       addItemFromProductPage: async (productId, productName, quantity, price, size, color, image, customizationId) => {
+        // Debug logging
+        console.log('🛒 CartStore addItemFromProductPage Debug:');
+        console.log('- Product ID:', productId);
+        console.log('- Product Name:', productName);
+        console.log('- Quantity:', quantity, 'type:', typeof quantity);
+        console.log('- Price:', price, 'type:', typeof price);
+        console.log('- Size:', size);
+        console.log('- Color:', color);
+        
         const item: Omit<CartItem, 'id'> = {
           productId,
           name: productName,
@@ -485,30 +570,34 @@ export const useCartStore = create<CartStore>()(
           customDesign: !!customizationId,
           customizationId: customizationId,
         };
-        
-        await get().addItem(item);
-      }
+
+        console.log('- Created item object:', item);
+
+        try {
+          await get().addItem(item);
+          await get().syncWithServer();
+        } catch (error) {
+          console.error('Error adding item to cart:', error);
+          throw new Error('Unable to add item to cart.');
+        }
+      },
     }),
     {
       name: 'cart-storage',
-      // Only persist essential cart data, not large images
       partialize: (state) => ({
         items: state.items.map(item => ({
           ...item,
-          designImages: undefined // Exclude design images from persistence
+          designImages: undefined
         })),
         lastSyncTime: state.lastSyncTime
       }),
-      // Custom storage to handle guest ID persistence
       storage: {
         getItem: (name: string) => {
           if (typeof window === 'undefined') return null;
           const str = localStorage.getItem(name);
           if (!str) return null;
-          
           try {
             const parsed = JSON.parse(str);
-            // Ensure guest ID exists when loading persisted state
             if (parsed.state && parsed.state.items) {
               getOrCreateGuestId();
             }

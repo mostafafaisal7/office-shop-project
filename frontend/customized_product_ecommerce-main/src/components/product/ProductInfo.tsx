@@ -145,8 +145,16 @@ const ProductInfo = ({
   }, [product, selectedSize, selectedColor]);
 
   const handleAddToCart = () => {
-    // Parse price to number (remove $ sign)
-    const numericPrice = parseFloat(price.replace('$', ''));
+    // Parse price to number (remove ৳ sign and any other currency symbols)
+    const numericPrice = parseFloat(price.replace(/[৳$,\s]/g, '')) || 0;
+    
+    // Debug logging
+    console.log('🔍 ProductInfo handleAddToCart Debug:');
+    console.log('- Original price string:', price);
+    console.log('- Parsed numeric price:', numericPrice);
+    console.log('- Product ID:', productId);
+    console.log('- Title:', title);
+    console.log('- Quantity:', quantity);
     
     addItemFromProductPage(
       productId,

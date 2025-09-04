@@ -9,27 +9,61 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+
+
 async def add_to_cart(
     db: AsyncSession, item_data: schemas.CartItemCreate, user_id: Optional[int] = None, guest_id: Optional[str] = None
 ):
-    # For authenticated users, only set user_id and leave guest_id as None
-    # For guest users, only set guest_id and leave user_id as None
+    # ✅ Fetch product details to ensure price is correct
+    product_url = f"{BASE_URL}/products/{item_data.product_id}"
+    product_data = await http_get(product_url)
+
+    if not product_data:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # ✅ Overwrite product name & price with trusted values
+    item_data_dict = item_data.model_dump()
+    item_data_dict["product_name"] = product_data["name"]
+    item_data_dict["product_price"] = product_data["base_price"]  # Products have base_price, not price
+
     if user_id is not None:
-        item = models.CartItem(**item_data.model_dump(), user_id=user_id, guest_id=None)
+        item = models.CartItem(**item_data_dict, user_id=user_id, guest_id=None)
     else:
-        item = models.CartItem(**item_data.model_dump(), user_id=None, guest_id=guest_id)
+        item = models.CartItem(**item_data_dict, user_id=None, guest_id=guest_id)
+
     return await crud.add_cart_item(db, item)
 
 
-async def list_cart(
-    db: AsyncSession, user_id: Optional[int] = None, guest_id: Optional[str] = None
-):
+
+
+async def list_cart(db: AsyncSession, user_id: Optional[int] = None, guest_id: Optional[str] = None):
+    cart_items = []
     if user_id:
-        return await crud.get_cart_items_by_user(db, user_id)
+        cart_items = await crud.get_cart_items_by_user(db, user_id)
     elif guest_id:
-        return await crud.get_cart_items_by_guest(db, guest_id)
+        cart_items = await crud.get_cart_items_by_guest(db, guest_id)
     else:
         raise HTTPException(status_code=400, detail="User or Guest ID must be provided")
+
+    # Enrich each cart item with the latest product price
+    enriched_items = []
+    for item in cart_items:
+        product_data = await http_get(f"{BASE_URL}/products/{item.product_id}")
+        enriched_items.append({
+            'id': item.id,
+            'user_id': item.user_id,
+            'guest_id': item.guest_id,
+            'product_id': item.product_id,
+            'product_name': product_data.get('name', item.product_name),
+            'product_price': float(product_data.get('base_price', 0)),  # <-- use base_price from product
+            'quantity': item.quantity,
+            'size': item.size,
+            'color': getattr(item, 'color', None),
+            'customization_id': getattr(item, 'customization_id', None),
+        })
+
+    return enriched_items
+
 
 
 async def update_cart_quantity(
@@ -136,42 +170,27 @@ async def _fetch_customization_details(customization_id: int) -> Optional[Dict[s
         logger.error(f"Failed to fetch customization details for ID {customization_id}: {str(e)}")
         return None
 
-
 async def list_cart_with_customizations(
     db: AsyncSession, user_id: Optional[int] = None, guest_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Get cart items with customization details (lazy loaded)
-    This function fetches customization details via HTTP calls to products service
+    Ensures product_price is correct and customization details are included
     """
-    # Get basic cart items first
+    # Get enriched cart items (already includes product_price)
     cart_items = await list_cart(db, user_id, guest_id)
-    
-    # Convert SQLAlchemy objects to dictionaries and enrich with customization details
+
     enriched_items = []
+
     for item in cart_items:
-        # Convert SQLAlchemy object to dict
-        item_dict = {
-            'id': item.id,
-            'user_id': item.user_id,
-            'guest_id': item.guest_id,
-            'product_id': item.product_id,
-            'product_name': item.product_name,
-            'product_price': item.product_price,
-            'quantity': item.quantity,
-            'size': item.size,
-            'color': getattr(item, 'color', None),  # Handle if color field exists
-            'customization_id': getattr(item, 'customization_id', None),
-            'customization_details': None
-        }
-        
-        # Fetch customization details if customization_id exists
-        customization_id_value = getattr(item, 'customization_id', None)
-        if customization_id_value:
-            customization_data = await _fetch_customization_details(customization_id_value)
-            if customization_data:
-                item_dict['customization_details'] = customization_data
-        
+        # item is already a dict from list_cart
+        item_dict = item.copy()
+        customization_id = item_dict.get("customization_id")
+
+        if customization_id:
+            customization_data = await _fetch_customization_details(customization_id)
+            item_dict["customization_details"] = customization_data
+
         enriched_items.append(item_dict)
-    
+
     return enriched_items

@@ -37,11 +37,19 @@ export default function CartPage() {
   const [promoCode, setPromoCode] = useState('');
   const [isPromoApplied, setIsPromoApplied] = useState(false);
 
-  // Initialize cart when component mounts
-  useEffect(() => {
-    initializeCart();
-  }, [initializeCart]);
+  const [isCartLoading, setIsCartLoading] = useState(true);
 
+
+  // Initialize cart when component mounts
+// Update your useEffect
+useEffect(() => {
+  const loadCart = async () => {
+    setIsCartLoading(true);
+    await initializeCart();
+    setIsCartLoading(false);
+  };
+  loadCart();
+}, [initializeCart]);
   // Group cart items by product and color
   const groupedItems = useMemo(() => {
     const groups: { [key: string]: GroupedCartItem } = {};
@@ -141,6 +149,14 @@ export default function CartPage() {
   const handleContinueShopping = () => {
     router.push('/');
   };
+  
+  if (isCartLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+    </div>
+  );
+}
 
   if (cartItems.length === 0) {
     return (
