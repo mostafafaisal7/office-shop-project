@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.core.database import database
 from app.users.router import router as users_router
@@ -13,6 +14,13 @@ from app.checkout.router import router as checkout_router
 from app.payment.router import router as payment_router
 from app.reviews.router import router as reviews_router
 from app.discounts.router import router as discounts_router
+from app.uploads.router import router as uploads_router # <--- ADD THIS LINE
+import os
+
+# Ensure static folders exist
+os.makedirs("app/static/products", exist_ok=True)
+os.makedirs("app/static/users", exist_ok=True)
+os.makedirs("app/static/categories", exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,19 +32,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="eCommerce API", lifespan=lifespan)
 
+# Serve static images
+app.mount("/images", StaticFiles(directory="app/static"), name="images")
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ],
+    # allow_origins=[
+    #     "http://localhost:3000",
+    #     "http://127.0.0.1:3000",
+    #     "http://localhost:3001",
+    #     "http://127.0.0.1:3001",
+    #     "http://localhost:3002",
+    #     "http://127.0.0.1:3002",
+    #     "http://localhost:8080",
+    #     "http://127.0.0.1:8080",
+    # ],
+    # allow_credentials=True,
+    # allow_methods=["*"],
+    # allow_headers=["*"],
+        allow_origins=["*"],  # ⚠️ Only for testing, not production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,3 +69,4 @@ app.include_router(shipping_router, prefix="/shipping", tags=["Shipping"])
 app.include_router(payment_router, prefix="/payment", tags=["Payment"])
 app.include_router(checkout_router, prefix="/checkout", tags=["Checkout"])
 app.include_router(discounts_router, prefix="/discounts", tags=["Discounts"])
+app.include_router(uploads_router, prefix="/uploads", tags=["Uploads"]) # <--- ADD THIS LINE

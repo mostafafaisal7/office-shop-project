@@ -121,6 +121,22 @@ class ProductService {
   async deleteProductMedia(mediaId: number): Promise<void> {
     await apiService.delete(`/products/medias/${mediaId}`);
   }
+
+
+
+async uploadProductMedia(productId: number, file: File, token?: string): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiService.post(
+    `/products/${productId}/upload-image`,
+    formData,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+  );
+
+  return response.data;
+}
+
 }
 
 export const productService = new ProductService();

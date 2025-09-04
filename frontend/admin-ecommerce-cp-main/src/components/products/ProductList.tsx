@@ -108,24 +108,47 @@ export default function ProductList() {
     });
   };
 
-  const showDeleteConfirm = (id: number, productName: string) => {
-    confirm({
-      title: 'Delete Product',
-      content: (
-        <div>
-          <p>Are you sure you want to delete <strong>"{productName}"</strong>?</p>
-          <p style={{ color: '#ff4d4f', fontSize: '14px' }}>This action cannot be undone and will remove all associated data.</p>
-        </div>
-      ),
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      width: 480,
-      onOk() {
-        deleteProduct(id);
-      },
-    });
-  };
+// const showDeleteConfirm = (id: number, productName: string) => {
+//   confirm({
+//     title: 'Delete Product',
+//     content: (
+//       <div>
+//         <p>Are you sure you want to delete <strong>"{productName}"</strong>?</p>
+//         <p style={{ color: '#ff4d4f', fontSize: '14px' }}>This action cannot be undone and will remove all associated data.</p>
+//       </div>
+//     ),
+//     okText: 'Delete',
+//     okType: 'danger',
+//     cancelText: 'Cancel',
+//     width: 480,
+//     onOk: async () => {
+//       await deleteProduct(id); // wait for deletion before closing modal
+//     },
+//   });
+// };
+
+const showDeleteConfirm = (id: number, productName: string) => {
+  console.log('Delete clicked for:', id, productName);
+  confirm({
+    title: 'Delete Product',
+    content: (
+      <div>
+        <p>Are you sure you want to delete <strong>"{productName}"</strong>?</p>
+        <p style={{ color: '#ff4d4f', fontSize: '14px' }}>This action cannot be undone and will remove all associated data.</p>
+      </div>
+    ),
+    okText: 'Delete',
+    okType: 'danger',
+    cancelText: 'Cancel',
+    width: 480,
+    onOk: async () => {
+      console.log('Confirmed deletion:', id);
+      await deleteProduct(id); 
+    },
+  });
+};
+
+
 
   // Use statistics from the hook (calculated from all products, not just current page)
   const totalProducts = stats.total_products || response?.total_items || 0;
@@ -155,13 +178,19 @@ export default function ProductList() {
     {
       type: 'divider' as const,
     },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: 'Delete Product',
-      danger: true,
-      onClick: () => showDeleteConfirm(record.id, record.name),
-    },
+   {
+    key: 'delete',
+    icon: <DeleteOutlined />,
+    label: (
+      <span
+        style={{ color: '#ff4d4f', cursor: 'pointer' }}
+        onClick={() => showDeleteConfirm(record.id, record.name)}
+      >
+        Delete Product
+      </span>
+    ),
+  },
+,
   ];
 
   const columns = [

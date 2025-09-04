@@ -6,6 +6,10 @@ frontend/customized_product_ecommerce-main/public/uploads/
 !//frontend/customized_product_ecommerce-main/public/uploads/.gitkeep
 
 
+
+fastapi_ecommerce-main/app/static/products/*
+!fastapi_ecommerce-main/app/static/products/.gitkeep
+
 /frontend/admin-ecommerce-cp-main/public/uploads/*
 !/frontend/admin-ecommerce-cp-main/public/uploads/.gitkeep
 
@@ -44,6 +48,7 @@ frontend/customized_product_ecommerce-main/public/uploads/dcae10d8-7caf-4077-b2f
 frontend/customized_product_ecommerce-main/public/uploads/e4f200ae-1cb6-4706-8426-7f4e6bda5aae.jpg
 frontend/customized_product_ecommerce-main/public/uploads/f8d08215-d540-476a-a959-2911de9a523c.jpg
 frontend/customized_product_ecommerce-main/public/uploads/f36e3e05-07b6-43b5-8d44-023c41d70a5b.png
+<<<<<<< HEAD
 fastapi_ecommerce-main/app/static/products/0e9d6697-4f5b-4827-a962-f2272fe1ef21.png
 fastapi_ecommerce-main/app/static/products/1bc57f76-a464-42f6-abfb-2db2b55bbd97.png
 fastapi_ecommerce-main/app/static/products/1cd9954b-82ca-4333-848c-b02a144df653.jpeg
@@ -71,4 +76,44 @@ fastapi_ecommerce-main/app/static/products/d9bf180b-8864-4e9f-94b9-bc842c552e70.
 fastapi_ecommerce-main/app/static/products/d86bbd99-64f2-438c-9f46-117b5ec53481.png
 fastapi_ecommerce-main/app/static/products/d017203a-b002-410a-9b24-1fef9573b692.png
 fastapi_ecommerce-main/app/static/products/e77ec0f8-aa57-4d0b-ab90-0717f8007b19.png
+=======
+frontend/admin-ecommerce-cp-main/public/uploads/2f760e23-2770-403a-ab22-bd23d122ce4a.png
+frontend/admin-ecommerce-cp-main/public/uploads/5d258c6c-37a8-41fe-bb41-e84a2d9fc7c4.png
+frontend/admin-ecommerce-cp-main/public/uploads/6ae7d8dc-0c01-4b12-b1ef-08ec784988db.png
+frontend/admin-ecommerce-cp-main/public/uploads/6f89ea06-02f1-4e75-86ed-4acc316a7818.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/8a736262-4633-43d6-9f0c-25ac53d21388.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/8aa91c6e-605b-4ea8-a7dd-2f8ade0efc36.png
+frontend/admin-ecommerce-cp-main/public/uploads/9a0377cb-33e1-4288-8293-2c93c34800e1.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/9ac8509b-1f63-4951-ba1c-3858ebf81a03.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/59b76916-4872-483f-a77e-365e4e194594.png
+frontend/admin-ecommerce-cp-main/public/uploads/62c0fefe-87a2-44ff-8a64-1ffa99a3ebe2.png
+frontend/admin-ecommerce-cp-main/public/uploads/438fc1f0-1323-46d7-99c0-c8a107f965bd.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/598a8244-99bb-480e-a101-16b654e76715.png
+frontend/admin-ecommerce-cp-main/public/uploads/599deb6e-c0e6-426c-ad76-826e24705812.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/615e51be-2b8f-4927-a2ab-6936ba995d7d.png
+frontend/admin-ecommerce-cp-main/public/uploads/8585575d-dbc6-439a-a758-d41561c73e47.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/a8e3fbc9-5d3f-4883-98c4-e81cc3d049d0.png
+frontend/admin-ecommerce-cp-main/public/uploads/ad6f848c-37b9-428c-9200-bf750506e6e2.png
+frontend/admin-ecommerce-cp-main/public/uploads/b6dfd62e-8849-422b-adab-6fcc384cdb94.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/b74a973c-0781-4d7b-b777-54c9041c183c.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/back.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/bef23e94-cbfa-4718-a37c-97be4d8289d3.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/cbb5abf8-33de-44dd-ae53-b0ecfe85ebc7.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/e1d3bc3d-1da8-4acc-b5be-571bee1aae10.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/e4f200ae-1cb6-4706-8426-7f4e6bda5aae.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/f8d08215-d540-476a-a959-2911de9a523c.jpg
+frontend/admin-ecommerce-cp-main/public/uploads/f36e3e05-07b6-43b5-8d44-023c41d70a5b.png
+fastapi_ecommerce-main/app/static/products/0e9d6697-4f5b-4827-a962-f2272fe1ef21.png
+fastapi_ecommerce-main/app/static/products/1cd9954b-82ca-4333-848c-b02a144df653.jpeg
+fastapi_ecommerce-main/app/static/products/5b1b8bbd-74b9-451d-897e-180c167425db.png
+fastapi_ecommerce-main/app/static/products/7c8d5042-8f46-4ced-ab0f-777419f5390d.jpg
+fastapi_ecommerce-main/app/static/products/8dbd3174-b56d-4ad5-8738-62842b99d154.png
+fastapi_ecommerce-main/app/static/products/27ccc11d-87d5-448e-8613-5370131a9c32.webp
+fastapi_ecommerce-main/app/static/products/48e0f1b9-fd5a-4956-ad8a-7cc55e4f6b06.jpg
+fastapi_ecommerce-main/app/static/products/356a9473-148b-41ad-9259-6ac1e8744e30.webp
+fastapi_ecommerce-main/app/static/products/752b4662-f162-496e-aa29-34c308108ce7.jpeg
+fastapi_ecommerce-main/app/static/products/54039cdd-0b7b-474e-a5ab-568b361eaaec.jpg
+fastapi_ecommerce-main/app/static/products/ab735077-330c-4859-b340-26231370ceae.jpeg
+fastapi_ecommerce-main/app/static/products/bbc3b2a7-e5b7-44c6-8d9b-aadb0a26f926.png
+>>>>>>> image-path-attemp-2
 fastapi_ecommerce-main/app/static/products/f09667a3-88c2-4800-9fdc-c9ed1483b89e.webp
