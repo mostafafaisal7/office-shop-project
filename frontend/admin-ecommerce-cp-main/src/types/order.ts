@@ -134,6 +134,15 @@ export interface OrderDetailRead {
   items: OrderItemDetailRead[];
   user_name?: string;
   user_email?: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+    role?: string;
+    is_active?: boolean;
+    is_verified?: boolean;
+  };
   shipping_address?: any;
   payment_method?: any;
   created_at: string;

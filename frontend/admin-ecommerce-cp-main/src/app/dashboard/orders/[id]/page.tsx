@@ -152,52 +152,86 @@ export default function OrderDetailsPage() {
     {
       title: 'Product',
       key: 'product',
-      render: (_, record) => (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          {/* Product Image */}
-          {record.variation_details?.media?.[0] && (
-            <Avatar
-              size={64}
-              shape="square"
-              src={record.variation_details.media[0].file_path}
-              alt={record.variation_details.media[0].alt_text || record.product_name}
-            />
-          )}
-          <div style={{ flex: 1 }}>
-            <Text strong>{record.product_name}</Text>
-            {record.variation_details && (
-              <div>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Variation: {record.variation_details.name}
-                </Text>
-              </div>
+      render: (_, record) => {
+        // Determine the best image to display with priority:
+        // 1. Customization preview image (from customized_images)
+        // 2. Variation image (from variation_details.media)
+        // 3. Default product image fallback
+        let imageUrl = null;
+        let imageAlt = record.product_name;
+
+        // Priority 1: Customization preview image
+        if (record.customized_images && Array.isArray(record.customized_images) && record.customized_images.length > 0) {
+          // customized_images might be an array of image URLs or objects
+          const customImage = record.customized_images[0];
+          if (typeof customImage === 'string') {
+            imageUrl = customImage;
+          } else if (customImage && typeof customImage === 'object' && customImage.url) {
+            imageUrl = customImage.url;
+          }
+          imageAlt = `${record.product_name} (Custom Design)`;
+        }
+        
+        // Priority 2: Variation image
+        if (!imageUrl && record.variation_details?.media?.[0]) {
+          imageUrl = record.variation_details.media[0].file_path;
+          imageAlt = record.variation_details.media[0].alt_text || `${record.product_name} (${record.variation_details.name})`;
+        }
+
+        return (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            {/* Product Image with priority logic */}
+            {imageUrl && (
+              <Avatar
+                size={64}
+                shape="square"
+                src={imageUrl}
+                alt={imageAlt}
+              />
             )}
-            {record.variation_details?.sku && (
-              <div>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  SKU: {record.variation_details.sku}
-                </Text>
-              </div>
-            )}
-            {record.variation_details?.attributes && (
-              <div style={{ marginTop: 4 }}>
-                {Object.entries(record.variation_details.attributes).map(([key, value]) => (
-                  <Tag key={key} style={{ marginBottom: 2, fontSize: '11px' }}>
-                    {key}: {value}
+            <div style={{ flex: 1 }}>
+              <Text strong>{record.product_name}</Text>
+              {record.variation_details && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Variation: {record.variation_details.name}
+                  </Text>
+                </div>
+              )}
+              {record.variation_details?.sku && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    SKU: {record.variation_details.sku}
+                  </Text>
+                </div>
+              )}
+              {record.variation_details?.attributes && (
+                <div style={{ marginTop: 4 }}>
+                  {Object.entries(record.variation_details.attributes).map(([key, value]) => (
+                    <Tag key={key} style={{ marginBottom: 2, fontSize: '11px' }}>
+                      {key}: {value}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+              {record.customization_option_id && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Customization ID: {record.customization_option_id}
+                  </Text>
+                </div>
+              )}
+              {record.customized_images && Array.isArray(record.customized_images) && record.customized_images.length > 0 && (
+                <div>
+                  <Tag color="green" style={{ fontSize: '11px', marginTop: 2 }}>
+                    Custom Design Applied
                   </Tag>
-                ))}
-              </div>
-            )}
-            {record.customization_option_id && (
-              <div>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Customization ID: {record.customization_option_id}
-                </Text>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: 'Stock Info',
