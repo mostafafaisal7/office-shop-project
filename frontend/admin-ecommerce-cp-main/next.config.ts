@@ -67,7 +67,7 @@ const nextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tiny.cloud;",
               "connect-src 'self' https://cdn.tiny.cloud https://sp.tinymce.com;",
               // "img-src 'self' data: blob: https://cdn.tiny.cloud https://sp.tinymce.com http://localhost:8000 http://your-backend.com;", // <-- add backend URLs
-              "img-src 'self' data: blob: https://cdn.tiny.cloud https://sp.tinymce.com http://localhost:8000 http://your-backend.com;",
+              "img-src 'self' data: blob: https://cdn.tiny.cloud https://sp.tinymce.com http://localhost:8000 http://127.0.0.1:8000 http://your-backend.com;",
 
               "style-src 'self' 'unsafe-inline' https://cdn.tiny.cloud;",
               "font-src 'self' https://cdn.tiny.cloud;"
