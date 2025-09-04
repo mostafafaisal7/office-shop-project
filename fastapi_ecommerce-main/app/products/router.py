@@ -4,8 +4,14 @@ from typing import List, Optional
 from app.products import schemas, service, crud, models
 from app.core.database import get_db
 from app.common.dependencies import get_current_user, require_admin
+from app.utils.media import convert_media_to_url
 
 
+from app.products.utils.media_utils import convert_customization_option_media
+
+from app.products import service, schemas
+
+from app.core.config import BASE_URL 
 
 from fastapi import UploadFile, File
 from uuid import uuid4
@@ -27,10 +33,19 @@ async def upload_product_image(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"Upload called for product {product_id}")
+    
+    print(f"Upload called for product {product_id}")
     """
     Upload an image for a product. Only admins can upload.
     Saves the file in app/static/products/ and creates a ProductMedia entry.
     """
+
+    print("Upload endpoint called for product:", product_id)
+    print("Current user:", current_user)
+    print("File:", file.filename)
     # Admin check
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -42,16 +57,16 @@ async def upload_product_image(
     file_ext = file.filename.split(".")[-1]
     filename = f"{uuid4()}.{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
-    
+    print("Saving file to:", file_path)
+
     # Save file to disk
     with open(file_path, "wb") as f:
         f.write(await file.read())
     
     # Save media record in DB using existing service
-    from app.products import service, schemas
     media_data = schemas.ProductMediaCreate(
         product_id=product_id,
-        file_path=f"/images/products/{filename}",
+        file_path=f"{BASE_URL}/images/products/{filename}",  # full URL
         file_name=file.filename,
         media_type=file.content_type,
     )
@@ -314,16 +329,23 @@ async def get_variation_media_by_id(media_id: int, db: AsyncSession = Depends(ge
     media = await crud.get_variation_media_by_id(db, media_id)
     if not media:
         raise HTTPException(status_code=404, detail="Variation media not found")
-    return media
+    return convert_media_to_url([media])[0]
 
+
+
+# @router.get("/variation/{variation_id}/media/{media_id}", response_model=schemas.VariationMediaResponse)
+# async def get_variation_media(media_id: int, variation_id: int, db: AsyncSession = Depends(get_db)):
+#     media = await crud.get_variation_media(db, media_id, variation_id)
+#     if not media:
+#         raise HTTPException(status_code=404, detail="Variation media not found for this variation")
+#     return media
 
 @router.get("/variation/{variation_id}/media/{media_id}", response_model=schemas.VariationMediaResponse)
 async def get_variation_media(media_id: int, variation_id: int, db: AsyncSession = Depends(get_db)):
     media = await crud.get_variation_media(db, media_id, variation_id)
     if not media:
         raise HTTPException(status_code=404, detail="Variation media not found for this variation")
-    return media
-
+    return convert_media_to_url([media])[0]
 
 @router.post("/variations/medias", response_model=schemas.VariationMediaResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_variation_media(data: schemas.VariationMediaCreate, db: AsyncSession = Depends(get_db)):
@@ -342,9 +364,22 @@ async def delete_variation_media(media_id: int, db: AsyncSession = Depends(get_d
 
 
 # ===== Product Media ===== #
-@router.post("/{product_id}/medias", response_model=schemas.ProductMediaResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
-async def create_media(product_id: int, media_data: schemas.ProductMediaCreate, db: AsyncSession = Depends(get_db)):
-    return await service.create_product_media(db, product_id, media_data)
+# @router.post("/{product_id}/medias", response_model=schemas.ProductMediaResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
+# async def create_media(product_id: int, media_data: schemas.ProductMediaCreate, db: AsyncSession = Depends(get_db)):
+#     return await service.create_product_media(db, product_id, media_data)
+
+# @router.get("/{product_id}/medias", response_model=List[schemas.ProductMediaResponse])
+# async def get_all_media(product_id: int, db: AsyncSession = Depends(get_db)):
+#     media_list = await service.get_all_product_media(db, product_id)
+#     return convert_media_to_url(media_list)
+
+
+# @router.get("/medias/{media_id}", response_model=schemas.ProductMediaResponse)
+# async def get_media(media_id: int, db: AsyncSession = Depends(get_db)):
+#     media = await service.get_product_media(db, media_id)
+#     if not media:
+#         raise HTTPException(status_code=404, detail="Media not found")
+#     return media
 
 
 @router.get("/medias/{media_id}", response_model=schemas.ProductMediaResponse)
@@ -352,12 +387,19 @@ async def get_media(media_id: int, db: AsyncSession = Depends(get_db)):
     media = await service.get_product_media(db, media_id)
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
-    return media
+    return convert_media_to_url([media])[0]  # single media item
 
 
 @router.get("/{product_id}/medias", response_model=List[schemas.ProductMediaResponse])
 async def get_all_media(product_id: int, db: AsyncSession = Depends(get_db)):
-    return await service.get_all_product_media(db, product_id)
+    media_list = await service.get_all_product_media(db, product_id)
+    
+    # Convert file_path to full URL
+    for media in media_list:
+        media.file_path = f"{BASE_URL}{media.file_path}"  # e.g., http://localhost:8000/images/products/...
+    
+    return media_list
+
 
 
 @router.put("/medias/{media_id}", response_model=schemas.ProductMediaResponse, dependencies=[Depends(require_admin)])
@@ -391,10 +433,14 @@ async def get_my_customization_options(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """Get customization options created by the current user"""
-    return await service.get_user_customization_options(
+    options = await service.get_user_customization_options(
         db, current_user.id, product_id, design_area, skip, limit
     )
+    
+    # Convert media paths to full URLs
+    options = convert_customization_option_media(options)
+    
+    return options
 
 
 @router.post("/users/me/options", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED)
@@ -409,6 +455,25 @@ async def create_my_customization_option(
         raise HTTPException(status_code=403, detail="Cannot create customization option for another user")
     
     return await service.create_customization_option(db, data.product_id, data)
+
+
+# @router.put("/users/me/options/{option_id}", response_model=schemas.CustomizationOptionResponse)
+# async def update_my_customization_option(
+#     option_id: int,
+#     data: schemas.CustomizationOptionUpdate,
+#     db: AsyncSession = Depends(get_db),
+#     current_user = Depends(get_current_user)
+# ):
+#     """Update a customization option for the current user"""
+#     # First check if the option belongs to the current user
+#     option = await service.crud.get_customization_option(db, option_id)
+#     if not option:
+#         raise HTTPException(status_code=404, detail="Customization option not found")
+    
+#     if option.user_id != current_user.id:
+#         raise HTTPException(status_code=403, detail="Cannot update customization option for another user")
+    
+#     return await service.update_customization_option(db, option_id, data)
 
 
 @router.put("/users/me/options/{option_id}", response_model=schemas.CustomizationOptionResponse)
@@ -427,7 +492,20 @@ async def update_my_customization_option(
     if option.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot update customization option for another user")
     
-    return await service.update_customization_option(db, option_id, data)
+    updated_option = await service.update_customization_option(db, option_id, data)
+    
+    # Convert media file paths to full URLs
+    updated_option.media = convert_media_to_url(updated_option.media)
+    
+    return updated_option
+
+
+# @router.get("/options/{option_id}", response_model=schemas.CustomizationOptionResponse)
+# async def get_customization_option(option_id: int, db: AsyncSession = Depends(get_db)):
+#     option = await service.crud.get_customization_option(db, option_id)
+#     if not option:
+#         raise HTTPException(status_code=404, detail="Customization option not found")
+#     return option
 
 
 @router.get("/options/{option_id}", response_model=schemas.CustomizationOptionResponse)
@@ -435,6 +513,10 @@ async def get_customization_option(option_id: int, db: AsyncSession = Depends(ge
     option = await service.crud.get_customization_option(db, option_id)
     if not option:
         raise HTTPException(status_code=404, detail="Customization option not found")
+    
+    # Convert media paths to full URLs
+    option = convert_customization_option_media(option)
+    
     return option
 
 

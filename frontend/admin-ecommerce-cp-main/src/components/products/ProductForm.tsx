@@ -94,59 +94,64 @@ export default function ProductForm({ initialValues, onFinish, loading }: Produc
     onFinish(formData);
   };
 
-  // Handle file upload
-  const handleUpload = async (options: any) => {
-    const { file, onSuccess, onError, onProgress } = options;
-    
-    try {
-      const formData = new FormData();
-      formData.append('files', file);
+const handleUpload = async (options: any) => {
+  const { file, onSuccess, onError } = options;
+  
+  try {
+    const formData = new FormData();
+    formData.append('files', file);
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.files && result.files.length > 0) {
-        const uploadedFile = result.files[0];
-        
-        // Add to uploaded media array
-        setUploadedMedia(prev => [...prev, {
-          ...uploadedFile,
-          is_primary: prev.length === 0 && existingMedia.length === 0, // First image is primary if no existing media
-        }]);
-        
-        message.success(`${file.name} uploaded successfully`);
-        onSuccess(result, file);
-      } else {
-        throw new Error('No files in response');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      message.error(`Failed to upload ${file.name}`);
-      onError(error);
+    if (!response.ok) {
+      throw new Error('Upload failed');
     }
-  };
 
-  // Handle file list change
-  const handleFileListChange = (info: any) => {
-    let newFileList = [...info.fileList];
-    
-    // Limit to 10 files
-    newFileList = newFileList.slice(-10);
-    
-    // Update file list
-    setFileList(newFileList);
-    
-    // Update form field
-    form.setFieldsValue({ media: newFileList });
-  };
+    const result = await response.json();
+
+    if (result.success && result.files && result.files.length > 0) {
+      const uploadedFile = result.files[0];
+
+      // Build object matching ProductMediaCreate
+      const mediaItem: ProductMediaCreate = {
+        file_name: file.name,
+        media_type: "image", // <-- must be a valid MediaType
+        mime_type: file.type,
+        file_path: uploadedFile.file_path,
+        is_primary: uploadedMedia.length === 0 && existingMedia.length === 0,
+      };
+
+      setUploadedMedia(prev => [...prev, mediaItem]);
+
+      message.success(`${file.name} uploaded successfully`);
+      onSuccess(result, file);
+    } else {
+      throw new Error('No files in response');
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    message.error(`Failed to upload ${file.name}`);
+    onError(error);
+  }
+};
+
+// Handle file list change
+const handleFileListChange = (info: any) => {
+  let newFileList = [...info.fileList];
+
+  // Limit to 10 files
+  newFileList = newFileList.slice(-10);
+
+  // Update file list
+  setFileList(newFileList);
+
+  // Update form field
+  form.setFieldsValue({ media: newFileList });
+};
+
 
   // Handle file removal
   const handleRemove = (file: UploadFile) => {
@@ -221,13 +226,26 @@ export default function ProductForm({ initialValues, onFinish, loading }: Produc
   }, []);
 
   // Initialize existing media and progress
-  useEffect(() => {
-    if (initialValues && 'media' in initialValues && initialValues.media) {
-      setExistingMedia(initialValues.media as ProductMediaResponse[]);
+// Initialize existing media and set primary if none
+useEffect(() => {
+  if (initialValues && 'media' in initialValues && initialValues.media) {
+    const mediaArray = initialValues.media as ProductMediaResponse[];
+
+    // Check if any media is already primary
+    const hasPrimary = mediaArray.some(m => m.is_primary);
+
+    // If none is primary, mark the first one as primary
+    if (!hasPrimary && mediaArray.length > 0) {
+      mediaArray[0].is_primary = true;
     }
-    const progress = calculateProgress();
-    setFormProgress(progress);
-  }, [initialValues]);
+
+    setExistingMedia(mediaArray);
+  }
+
+  const progress = calculateProgress();
+  setFormProgress(progress);
+}, [initialValues]);
+
 
   // Handle existing media deletion
   const handleDeleteExistingMedia = async (mediaId: number) => {

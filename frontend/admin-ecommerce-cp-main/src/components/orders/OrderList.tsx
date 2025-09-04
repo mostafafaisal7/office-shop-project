@@ -72,11 +72,11 @@ const statusLabels: Record<OrderStatus, string> = {
 };
 
 const statusBgColors: Record<OrderStatus, string> = {
-  pending: '#fff7e6',
-  paid: '#e6f7ff',
-  shipped: '#f9f0ff',
-  delivered: '#f6ffed',
-  cancelled: '#fff2f0',
+  pending: '#f0ad4e',
+  paid: '#0275d8',
+  shipped: '#722ed1ff',
+  delivered: '#5cb85c',
+  cancelled: '#d9534f',
 };
 
 export const OrderList: React.FC<OrderListProps> = ({ ordersData }) => {

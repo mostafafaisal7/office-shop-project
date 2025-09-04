@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { ProductMediaCreate } from '@/types/product';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,27 +12,26 @@ export async function POST(request: NextRequest) {
     const uploadedFiles = [];
 
     for (const file of files) {
-      if (!file.size) {
-        continue;
+      if (!file.size) continue;
+
+      // Forward file to FastAPI backend
+      const formData = new FormData();
+      formData.append('upload_type', 'products'); // <-- or 'users' / 'categories'
+      formData.append('file', file);
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/uploads/image`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`FastAPI upload failed: ${res.statusText}`);
       }
 
-      // Generate unique filename
-      const fileExtension = file.name.split('.').pop();
-      const uniqueFilename = `${uuidv4()}.${fileExtension}`;
-      
-      // Convert file to buffer
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
+      const result = await res.json();
 
-      // Define upload path
-      const uploadPath = join(process.cwd(), 'public/uploads', uniqueFilename);
-
-      // Write file to disk
-      await writeFile(uploadPath, buffer);
-
-      // Create file info object
-      const fileInfo: ProductMediaCreate = {
-        file_path: `/uploads/${uniqueFilename}`,
+      uploadedFiles.push({
+        file_path: result.image_url, // Absolute URL returned by FastAPI
         file_name: file.name,
         file_size: file.size,
         media_type: file.type.startsWith('image/') ? 'image' : 'video',
@@ -44,13 +39,11 @@ export async function POST(request: NextRequest) {
         alt_text: file.name.split('.')[0],
         is_primary: false,
         sort_order: uploadedFiles.length,
-      };
-
-      uploadedFiles.push(fileInfo);
+      });
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       files: uploadedFiles,
       message: `${uploadedFiles.length} file(s) uploaded successfully`
     });
