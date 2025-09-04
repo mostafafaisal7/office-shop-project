@@ -4,14 +4,16 @@ from typing import List, Optional
 from app.products import schemas, service, crud, models
 from app.core.database import get_db
 from app.common.dependencies import get_current_user, require_admin
-from app.utils.media import convert_media_to_url
-
-
+from app.utils.media import (
+    convert_media_to_url, 
+    convert_product_media_urls, 
+    convert_products_media_urls,
+    convert_variation_media_urls,
+    convert_customization_option_media_urls
+)
 from app.products.utils.media_utils import convert_customization_option_media
-
 from app.products import service, schemas
-
-from app.core.config import BASE_URL 
+from app.core.config import BASE_URL
 
 from fastapi import UploadFile, File
 from uuid import uuid4
@@ -59,20 +61,26 @@ async def upload_product_image(
     file_path = os.path.join(UPLOAD_DIR, filename)
     print("Saving file to:", file_path)
 
+    # Read file content once
+    file_content = await file.read()
+    
     # Save file to disk
     with open(file_path, "wb") as f:
-        f.write(await file.read())
+        f.write(file_content)
     
     # Save media record in DB using existing service
     media_data = schemas.ProductMediaCreate(
-        product_id=product_id,
-        file_path=f"{BASE_URL}/images/products/{filename}",  # full URL
+        file_path=f"/images/products/{filename}",  # Store relative path, will be converted to full URL by response
         file_name=file.filename,
-        media_type=file.content_type,
+        file_size=len(file_content),
+        media_type=schemas.MediaType.IMAGE,
+        mime_type=file.content_type,
     )
+    
     media = await service.create_product_media(db, product_id, media_data)
     
-    return media
+    # Convert to full URL for response
+    return convert_media_to_url([media])[0]
 
 
 
@@ -89,7 +97,8 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    return await service.create_product_with_nested(db, product_data, user_id=current_user.id)
+    product = await service.create_product_with_nested(db, product_data, user_id=current_user.id)
+    return convert_product_media_urls(product)
 
 
 @router.get("/", response_model=schemas.ProductListResponse)
@@ -156,7 +165,7 @@ async def list_products(
     if sort_order.lower() not in ["asc", "desc"]:
         sort_order = "desc"
     
-    return await service.search_products_with_pagination(
+    result = await service.search_products_with_pagination(
         db=db,
         page=page,
         per_page=per_page,
@@ -170,6 +179,10 @@ async def list_products(
         sort_by=sort_by,
         sort_order=sort_order
     )
+    
+    # Convert media URLs for all products
+    result.products = convert_products_media_urls(result.products)
+    return result
 
 
 @router.get("/{product_id}", response_model=schemas.ProductWithReviewsResponse)
@@ -183,6 +196,9 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     # Convert product ORM to dict and add category_ids
     product_data = schemas.ProductWithReviewsResponse.model_validate(product)
     product_data.category_ids = category_ids
+
+    # Convert media URLs for the product and all nested relationships
+    product_data = convert_product_media_urls(product_data)
 
     # Fetch review data using the reviews client
     from app.products.reviews_client import get_product_review_summary, get_most_helpful_reviews
@@ -247,7 +263,7 @@ async def update_product(
     updated = await service.update_product_with_nested(db, product_id, product_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Product not found")
-    return updated
+    return convert_product_media_urls(updated)
 
 
 @router.delete(
@@ -271,12 +287,13 @@ async def get_variation_by_id(variation_id: int, db: AsyncSession = Depends(get_
     variation = await crud.get_variation(db, variation_id)
     if not variation:
         raise HTTPException(status_code=404, detail="Variation not found")
-    return variation
+    return convert_variation_media_urls(variation)
 
 
 @router.get("/{product_id}/variations", response_model=List[schemas.ProductVariationResponse])
 async def get_variations_by_product_id(product_id: int, db: AsyncSession = Depends(get_db)):
-    return await crud.get_variations_by_product(db, product_id)
+    variations = await crud.get_variations_by_product(db, product_id)
+    return [convert_variation_media_urls(variation) for variation in variations]
 
 
 @router.post("/{product_id}/variations", response_model=schemas.ProductVariationResponse, status_code=201, dependencies=[Depends(require_admin)])
@@ -300,7 +317,7 @@ async def create_variation(
         # Re-fetch the variation with all media loaded
         variation = await crud.get_variation(db, int(variation.id))
     
-    return variation
+    return convert_variation_media_urls(variation)
 
 
 @router.put("/variations/{variation_id}", response_model=schemas.ProductVariationResponse, dependencies=[Depends(require_admin)])
@@ -312,7 +329,7 @@ async def update_variation(
     variation = await service.update_variation_with_media(db, variation_id, data)
     if not variation:
         raise HTTPException(status_code=404, detail="Variation not found")
-    return variation
+    return convert_variation_media_urls(variation)
 
 
 @router.delete("/{product_id}/variations/{variation_id}", dependencies=[Depends(require_admin)])
