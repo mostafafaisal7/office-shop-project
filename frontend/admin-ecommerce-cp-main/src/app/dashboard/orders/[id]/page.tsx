@@ -40,6 +40,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { OrderDetailRead, OrderStatus, OrderItemDetailRead } from '@/types/order';
 import { orderService } from '../../../../services/order';
+import PreviewCarousel from '@/components/PreviewCarousel';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -267,37 +268,51 @@ export default function OrderDetailsPage() {
           willShowImage: !!imageUrl
         });
 
+        // Determine the final images to display (either custom previews or product image)
+        let finalImages: string | string[];
+        if (record.customized_images && Array.isArray(record.customized_images) && record.customized_images.length > 0) {
+          // Process customized images array to get proper URLs
+          const processedImages = record.customized_images.map((img: any) => {
+            if (typeof img === 'string') {
+              return img;
+            } else if (img && typeof img === 'object') {
+              return img.url || img.file_path || img.image_url || img.preview_url;
+            }
+            return '';
+          }).filter(Boolean);
+          
+          finalImages = processedImages.length === 1 ? processedImages[0] : processedImages;
+        } else if (imageUrl) {
+          finalImages = imageUrl;
+        } else if (record.variation_details?.media?.[0]) {
+          // Fallback to variation image
+          let rawImageUrl = record.variation_details.media[0].file_path;
+          if (rawImageUrl && !rawImageUrl.startsWith('http')) {
+            if (rawImageUrl.startsWith('/images/')) {
+              finalImages = `http://127.0.0.1:8000/static/products/${rawImageUrl.replace('/images/products/', '')}`;
+            } else if (rawImageUrl.startsWith('/static/')) {
+              finalImages = `http://127.0.0.1:8000${rawImageUrl}`;
+            } else {
+              finalImages = rawImageUrl;
+            }
+          } else {
+            finalImages = rawImageUrl || '';
+          }
+        } else {
+          // Final fallback to placeholder
+          finalImages = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=64&h=64&fit=crop";
+        }
+
         return (
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            {/* Product Image with priority logic */}
-            {imageUrl ? (
-              <Avatar
-                size={64}
-                shape="square"
-                src={imageUrl}
-                alt={imageAlt}
-                onError={(e) => {
-                  console.log('❌ Image failed to load:', imageUrl);
-                }}
-                onLoad={() => {
-                  console.log('✅ Image loaded successfully:', imageUrl);
-                }}
-              />
-            ) : (
-              <Avatar
-                size={64}
-                shape="square"
-                src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=64&h=64&fit=crop"
-                style={{ backgroundColor: '#f0f0f0' }}
-                onError={(e) => {
-                  // If placeholder image fails, show text fallback
-                  const target = e.target as HTMLImageElement;
-                  if (target.parentElement) {
-                    target.parentElement.innerHTML = '<span style="fontSize: 12px; color: #999;">No Img</span>';
-                  }
-                }}
-              />
-            )}
+            {/* Product Image with PreviewCarousel for multiple images */}
+            <PreviewCarousel
+              images={finalImages}
+              alt={imageAlt}
+              size={64}
+              showThumbnails={true}
+              style={{}}
+            />
             <div style={{ flex: 1 }}>
               <Text strong>{record.product_name}</Text>
               {record.variation_details && (

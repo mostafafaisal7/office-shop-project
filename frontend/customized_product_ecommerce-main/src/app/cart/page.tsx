@@ -4,11 +4,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingBag, CreditCard, Truck, Loader2 } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
+import PreviewCarousel from '@/components/PreviewCarousel';
 
 interface GroupedCartItem {
   productId: string;
   name: string;
-  image?: string;
+  image?: string | string[]; // Can be single image or array of images
   color?: string;
   customDesign?: boolean;
   sizes: Array<{
@@ -230,55 +231,22 @@ useEffect(() => {
             {groupedItems.map((group, groupIndex) => (
               <div key={`${group.productId}-${group.color || 'default'}`} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-start gap-4">
-                  {/* Product Image with Enhanced Priority Logic */}
-                  <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
-                    <img
-                      src={(() => {
-                        // Enhanced image selection with comprehensive priority:
-                        if (group.image) {
-                          // Handle both array and string formats for images
-                          let imageUrl = group.image;
-                          
-                          // If image is an array (multiple previews), use first one
-                          if (Array.isArray(group.image)) {
-                            imageUrl = group.image[0];
-                          }
-                          
-                          // Convert relative paths to full URLs if needed
-                          if (typeof imageUrl === 'string') {
-                            if (!imageUrl.startsWith('http')) {
-                              if (imageUrl.startsWith('/images/')) {
-                                return `http://127.0.0.1:8000/static/products/${imageUrl.replace('/images/products/', '')}`;
-                              } else if (imageUrl.startsWith('/static/')) {
-                                return `http://127.0.0.1:8000${imageUrl}`;
-                              }
-                            }
-                            return imageUrl;
-                          }
-                        }
-                        
-                        // Final fallback to placeholder
-                        return `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`;
-                      })()}
+                  {/* Product Image with PreviewCarousel */}
+                  <div className="flex-shrink-0 relative">
+                    <PreviewCarousel
+                      images={group.image || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
                       alt={
                         group.customDesign ? `${group.name} (Custom Design)` : 
                         group.color ? `${group.name} (${group.color})` : 
                         group.name
                       }
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Enhanced error fallback
-                        const target = e.target as HTMLImageElement;
-                        if (target.src.includes('unsplash')) {
-                          // If already using fallback, don't retry to avoid infinite loop
-                          return;
-                        }
-                        target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
-                      }}
+                      size="md"
+                      showThumbnails={true}
+                      className=""
                     />
                     {/* Loading overlay for individual items */}
                     {group.sizes.some(size => previewGenerationProgress[size.itemId]) && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
                         <Loader2 className="w-4 h-4 text-white animate-spin" />
                       </div>
                     )}

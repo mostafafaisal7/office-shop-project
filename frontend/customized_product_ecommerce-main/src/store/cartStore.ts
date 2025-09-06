@@ -11,7 +11,7 @@ export interface CartItem {
   id: string;
   productId: string;
   name: string;
-  image?: string; // Optional - fetched dynamically
+  image?: string | string[]; // Can be single image (string) or multiple images (array) for multi-view designs
   size?: string;
   color?: string;
   quantity: number;
@@ -141,7 +141,7 @@ export const useCartStore = create<CartStore>()(
               size: item.size,
               color: item.color,
               customization_id: item.customizationId,
-              customized_images: item.image ? [item.image] : null, // ✅ Add preview image to customized_images
+              customized_images: item.image ? (Array.isArray(item.image) ? item.image : [item.image]) : null, // ✅ Handle both string and array formats
             };
             
             console.log('🔧 Sending to backend with customized_images:', apiItem.customized_images);
@@ -336,21 +336,21 @@ export const useCartStore = create<CartStore>()(
 
               console.log('Final parsed price:', parsedPrice);
 
-              // Extract preview image from multiple sources (priority order)
-              let previewImage: string | undefined;
+              // Extract preview image(s) from multiple sources (priority order)
+              let previewImages: string | string[] | undefined;
               let hasCustomDesign = false;
               
               // 1. Check customized_images array (uploaded preview images)
               if (apiItem.customized_images && apiItem.customized_images.length > 0) {
-                previewImage = apiItem.customized_images[0]; // Use the first image
+                previewImages = apiItem.customized_images.length === 1 ? apiItem.customized_images[0] : apiItem.customized_images; // Single image as string, multiple as array
                 hasCustomDesign = true;
-                console.log('✅ Using preview image from customized_images:', previewImage);
+                console.log('✅ Using preview images from customized_images:', previewImages);
               } 
               // 2. Fallback to customization details metadata
               else if (apiItem.customization_details?.design_metadata?.preview_image_url) {
-                previewImage = apiItem.customization_details.design_metadata.preview_image_url;
+                previewImages = apiItem.customization_details.design_metadata.preview_image_url;
                 hasCustomDesign = true;
-                console.log('✅ Using preview image from customization details:', previewImage);
+                console.log('✅ Using preview image from customization details:', previewImages);
               } 
               // 3. Mark as custom design if has customization ID but no preview
               else if (apiItem.customization_id) {
@@ -362,7 +362,7 @@ export const useCartStore = create<CartStore>()(
                 id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
                 productId: apiItem.product_id.toString(),
                 name: apiItem.product_name,
-                image: previewImage, // Use the preview image from backend
+                image: previewImages, // Use the preview image(s) from backend - can be string or array
                 quantity: Number(apiItem.quantity) || 0,
                 price: parsedPrice, // ✅ robust parsed price
                 size: apiItem.size,
@@ -446,7 +446,7 @@ export const useCartStore = create<CartStore>()(
               size: guestItem.size,
               color: guestItem.color,
               customization_id: guestItem.customizationId,
-              customized_images: guestItem.image ? [guestItem.image] : null, // ✅ Also fix guest cart merge
+              customized_images: guestItem.image ? (Array.isArray(guestItem.image) ? guestItem.image : [guestItem.image]) : null, // ✅ Handle both string and array formats for guest merge
             };
             
             await cartApi.addItem(apiItem);
