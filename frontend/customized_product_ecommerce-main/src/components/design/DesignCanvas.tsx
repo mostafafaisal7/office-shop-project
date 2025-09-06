@@ -16,8 +16,8 @@ const loadFabric = async () => {
     const fabricModule = await import('fabric');
     fabric = fabricModule;
     Canvas = fabricModule.Canvas;
-    FabricImage = fabricModule.FabricImage;
-    FabricText = fabricModule.FabricText;
+    FabricImage = fabricModule.Image;
+    FabricText = fabricModule.Text; 
     filters = fabricModule.filters;
     Rect = fabricModule.Rect;
   }

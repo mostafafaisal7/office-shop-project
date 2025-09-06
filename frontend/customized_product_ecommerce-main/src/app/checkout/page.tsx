@@ -544,7 +544,7 @@ export default function CheckoutPage() {
             variation_id: null,
             quantity: item.quantity,
             customization_option_id: item.customizationId || 187, // Use default customization option ID if none exists
-            customized_images: null
+            customized_images: item.image ? [item.image] : null
           };
         }),
         shipping_method_id: parseInt(selectedShippingMethodId), // Convert to integer

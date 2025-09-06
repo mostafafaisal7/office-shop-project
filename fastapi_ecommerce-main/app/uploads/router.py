@@ -11,7 +11,7 @@ router = APIRouter()
 BASE_IMAGE_DIR = "app/static"
 
 # Allowed upload types (maps to subdirectories in BASE_IMAGE_DIR)
-ALLOWED_UPLOAD_TYPES = ["products", "users", "categories"]
+ALLOWED_UPLOAD_TYPES = ["products", "users", "categories", "previews"]
 
 @router.post("/image", summary="Upload an image")
 async def upload_image(

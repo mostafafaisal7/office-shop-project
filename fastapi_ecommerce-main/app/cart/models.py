@@ -18,3 +18,4 @@ class CartItem(Base, TimestampMixin, UserTrackingMixin):
     color = Column(String(255), nullable=True)
 
     customization_id = Column(Integer, nullable=True)  # stores user's selections like text, color, size
+    customized_images = Column(JSON, nullable=True)  # stores array of preview image URLs

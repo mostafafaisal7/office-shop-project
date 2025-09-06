@@ -7,6 +7,7 @@ import { fetchProductById, ApiProduct, calculateDiscount, DiscountResponse } fro
 import { useDesignStore } from '@/store/designStore';
 import { useCartStore } from '@/store/cartStore';
 import { previewGenerator } from '@/utils/previewGenerator';
+import { uploadPreviewToBackend } from '@/utils/uploadPreviewToBackend';
 import SizeChartModal from '@/components/product/SizeChartModal';
 
 interface QuantityPageProps {
@@ -315,53 +316,77 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
     return getTotalPrice();
   };
 
-  const handleAddToCart = async () => {
-    try {
-      // Filter out items with 0 quantity
-      const itemsToAdd = sizeQuantities.filter(sq => sq.quantity > 0);
-      
-      if (itemsToAdd.length === 0) {
-        console.log('No items to add to cart');
-        return;
-      }
-      
-      // Get customization option ID if user is authenticated and has a design
-      let customizationId: number | undefined = undefined;
-      if (selectedVariation?.variationId) {
-        try {
-          // Try to get customization ID for the first available view (front view preferred)
-          const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
-          if (primaryView) {
+const handleAddToCart = async () => {
+  try {
+    const itemsToAdd = sizeQuantities.filter(sq => sq.quantity > 0);
+    if (itemsToAdd.length === 0) return;
+
+    let customizationId: number | undefined = undefined;
+    let mainPreviewImage = '';
+
+    if (selectedVariation?.variationId && availableViews.length > 0) {
+      try {
+        // Use the first view (front) or fallback
+        const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
+        if (primaryView) {
+          // 1️⃣ Load the design data for this variation & area
+          const designData = await loadDesign(productId, selectedVariation.variationId, primaryView.area);
+
+          if (designData && designData.canvas_data) {
+            // 2️⃣ Generate the preview from canvas data
+            const previewDataUrl = await previewGenerator.generatePreview(
+              designData.canvas_data,
+              primaryView.image,
+              { quality: 1, multiplier: 2 }
+            );
+
+            // 3️⃣ Upload preview to backend
+            const uploadedPreviewUrl = await uploadPreviewToBackend(previewDataUrl, 'previews');
+            mainPreviewImage = uploadedPreviewUrl;
+
+            console.log('✅ Preview generated and uploaded to backend:', mainPreviewImage);
+
+            // 4️⃣ Get customization ID from backend
             customizationId = await getCustomizationOptionId(
               productId,
               selectedVariation.variationId,
               primaryView.area
             ) || undefined;
-            console.log('Retrieved customization option ID for quantity page:', customizationId);
+          } else {
+            // If no design data, use the original product image
+            mainPreviewImage = primaryView.image;
           }
-        } catch (error) {
-          console.error('Error getting customization option ID:', error);
         }
+      } catch (error) {
+        console.error('Error generating or uploading preview:', error);
+        // Gracefully handle error - still add to cart but log the error
+        mainPreviewImage = currentProduct.media?.[0]?.file_path || '';
       }
-      
-      // Add items to cart with customization ID
-      await addItemsFromQuantityPage(
-        productId,
-        currentProduct.name,
-        itemsToAdd,
-        customizationId // Use the fetched customization ID
-      );
-      
-      console.log('Added to cart:', itemsToAdd);
-      
-      // Navigate to cart
-      router.push('/cart');
-    } catch (error) {
-      console.error('Error adding items to cart:', error);
-      // Show user-friendly error message
-      alert('Unable to add items to cart. Please try again or reduce the number of items.');
+    } else {
+      // Guests or non-designed products
+      mainPreviewImage = currentProduct.media?.[0]?.file_path || '';
     }
-  };
+
+    // Add items to cart with uploaded preview URL
+    await addItemsFromQuantityPage(
+      productId,
+      currentProduct.name,
+      itemsToAdd.map(item => ({
+        ...item,
+        image: mainPreviewImage // attach the uploaded preview image URL
+      })),
+      customizationId
+    );
+
+    console.log('Added to cart:', itemsToAdd);
+    router.push('/cart');
+
+  } catch (error) {
+    console.error('Error adding items to cart:', error);
+    alert('Unable to add items to cart. Please try again.');
+  }
+};
+
 
   const handleBack = () => {
     router.back();

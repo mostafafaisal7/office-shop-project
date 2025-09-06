@@ -9,6 +9,7 @@ class CartItemBase(BaseModel):
     size: Optional[str] = None
     color: Optional[str] = None
     customization_id: Optional[int] = None
+    customized_images: Optional[List[str]] = None
 
 class CartItemCreate(CartItemBase):
     pass
@@ -30,6 +31,8 @@ class CartItemResponse(CartItemBase):
     id: int
     user_id: Optional[int]
     guest_id: Optional[str]
+    customized_images: Optional[List[str]] = None  # <-- ADD THIS
+
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,5 +53,8 @@ class CartItemWithCustomizationResponse(CartItemBase):
     user_id: Optional[int]
     guest_id: Optional[str]
     customization_details: Optional[CustomizationDetails] = None
+
+    customized_images: Optional[List[str]] = None  # <-- ADD THIS
+
 
     model_config = ConfigDict(from_attributes=True)
