@@ -671,17 +671,50 @@ export default function OrdersPage() {
                     <div className="space-y-4">
                       {selectedOrder.items.map((item) => (
                         <div key={item.id} className="flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                          {/* Product Image */}
+                          {/* Product Image with Dynamic Priority Logic */}
                           <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                            {item.variation_details?.media && item.variation_details.media.length > 0 ? (
-                              <img
-                                src={item.variation_details.media[0].file_path}
-                                alt={item.variation_details.media[0].alt_text || item.product_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Package className="h-8 w-8 text-gray-400" />
-                            )}
+                            {(() => {
+                              // Priority 1: Custom design preview from customized_images
+                              if (item.customized_images) {
+                                try {
+                                  const customImages = typeof item.customized_images === 'string' 
+                                    ? JSON.parse(item.customized_images) 
+                                    : item.customized_images;
+                                  
+                                  if (Array.isArray(customImages) && customImages.length > 0) {
+                                    const imageUrl = typeof customImages[0] === 'string' 
+                                      ? customImages[0] 
+                                      : customImages[0]?.url || customImages[0]?.file_path;
+                                    
+                                    if (imageUrl) {
+                                      return (
+                                        <img
+                                          src={imageUrl}
+                                          alt={`${item.product_name} (Custom Design)`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      );
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.warn('Failed to parse customized_images:', error);
+                                }
+                              }
+                              
+                              // Priority 2: Variation image
+                              if (item.variation_details?.media && item.variation_details.media.length > 0) {
+                                return (
+                                  <img
+                                    src={item.variation_details.media[0].file_path}
+                                    alt={item.variation_details.media[0].alt_text || `${item.product_name} (${item.variation_details.name})`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                );
+                              }
+                              
+                              // Priority 3: Default fallback
+                              return <Package className="h-8 w-8 text-gray-400" />;
+                            })()}
                           </div>
                           
                           <div className="flex-1 min-w-0">

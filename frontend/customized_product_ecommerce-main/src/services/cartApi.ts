@@ -14,6 +14,7 @@ export interface CartApiItem {
   size?: string;
   color?: string;
   customization_id?: number;
+  customized_images?: string[] | null; // Add support for preview image URLs
 }
 
 export interface CartApiItemWithCustomizations {

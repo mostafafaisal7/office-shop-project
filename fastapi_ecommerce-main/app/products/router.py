@@ -15,7 +15,7 @@ from app.products.utils.media_utils import convert_customization_option_media
 from app.products import service, schemas
 from app.core.config import BASE_URL
 
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 from uuid import uuid4
 import os
 # from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,7 @@ import os
 
 # Folder to store product images
 UPLOAD_DIR = "app/static/products/"
+PREVIEW_UPLOAD_DIR = "app/static/previews/"
 
 router = APIRouter()
 
@@ -553,3 +554,55 @@ async def delete_customization_option(option_id: int, db: AsyncSession = Depends
     if not result:
         raise HTTPException(status_code=404, detail="Customization option not found")
     return {"message": "Customization option deleted"}
+
+
+@router.post("/{product_id}/customer-upload", status_code=201)
+async def upload_customer_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Upload an image for a product as a customer (for design previews).
+    Uses the same infrastructure as admin uploads but accessible to customers.
+    Saves the file in app/static/products/customer/ and creates a ProductMedia entry.
+    """
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"Customer upload called for product {product_id} by user {current_user.id}")
+    
+    print(f"Customer upload called for product {product_id}")
+    print("Current user:", current_user.id)
+    print("File:", file.filename)
+    
+    # Create customer upload directory using same pattern as admin
+    customer_dir = os.path.join(UPLOAD_DIR, "customer")
+    os.makedirs(customer_dir, exist_ok=True)
+    
+    # Generate unique filename using same approach as admin
+    file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "png"
+    filename = f"customer_{current_user.id}_{uuid4()}.{file_ext}"
+    file_path = os.path.join(customer_dir, filename)
+    print("Saving customer file to:", file_path)
+
+    # Read file content once
+    file_content = await file.read()
+    
+    # Save file to disk using same approach as admin
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+    
+    # Save media record in DB using same approach as admin uploads but for customer
+    media_data = schemas.ProductMediaCreate(
+        file_path=f"/images/products/customer/{filename}",  # Store relative path
+        file_name=file.filename,
+        file_size=len(file_content),
+        media_type=schemas.MediaType.IMAGE,
+        mime_type=file.content_type,
+    )
+    
+    media = await service.create_product_media(db, product_id, media_data)
+    
+    # Convert to full URL for response using same conversion as admin
+    return convert_media_to_url([media])[0]

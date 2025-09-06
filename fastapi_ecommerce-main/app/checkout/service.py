@@ -93,6 +93,24 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         subtotal += price
         total_quantity += item.quantity
 
+        # Extract preview image URLs from customization details
+        customized_images = item.customized_images or []
+        if item.customization_option_id:
+            try:
+                # Fetch customization details to get preview image URL
+                customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
+                customization_data = await http_get(customization_url)
+                
+                if customization_data and customization_data.get("design_metadata"):
+                    preview_url = customization_data["design_metadata"].get("preview_image_url")
+                    if preview_url and preview_url not in customized_images:
+                        customized_images.append(preview_url)
+                        print(f"Added preview image URL to order item: {preview_url}")
+                        
+            except Exception as e:
+                print(f"Failed to fetch customization details for option {item.customization_option_id}: {e}")
+                # Continue with existing customized_images
+
         # Prepare order item with discount information - matches OrderItemCreate schema
         order_item = {
             "product_id": item.product_id,
@@ -100,7 +118,7 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
             "variation_id": item.variation_id,
             "quantity": item.quantity,
             "customization_option_id": item.customization_option_id,
-            "customized_images": item.customized_images,
+            "customized_images": customized_images,
             "unit_price": final_unit_price,
             "shipping_method_id": data.shipping_method_id
         }

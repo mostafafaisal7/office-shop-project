@@ -153,41 +153,149 @@ export default function OrderDetailsPage() {
       title: 'Product',
       key: 'product',
       render: (_, record) => {
-        // Determine the best image to display with priority:
-        // 1. Customization preview image (from customized_images)
+        // Enhanced Dynamic image logic with comprehensive priority handling:
+        // 1. Custom design preview (from customized_images field)
         // 2. Variation image (from variation_details.media)
         // 3. Default product image fallback
         let imageUrl = null;
         let imageAlt = record.product_name;
+        let isCustomDesign = false;
 
-        // Priority 1: Customization preview image
-        if (record.customized_images && Array.isArray(record.customized_images) && record.customized_images.length > 0) {
-          // customized_images might be an array of image URLs or objects
-          const customImage = record.customized_images[0];
-          if (typeof customImage === 'string') {
-            imageUrl = customImage;
-          } else if (customImage && typeof customImage === 'object' && customImage.url) {
-            imageUrl = customImage.url;
+        // Priority 1: Custom design preview image
+        console.log('🔍 Admin Order Item Debug:', {
+          productName: record.product_name,
+          customizedImages: record.customized_images,
+          customizedImagesType: typeof record.customized_images,
+          customizationOptionId: record.customization_option_id,
+          variationDetails: record.variation_details,
+          fullRecord: record // Log the entire record to see all fields
+        });
+
+        if (record.customized_images) {
+          try {
+            let customImages;
+            
+            // Handle both string and array formats
+            if (typeof record.customized_images === 'string') {
+              // Try to parse JSON string
+              try {
+                customImages = JSON.parse(record.customized_images);
+                console.log('📋 Parsed customized_images from string:', customImages);
+              } catch (parseError) {
+                // If parse fails, treat as single URL string
+                customImages = [record.customized_images];
+                console.log('📋 Using customized_images as single URL:', customImages);
+              }
+            } else if (Array.isArray(record.customized_images)) {
+              customImages = record.customized_images;
+              console.log('📋 Using customized_images as array:', customImages);
+            }
+
+            // Extract image URL from various possible formats
+            if (Array.isArray(customImages) && customImages.length > 0) {
+              const customImage = customImages[0];
+              let rawCustomUrl;
+              
+              if (typeof customImage === 'string') {
+                rawCustomUrl = customImage;
+                console.log('✅ Using string custom image URL:', rawCustomUrl);
+              } else if (customImage && typeof customImage === 'object') {
+                // Try different possible properties for image URL
+                rawCustomUrl = customImage.url || customImage.file_path || customImage.image_url || customImage.preview_url;
+                console.log('✅ Using object custom image URL:', rawCustomUrl);
+              }
+              
+              if (rawCustomUrl) {
+                // Convert relative URLs to full URLs for custom images
+                if (!rawCustomUrl.startsWith('http')) {
+                  if (rawCustomUrl.startsWith('/static/')) {
+                    imageUrl = `http://127.0.0.1:8000${rawCustomUrl}`;
+                  } else if (rawCustomUrl.startsWith('/images/')) {
+                    imageUrl = `http://127.0.0.1:8000/static/products/${rawCustomUrl.replace('/images/products/', '')}`;
+                  } else {
+                    imageUrl = rawCustomUrl;
+                  }
+                } else {
+                  imageUrl = rawCustomUrl;
+                }
+                
+                imageAlt = `${record.product_name} (Custom Design)`;
+                isCustomDesign = true;
+                console.log('🎨 Set as custom design with image:', imageUrl, '(from raw:', rawCustomUrl, ')');
+              }
+            }
+          } catch (error) {
+            console.warn('❌ Failed to process customized_images:', error);
           }
-          imageAlt = `${record.product_name} (Custom Design)`;
+        } else {
+          console.log('⚠️ No customized_images found for:', record.product_name);
         }
         
-        // Priority 2: Variation image
+        // Priority 2: Variation image (only if no custom design found)
         if (!imageUrl && record.variation_details?.media?.[0]) {
-          imageUrl = record.variation_details.media[0].file_path;
+          let rawImageUrl = record.variation_details.media[0].file_path;
+          
+          // Convert relative URLs to full URLs
+          if (rawImageUrl && !rawImageUrl.startsWith('http')) {
+            if (rawImageUrl.startsWith('/images/')) {
+              // Convert /images/products/xyz to full URL
+              imageUrl = `http://127.0.0.1:8000/static/products/${rawImageUrl.replace('/images/products/', '')}`;
+            } else if (rawImageUrl.startsWith('/static/')) {
+              // Already a static path, add base URL
+              imageUrl = `http://127.0.0.1:8000${rawImageUrl}`;
+            } else {
+              imageUrl = rawImageUrl;
+            }
+          } else {
+            imageUrl = rawImageUrl;
+          }
+          
           imageAlt = record.variation_details.media[0].alt_text || `${record.product_name} (${record.variation_details.name})`;
+          console.log('📷 Using variation image:', imageUrl, '(from raw:', rawImageUrl, ')');
+        } else if (!imageUrl) {
+          console.log('⚠️ No variation media found for:', record.product_name);
+          console.log('Variation details:', record.variation_details);
         }
+
+        // Priority 3: Default product placeholder (if no other image found)
+        if (!imageUrl) {
+          // Try using a default product image or placeholder
+          console.log('🔍 Looking for default product image...');
+          // You might want to add a default product image URL here
+          // imageUrl = `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=64&h=64&fit=crop`;
+        }
+
+        console.log('🖼️ Final image decision:', { 
+          imageUrl, 
+          imageAlt, 
+          isCustomDesign,
+          willShowImage: !!imageUrl
+        });
 
         return (
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             {/* Product Image with priority logic */}
-            {imageUrl && (
+            {imageUrl ? (
               <Avatar
                 size={64}
                 shape="square"
                 src={imageUrl}
                 alt={imageAlt}
+                onError={(e) => {
+                  console.log('❌ Image failed to load:', imageUrl);
+                }}
+                onLoad={() => {
+                  console.log('✅ Image loaded successfully:', imageUrl);
+                }}
               />
+            ) : (
+              <Avatar
+                size={64}
+                shape="square"
+                style={{ backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <span style={{ fontSize: '12px', color: '#999' }}>No Img</span>
+              </Avatar>
             )}
             <div style={{ flex: 1 }}>
               <Text strong>{record.product_name}</Text>
@@ -221,11 +329,18 @@ export default function OrderDetailsPage() {
                   </Text>
                 </div>
               )}
-              {record.customized_images && Array.isArray(record.customized_images) && record.customized_images.length > 0 && (
+              {isCustomDesign && (
                 <div>
                   <Tag color="green" style={{ fontSize: '11px', marginTop: 2 }}>
                     Custom Design Applied
                   </Tag>
+                </div>
+              )}
+              {!imageUrl && (
+                <div style={{ marginTop: 4 }}>
+                  <Text type="secondary" style={{ fontSize: '10px', color: '#ff6b6b' }}>
+                    Debug: No image URL found
+                  </Text>
                 </div>
               )}
             </div>

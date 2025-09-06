@@ -47,9 +47,9 @@ interface DesignState {
   validateVariationSelection: () => { isValid: boolean; error?: string };
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => void;
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => DesignData | null;
-  saveDesignToDatabase: (canvasData: any, productImageUrl: string) => Promise<void>;
+  saveDesignToDatabase: (canvasData: any, productImageUrl: string, previewImageUrl?: string) => Promise<void>;
   loadDesignFromDatabase: (productId: string, variationId: string, area: string) => Promise<DesignData | null>;
-  saveDesign: (canvasData: any, productImageUrl: string) => Promise<void>;
+  saveDesign: (canvasData: any, productImageUrl: string, previewImageUrl?: string) => Promise<void>;
   loadDesign: (productId: string, variationId: string, area: string) => Promise<DesignData | null>;
   migrateLocalStorageToDatabase: () => Promise<void>;
   clearLocalStorageDesigns: () => void;
@@ -59,6 +59,7 @@ interface DesignState {
   clearStoredDesign: (productId: string, variationId: string, area: string) => void;
   getAllStoredDesigns: () => DesignData[];
   getCustomizationOptionId: (productId: string, variationId: number, designArea: string) => Promise<number | null>;
+  generateAndSaveAllPreviews: (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => Promise<{[area: string]: string}>;
 }
 
 const STORAGE_KEY = 'ecommerce_designs';
@@ -234,7 +235,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return Array.from(state.savedDesigns.values());
   },
 
-  saveDesignToDatabase: async (canvasData: any, productImageUrl: string) => {
+  saveDesignToDatabase: async (canvasData: any, productImageUrl: string, previewImageUrl?: string) => {
     const state = get();
     if (!state.productId) {
       throw new Error('Product ID is required to save design');
@@ -269,13 +270,32 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       console.log('Saving design with variation ID:', variationId, 'for area:', state.currentDesignArea);
       console.log('Using shared client reference ID:', existingClientReferenceId);
       
+      // First upload the preview image to get the backend URL
+      let backendPreviewUrl = previewImageUrl;
+      if (previewImageUrl && variationId) {
+        try {
+          console.log('🔄 Uploading preview image to get backend URL...');
+          backendPreviewUrl = await designApi.savePreviewImageToBackend(
+            previewImageUrl,
+            state.productId,
+            variationId,
+            state.currentDesignArea
+          );
+          console.log('✅ Got backend preview URL:', backendPreviewUrl);
+        } catch (uploadError) {
+          console.error('❌ Preview upload failed, continuing with data URL:', uploadError);
+          // Continue with original preview URL if upload fails
+        }
+      }
+      
       const result = await designApi.saveDesignWithNewFormat(
         state.productId,
         variationId,
         state.currentDesignArea,
         canvasData,
         productImageUrl,
-        existingClientReferenceId
+        existingClientReferenceId,
+        backendPreviewUrl || previewImageUrl
       );
       
       // Store the shared client reference ID for future updates
@@ -352,14 +372,14 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   },
 
-  saveDesign: async (canvasData: any, productImageUrl: string) => {
+  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string) => {
     // Import auth store dynamically to avoid circular dependencies
     const { useAuthStore } = await import('@/store/authStore');
     const { isAuthenticated } = useAuthStore.getState();
     
     if (isAuthenticated) {
       // Save to database for authenticated users
-      await get().saveDesignToDatabase(canvasData, productImageUrl);
+      await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl);
     } else {
       // Save to localStorage for guest users
       get().saveDesignToStorage(canvasData, productImageUrl);
@@ -497,6 +517,47 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     } catch (error) {
       console.error('Error getting customization option ID:', error);
       return null;
+    }
+  },
+
+  generateAndSaveAllPreviews: async (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => {
+    const { previewGenerator } = await import('@/utils/previewGenerator');
+    const state = get();
+    const previews: {[area: string]: string} = {};
+    
+    try {
+      console.log('Generating and saving previews for all views...');
+      
+      // Generate previews for all views
+      const allPreviews = await previewGenerator.generatePreviewsForAllViews(
+        productId,
+        variationId.toString(),
+        availableViews,
+        state.loadDesign
+      );
+      
+      // Save each preview image with its corresponding design
+      for (const [area, previewUrl] of Object.entries(allPreviews)) {
+        try {
+          const designData = await state.loadDesign(productId, variationId.toString(), area);
+          if (designData) {
+            const currentViewImage = availableViews.find(v => v.area === area)?.image || '';
+            await state.saveDesign(designData.canvas_data, currentViewImage, previewUrl);
+            previews[area] = previewUrl;
+            console.log(`Generated and saved preview for area: ${area}`);
+          }
+        } catch (error) {
+          console.error(`Error saving preview for area ${area}:`, error);
+          // Keep the preview in memory even if saving fails
+          previews[area] = previewUrl;
+        }
+      }
+      
+      console.log('All previews generated and saved successfully');
+      return previews;
+    } catch (error) {
+      console.error('Error generating and saving previews:', error);
+      throw error;
     }
   }
 }));
