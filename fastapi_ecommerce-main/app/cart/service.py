@@ -26,6 +26,28 @@ async def add_to_cart(
     item_data_dict["product_name"] = product_data["name"]
     item_data_dict["product_price"] = product_data["base_price"]  # Products have base_price, not price
 
+    # ✅ Ensure image field always has a fallback value - get product/variation image
+    if not item_data.customized_images:  # Only set fallback if no custom images
+        fallback_image = None
+        
+        # Try to get variation image first if size/color specified
+        if hasattr(item_data, 'size') and item_data.size and product_data.get('variations'):
+            for variation in product_data.get('variations', []):
+                variation_attrs = variation.get('attributes', {})
+                if (variation_attrs.get('size') == item_data.size or 
+                    variation_attrs.get('Size') == item_data.size):
+                    if variation.get('media') and len(variation['media']) > 0:
+                        fallback_image = variation['media'][0].get('file_path')
+                        break
+        
+        # Fallback to product default image
+        if not fallback_image and product_data.get('media') and len(product_data['media']) > 0:
+            fallback_image = product_data['media'][0].get('file_path')
+        
+        # Store as single image string (not array) for non-customized items
+        if fallback_image:
+            item_data_dict["customized_images"] = [fallback_image]
+
     if user_id is not None:
         item = models.CartItem(**item_data_dict, user_id=user_id, guest_id=None)
     else:

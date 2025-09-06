@@ -154,21 +154,20 @@ export default function OrderDetailsPage() {
       key: 'product',
       render: (_, record) => {
         // Enhanced Dynamic image logic with comprehensive priority handling:
-        // 1. Custom design preview (from customized_images field)
+        // 1. Custom design preview (from customized_images field - either custom preview or product fallback)
         // 2. Variation image (from variation_details.media)
-        // 3. Default product image fallback
+        // 3. Default placeholder
         let imageUrl = null;
         let imageAlt = record.product_name;
         let isCustomDesign = false;
 
-        // Priority 1: Custom design preview image
+        // Priority 1: Check customized_images field (contains either custom previews OR product fallback images)
         console.log('🔍 Admin Order Item Debug:', {
           productName: record.product_name,
           customizedImages: record.customized_images,
           customizedImagesType: typeof record.customized_images,
           customizationOptionId: record.customization_option_id,
-          variationDetails: record.variation_details,
-          fullRecord: record // Log the entire record to see all fields
+          variationDetails: record.variation_details
         });
 
         if (record.customized_images) {
@@ -177,7 +176,6 @@ export default function OrderDetailsPage() {
             
             // Handle both string and array formats
             if (typeof record.customized_images === 'string') {
-              // Try to parse JSON string
               try {
                 customImages = JSON.parse(record.customized_images);
                 console.log('📋 Parsed customized_images from string:', customImages);
@@ -198,15 +196,14 @@ export default function OrderDetailsPage() {
               
               if (typeof customImage === 'string') {
                 rawCustomUrl = customImage;
-                console.log('✅ Using string custom image URL:', rawCustomUrl);
+                console.log('✅ Using image URL from customized_images:', rawCustomUrl);
               } else if (customImage && typeof customImage === 'object') {
-                // Try different possible properties for image URL
                 rawCustomUrl = customImage.url || customImage.file_path || customImage.image_url || customImage.preview_url;
-                console.log('✅ Using object custom image URL:', rawCustomUrl);
+                console.log('✅ Using object image URL from customized_images:', rawCustomUrl);
               }
               
               if (rawCustomUrl) {
-                // Convert relative URLs to full URLs for custom images
+                // Convert relative URLs to full URLs
                 if (!rawCustomUrl.startsWith('http')) {
                   if (rawCustomUrl.startsWith('/static/')) {
                     imageUrl = `http://127.0.0.1:8000${rawCustomUrl}`;
@@ -219,16 +216,16 @@ export default function OrderDetailsPage() {
                   imageUrl = rawCustomUrl;
                 }
                 
-                imageAlt = `${record.product_name} (Custom Design)`;
-                isCustomDesign = true;
-                console.log('🎨 Set as custom design with image:', imageUrl, '(from raw:', rawCustomUrl, ')');
+                // Determine if this is a custom design or product fallback
+                isCustomDesign = !!record.customization_option_id;
+                imageAlt = isCustomDesign ? `${record.product_name} (Custom Design)` : record.product_name;
+                
+                console.log('🎨 Using image from customized_images:', imageUrl, 'isCustom:', isCustomDesign);
               }
             }
           } catch (error) {
             console.warn('❌ Failed to process customized_images:', error);
           }
-        } else {
-          console.log('⚠️ No customized_images found for:', record.product_name);
         }
         
         // Priority 2: Variation image (only if no custom design found)
@@ -259,10 +256,8 @@ export default function OrderDetailsPage() {
 
         // Priority 3: Default product placeholder (if no other image found)
         if (!imageUrl) {
-          // Try using a default product image or placeholder
-          console.log('🔍 Looking for default product image...');
-          // You might want to add a default product image URL here
-          // imageUrl = `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=64&h=64&fit=crop`;
+          console.log('🔍 No product images found, showing placeholder');
+          // Set a default placeholder - we'll handle this in the component render
         }
 
         console.log('🖼️ Final image decision:', { 
@@ -292,10 +287,16 @@ export default function OrderDetailsPage() {
               <Avatar
                 size={64}
                 shape="square"
-                style={{ backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <span style={{ fontSize: '12px', color: '#999' }}>No Img</span>
-              </Avatar>
+                src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=64&h=64&fit=crop"
+                style={{ backgroundColor: '#f0f0f0' }}
+                onError={(e) => {
+                  // If placeholder image fails, show text fallback
+                  const target = e.target as HTMLImageElement;
+                  if (target.parentElement) {
+                    target.parentElement.innerHTML = '<span style="fontSize: 12px; color: #999;">No Img</span>';
+                  }
+                }}
+              />
             )}
             <div style={{ flex: 1 }}>
               <Text strong>{record.product_name}</Text>
