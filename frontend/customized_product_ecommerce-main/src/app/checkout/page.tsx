@@ -187,38 +187,47 @@ export default function CheckoutPage() {
   }, [isAuthenticated, user, isHydrated]);
 
   // Load available payment methods
-  useEffect(() => {
-    const loadPaymentMethods = async () => {
-      if (!isHydrated) return;
+// Load available payment methods
+useEffect(() => {
+  const loadPaymentMethods = async () => {
+    if (!isHydrated) return;
 
-      setIsLoadingPaymentMethods(true);
-      try {
-        const response = await paymentApi.getPaymentMethods();
+    setIsLoadingPaymentMethods(true);
+    try {
+      const response = await paymentApi.getPaymentMethods();
+      
+      if (response.success && response.data) {
+        // Filter only active payment methods
+        const activePaymentMethods = response.data.filter(method => method.is_active);
+        setAvailablePaymentMethods(activePaymentMethods);
         
-        if (response.success && response.data) {
-          // Filter only active payment methods
-          const activePaymentMethods = response.data.filter(method => method.is_active);
-          setAvailablePaymentMethods(activePaymentMethods);
-          
-          // Set default payment method to the first active one
-          if (activePaymentMethods.length > 0) {
-            // setPaymentMethod(activePaymentMethods[0].type);
-            // setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
+        // ✅ Set default payment method to COD if available
+        if (activePaymentMethods.length > 0) {
+          const codMethod = activePaymentMethods.find(m => m.type === "cod");
+          if (codMethod) {
+            setPaymentMethod("cod");
+            setSelectedPaymentMethodId(codMethod.id.toString());
+          } else {
+            // fallback to the first active method if COD not present
+            setPaymentMethod(activePaymentMethods[0].type);
+            setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
           }
-        } else {
-          console.log('No payment methods found or error:', response.message);
-          setAvailablePaymentMethods([]);
         }
-      } catch (error) {
-        console.error('Error loading payment methods:', error);
+      } else {
+        console.log("No payment methods found or error:", response.message);
         setAvailablePaymentMethods([]);
-      } finally {
-        setIsLoadingPaymentMethods(false);
       }
-    };
+    } catch (error) {
+      console.error("Error loading payment methods:", error);
+      setAvailablePaymentMethods([]);
+    } finally {
+      setIsLoadingPaymentMethods(false);
+    }
+  };
 
-    loadPaymentMethods();
-  }, [isHydrated]);
+  loadPaymentMethods();
+}, [isHydrated]);
+
 
   // Load available shipping methods when moving to step 2
   useEffect(() => {

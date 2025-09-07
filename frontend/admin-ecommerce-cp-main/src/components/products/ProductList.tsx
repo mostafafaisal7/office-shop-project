@@ -260,9 +260,9 @@ const showDeleteConfirm = (id: number, productName: string) => {
       sorter: true,
       render: (status: string) => {
         const statusConfig = {
-          active: { color: '#48c609ff', text: 'Active', bg: '#f6ffed' },
-          inactive: { color: '#e9090dff', text: 'Inactive', bg: '#fff2f0' },
-          draft: { color: '#faad14', text: 'Draft', bg: '#fffbe6' }
+          active: { color: '#48c609ff', text: 'Active', bg: '#48c609ff' },
+          inactive: { color: '#e9090dff', text: 'Inactive', bg: '#e9090dff' },
+          draft: { color: '#faad14', text: 'Draft', bg: '#faad14' }
         };
         const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
         
