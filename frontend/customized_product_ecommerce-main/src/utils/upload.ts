@@ -1,3 +1,8 @@
+// import { uploadProductMedia } from './uploadsApi'; // your existing function
+import { useAuthStore } from '@/store/authStore';
+
+
+
 export async function uploadProductMedia(file: File, productId: number, token: string) {
   const formData = new FormData();
   formData.append("file", file); // Make sure 'file' matches backend
@@ -48,4 +53,17 @@ export async function uploadDesignPreview(
     console.error('❌ Error uploading design preview via admin system:', error);
     throw error;
   }
+}
+
+
+export async function saveDesignPreviewToServer(
+  productId: number,
+  previewBlob: Blob,
+  filename?: string
+): Promise<string> {
+  const token = await useAuthStore.getState().getValidToken();
+  if (!token) throw new Error('User not authenticated');
+
+  const result = await uploadDesignPreview(previewBlob, productId, token, filename);
+  return result.file_url; // This URL will be saved to cart
 }

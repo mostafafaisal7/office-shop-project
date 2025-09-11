@@ -79,6 +79,9 @@ async def list_cart(db: AsyncSession, user_id: Optional[int] = None, guest_id: O
             'size': item.size,
             'color': getattr(item, 'color', None),
             'customization_id': getattr(item, 'customization_id', None),
+            
+            'customized_images': getattr(item, 'customized_images', None),
+
             'image': product_image,  # Add image data
         })
 

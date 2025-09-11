@@ -4,6 +4,8 @@ import { cartApi, CartApiItem, CartApiItemWithCustomizations } from '@/services/
 import { useAuthStore } from './authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { previewGenerator } from '@/utils/previewGenerator';
+import { uploadPreviewToBackend } from '@/utils/uploadPreviewToBackend';
+
 
 export interface CartItem {
   id: string;
@@ -334,15 +336,24 @@ export const useCartStore = create<CartStore>()(
 
               console.log('Final parsed price:', parsedPrice);
 
-              // Extract preview image from customization details
+              // Extract preview image from multiple sources (priority order)
               let previewImage: string | undefined;
               let hasCustomDesign = false;
               
-              if (apiItem.customization_details?.design_metadata?.preview_image_url) {
+              // 1. Check customized_images array (uploaded preview images)
+              if (apiItem.customized_images && apiItem.customized_images.length > 0) {
+                previewImage = apiItem.customized_images[0]; // Use the first image
+                hasCustomDesign = true;
+                console.log('✅ Using preview image from customized_images:', previewImage);
+              } 
+              // 2. Fallback to customization details metadata
+              else if (apiItem.customization_details?.design_metadata?.preview_image_url) {
                 previewImage = apiItem.customization_details.design_metadata.preview_image_url;
                 hasCustomDesign = true;
                 console.log('✅ Using preview image from customization details:', previewImage);
-              } else if (apiItem.customization_id) {
+              } 
+              // 3. Mark as custom design if has customization ID but no preview
+              else if (apiItem.customization_id) {
                 hasCustomDesign = true;
                 console.log('⚠️ Has customization ID but no preview image URL');
               }
@@ -490,10 +501,13 @@ export const useCartStore = create<CartStore>()(
             );
             
             // Update the item with the generated preview
+            // Upload preview to backend first
+          const previewUrl = await uploadPreviewToBackend(previewImage, 'previews'); // Upload to backend previews folder
+
             set((state) => ({
               items: state.items.map(item => 
                 item.id === itemId 
-                  ? { ...item, image: previewImage }
+                  ? { ...item, image: previewUrl }
                   : item
               ),
               previewGenerationProgress: {
@@ -501,8 +515,9 @@ export const useCartStore = create<CartStore>()(
                 [itemId]: false
               }
             }));
-            
-            console.log('Generated and updated preview for cart item:', itemId);
+
+            console.log('Generated and uploaded preview for cart item:', itemId);
+
           } else {
             // Mark as complete even if no preview was generated
             set((state) => ({
@@ -548,6 +563,7 @@ export const useCartStore = create<CartStore>()(
           const item: Omit<CartItem, 'id'> = {
             productId,
             name: productName,
+            image: sq.image, // Include the preview image URL
             size: sq.size,
             quantity: Number(sq.quantity) || 0,
             price: Number(sq.price) || 0, // temporary, will be updated after sync
