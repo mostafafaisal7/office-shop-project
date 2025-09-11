@@ -594,11 +594,46 @@ export const useCartStore = create<CartStore>()(
         console.log('- Price:', price, 'type:', typeof price);
         console.log('- Size:', size);
         console.log('- Color:', color);
+        console.log('- Image passed:', image);
+        console.log('- Customization ID:', customizationId);
+        
+        // ✅ Ensure image fallback for non-customized items
+        let finalImage = image;
+        
+        // If no image provided and no customization, try to get product/variation image
+        if (!finalImage && !customizationId) {
+          try {
+            const { fetchProductById } = await import('@/services/api');
+            const productData = await fetchProductById(productId);
+            
+            // Try to get variation image first if size specified
+            if (size && productData.variations && productData.variations.length > 0) {
+              const matchingVariation = productData.variations.find((variation: any) => {
+                const attrs = variation.attributes || {};
+                return attrs.size === size || attrs.Size === size;
+              });
+              
+              if (matchingVariation && matchingVariation.media && matchingVariation.media.length > 0) {
+                finalImage = matchingVariation.media[0].file_path;
+                console.log('✅ Using variation image:', finalImage);
+              }
+            }
+            
+            // Fallback to product default image
+            if (!finalImage && productData.media && productData.media.length > 0) {
+              const primaryMedia = productData.media.find((m: any) => m.is_primary) || productData.media[0];
+              finalImage = primaryMedia.file_path;
+              console.log('✅ Using product default image:', finalImage);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch product image for fallback:', error);
+          }
+        }
         
         const item: Omit<CartItem, 'id'> = {
           productId,
           name: productName,
-          image,
+          image: finalImage, // Use fallback image if needed
           size,
           color,
           quantity: Number(quantity) || 0,
@@ -607,7 +642,7 @@ export const useCartStore = create<CartStore>()(
           customizationId: customizationId,
         };
 
-        console.log('- Created item object:', item);
+        console.log('- Final item object with image:', item);
 
         try {
           await get().addItem(item);

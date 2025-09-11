@@ -230,18 +230,36 @@ useEffect(() => {
             {groupedItems.map((group, groupIndex) => (
               <div key={`${group.productId}-${group.color || 'default'}`} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-start gap-4">
-                  {/* Product Image with Dynamic Priority Logic */}
+                  {/* Product Image with Enhanced Priority Logic */}
                   <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={
-                        // Dynamic image selection with priority:
-                        // 1. Custom design preview (stored in group.image when generated)
-                        group.customDesign && group.image ? group.image :
-                        // 2. Default product/variation image from backend
-                        group.image || 
-                        // 3. Fallback to placeholder
-                        `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`
-                      }
+                      src={(() => {
+                        // Enhanced image selection with comprehensive priority:
+                        if (group.image) {
+                          // Handle both array and string formats for images
+                          let imageUrl = group.image;
+                          
+                          // If image is an array (multiple previews), use first one
+                          if (Array.isArray(group.image)) {
+                            imageUrl = group.image[0];
+                          }
+                          
+                          // Convert relative paths to full URLs if needed
+                          if (typeof imageUrl === 'string') {
+                            if (!imageUrl.startsWith('http')) {
+                              if (imageUrl.startsWith('/images/')) {
+                                return `http://127.0.0.1:8000/static/products/${imageUrl.replace('/images/products/', '')}`;
+                              } else if (imageUrl.startsWith('/static/')) {
+                                return `http://127.0.0.1:8000${imageUrl}`;
+                              }
+                            }
+                            return imageUrl;
+                          }
+                        }
+                        
+                        // Final fallback to placeholder
+                        return `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`;
+                      })()}
                       alt={
                         group.customDesign ? `${group.name} (Custom Design)` : 
                         group.color ? `${group.name} (${group.color})` : 
@@ -249,8 +267,12 @@ useEffect(() => {
                       }
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        // Fallback to a default product image if the image fails to load
+                        // Enhanced error fallback
                         const target = e.target as HTMLImageElement;
+                        if (target.src.includes('unsplash')) {
+                          // If already using fallback, don't retry to avoid infinite loop
+                          return;
+                        }
                         target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
                       }}
                     />
