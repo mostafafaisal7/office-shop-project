@@ -771,13 +771,33 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         const canvasData = fabricCanvas.toJSON();
         if (canvasData.objects && canvasData.objects.length > 0) {
           const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-          await saveDesign(canvasData, currentViewImage);
-          console.log('Design saved manually via Save button');
+          
+          console.log('💾 SAVE: Saving custom design with preview image...');
+          
+          // Generate and save preview image for current view only when there's custom content
+          let previewImageUrl: string | undefined;
+          if (isAuthenticated && selectedVariation?.variationId) {
+            try {
+              console.log('💾 Generating preview image for Save button...');
+              previewImageUrl = await previewGenerator.generatePreview(
+                canvasData,
+                currentViewImage,
+                { quality: 1, multiplier: 2 }
+              );
+              console.log('💾 Preview image generated for Save button');
+            } catch (error) {
+              console.error('Error generating preview image for Save:', error);
+              // Continue without preview image
+            }
+          }
+          
+          await saveDesign(canvasData, currentViewImage, previewImageUrl);
+          console.log('💾 Custom design saved manually via Save button', previewImageUrl ? 'with preview image' : 'without preview image');
           
           // Show success feedback
           // You could add a toast notification here if needed
         } else {
-          console.log('No design elements to save');
+          console.log('💾 No design elements to save');
         }
       }
     } catch (error) {
@@ -1307,15 +1327,76 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             }
           }
           
-          // Generate preview images for cart
-          const variationId = selectedVariation?.size || selectedVariation?.color || 'default';
+          // Generate and save preview images ONLY if user has created a custom design
+          let mainPreviewImage = '';
+          let hasCustomDesign = false;
           
-          const allPreviews = await previewGenerator.generatePreviewsForAllViews(
-            unwrappedParams.id,
-            variationId,
-            availableViews,
-            loadDesign
-          );
+          // Check if user has created any custom design elements
+          if (fabricCanvas) {
+            try {
+              const canvasData = fabricCanvas.toJSON();
+              hasCustomDesign = canvasData.objects && canvasData.objects.length > 0;
+              console.log('Has custom design elements:', hasCustomDesign, 'with', canvasData.objects?.length || 0, 'objects');
+            } catch (error) {
+              console.error('Error checking canvas for custom design:', error);
+              hasCustomDesign = false;
+            }
+          }
+          
+          if (hasCustomDesign && customizationId) {
+            try {
+              console.log('🎨 DESIGNED PRODUCT: Generating and saving preview images for Add to Cart...');
+              
+              // Generate previews for all views and save them to backend
+              if (isAuthenticated && selectedVariation?.variationId) {
+                const variationId = selectedVariation.variationId.toString();
+                
+                const allPreviews = await previewGenerator.generatePreviewsForAllViews(
+                  unwrappedParams.id,
+                  variationId,
+                  availableViews,
+                  loadDesign
+                );
+                
+                // Save each preview image to backend for designed products
+                for (const [area, previewUrl] of Object.entries(allPreviews)) {
+                  try {
+                    const designData = await loadDesign(unwrappedParams.id, variationId, area);
+                    if (designData) {
+                      const currentViewImage = availableViews.find(v => v.area === area)?.image || '';
+                      await saveDesign(designData.canvas_data, currentViewImage, previewUrl);
+                      console.log(`🎨 Saved custom design preview for area: ${area}`);
+                    }
+                  } catch (error) {
+                    console.error(`Error saving preview for area ${area}:`, error);
+                  }
+                }
+                
+                // Use the preview for the current active view as the main image
+                mainPreviewImage = allPreviews[activeView] || Object.values(allPreviews)[0] || '';
+                console.log('🎨 Using custom design preview image:', mainPreviewImage);
+              } else {
+                // For guests with custom design, generate preview without saving to backend
+                const variationId = selectedVariation?.size || selectedVariation?.color || 'default';
+                const allPreviews = await previewGenerator.generatePreviewsForAllViews(
+                  unwrappedParams.id,
+                  variationId,
+                  availableViews,
+                  loadDesign
+                );
+                mainPreviewImage = Object.values(allPreviews)[0] || '';
+                console.log('🎨 Using guest custom design preview (not saved to backend)');
+              }
+            } catch (error) {
+              console.error('Error generating custom design preview:', error);
+              // Final fallback to variation image
+              mainPreviewImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
+            }
+          } else {
+            // For non-designed products, just use the variation or product image
+            mainPreviewImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
+            console.log('📦 STANDARD PRODUCT: Using variation/product image:', mainPreviewImage);
+          }
           
           // Add to cart with default quantity of 1
           await addItemFromProductPage(
@@ -1325,7 +1406,7 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             parseFloat(currentVariation?.price || currentProduct.base_price),
             currentVariation?.attributes?.size,
             currentVariation?.attributes?.color,
-            Object.values(allPreviews)[0] || '', // Use first preview image as the main image
+            mainPreviewImage, // Use the saved or fallback preview image
             customizationId // Use the fetched customization ID
           );
           

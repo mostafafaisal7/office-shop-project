@@ -45,21 +45,41 @@ async def list_cart(db: AsyncSession, user_id: Optional[int] = None, guest_id: O
     else:
         raise HTTPException(status_code=400, detail="User or Guest ID must be provided")
 
-    # Enrich each cart item with the latest product price
+    # Enrich each cart item with the latest product price and image data
     enriched_items = []
     for item in cart_items:
         product_data = await http_get(f"{BASE_URL}/products/{item.product_id}")
+        
+        # Get product image - prioritize variation image if available
+        product_image = None
+        if product_data:
+            # Try to get variation image first if size/color specified
+            if hasattr(item, 'size') and item.size and product_data.get('variations'):
+                for variation in product_data.get('variations', []):
+                    # Match variation by attributes (size, color, etc.)
+                    variation_attrs = variation.get('attributes', {})
+                    if (variation_attrs.get('size') == item.size or 
+                        variation_attrs.get('Size') == item.size):
+                        if variation.get('media') and len(variation['media']) > 0:
+                            product_image = variation['media'][0].get('file_path')
+                            break
+            
+            # Fallback to product default image
+            if not product_image and product_data.get('media') and len(product_data['media']) > 0:
+                product_image = product_data['media'][0].get('file_path')
+        
         enriched_items.append({
             'id': item.id,
             'user_id': item.user_id,
             'guest_id': item.guest_id,
             'product_id': item.product_id,
-            'product_name': product_data.get('name', item.product_name),
-            'product_price': float(product_data.get('base_price', 0)),  # <-- use base_price from product
+            'product_name': product_data.get('name', item.product_name) if product_data else item.product_name,
+            'product_price': float(product_data.get('base_price', 0)) if product_data else 0,
             'quantity': item.quantity,
             'size': item.size,
             'color': getattr(item, 'color', None),
             'customization_id': getattr(item, 'customization_id', None),
+            'image': product_image,  # Add image data
         })
 
     return enriched_items

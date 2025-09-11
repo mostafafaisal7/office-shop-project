@@ -139,7 +139,10 @@ export const useCartStore = create<CartStore>()(
               size: item.size,
               color: item.color,
               customization_id: item.customizationId,
+              customized_images: item.image ? [item.image] : null, // ✅ Add preview image to customized_images
             };
+            
+            console.log('🔧 Sending to backend with customized_images:', apiItem.customized_images);
 
             const response = await cartApi.addItem(apiItem);
             if (response.success && response.data) {
@@ -267,10 +270,11 @@ export const useCartStore = create<CartStore>()(
         set({ isSyncing: true, isGeneratingPreviews: true });
         
         try {
-          const response = await cartApi.getCart();
+          // Use getCartWithCustomizations to get preview images directly
+          const response = await cartApi.getCartWithCustomizations();
           if (response.success) {
             // Handle different response structures - server might return array directly or wrapped in data
-            let serverData: CartApiItem[] = [];
+            let serverData: CartApiItemWithCustomizations[] = [];
             
             if (Array.isArray(response.data)) {
               serverData = response.data;
@@ -287,7 +291,7 @@ export const useCartStore = create<CartStore>()(
             
             // Convert server data to cart items
             // Convert server data to cart items with robust price parsing
-            const serverItems: CartItem[] = serverData.map((apiItem: CartApiItem) => {
+            const serverItems: CartItem[] = serverData.map((apiItem: CartApiItemWithCustomizations) => {
               // Log raw price for debugging
               console.log('Server item raw price:', apiItem.product_price, 'type:', typeof apiItem.product_price);
 
@@ -330,14 +334,29 @@ export const useCartStore = create<CartStore>()(
 
               console.log('Final parsed price:', parsedPrice);
 
+              // Extract preview image from customization details
+              let previewImage: string | undefined;
+              let hasCustomDesign = false;
+              
+              if (apiItem.customization_details?.design_metadata?.preview_image_url) {
+                previewImage = apiItem.customization_details.design_metadata.preview_image_url;
+                hasCustomDesign = true;
+                console.log('✅ Using preview image from customization details:', previewImage);
+              } else if (apiItem.customization_id) {
+                hasCustomDesign = true;
+                console.log('⚠️ Has customization ID but no preview image URL');
+              }
+
               return {
                 id: `${apiItem.product_id}-${apiItem.size || 'default'}-${apiItem.color || 'default'}`,
                 productId: apiItem.product_id.toString(),
                 name: apiItem.product_name,
+                image: previewImage, // Use the preview image from backend
                 quantity: Number(apiItem.quantity) || 0,
                 price: parsedPrice, // ✅ robust parsed price
                 size: apiItem.size,
                 color: apiItem.color,
+                customDesign: hasCustomDesign, // Mark as custom design if has customization
                 customizationId: apiItem.customization_id,
                 serverId: apiItem.id,
                 isGuest: false,
@@ -416,6 +435,7 @@ export const useCartStore = create<CartStore>()(
               size: guestItem.size,
               color: guestItem.color,
               customization_id: guestItem.customizationId,
+              customized_images: guestItem.image ? [guestItem.image] : null, // ✅ Also fix guest cart merge
             };
             
             await cartApi.addItem(apiItem);

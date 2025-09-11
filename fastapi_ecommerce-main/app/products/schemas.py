@@ -172,6 +172,7 @@ class DesignMetadataBase(BaseModel):
     canvas_width: int
     canvas_height: int
     product_image_url: Optional[str] = None
+    preview_image_url: Optional[str] = None  # URL for the generated preview image
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     design_name: Optional[str] = None

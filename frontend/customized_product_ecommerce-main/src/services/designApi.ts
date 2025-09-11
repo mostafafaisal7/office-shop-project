@@ -255,7 +255,8 @@ class DesignApiService {
     designArea: string,
     canvasData: any,
     productImageUrl: string,
-    existingClientReferenceId?: string
+    existingClientReferenceId?: string,
+    previewImageUrl?: string
   ): Promise<DesignLoadResponse> {
     try {
       const userId = await this.getUserId();
@@ -314,7 +315,8 @@ class DesignApiService {
           canvas_height: 600,
           product_image_url: productImageUrl,
           design_name: `Design for ${designArea}`,
-          is_completed: false
+          is_completed: false,
+          preview_image_url: previewImageUrl // Add preview image URL to metadata
         },
         design_elements: designElements
       };
@@ -744,6 +746,50 @@ class DesignApiService {
     } catch (error) {
       console.error('Error getting customization options by client reference ID:', error);
       return [];
+    }
+  }
+
+  // Helper method to save preview image to backend using admin's upload system
+  async savePreviewImageToBackend(previewDataURL: string, productId: string, variationId: number | null, designArea: string): Promise<string | null> {
+    try {
+      console.log('🔄 Uploading preview image using admin\'s system:', { productId, variationId, designArea });
+      
+      // Convert data URL to blob
+      const response = await fetch(previewDataURL);
+      const blob = await response.blob();
+      
+      console.log('📤 Preview blob size:', blob.size, 'bytes');
+      
+      // Import the admin's upload utility
+      const { uploadDesignPreview } = await import('@/utils/upload');
+      
+      // Get auth token
+      const token = localStorage.getItem('customer_access_token');
+      if (!token) {
+        console.error('❌ No authentication token found');
+        return null;
+      }
+      
+      // Handle null variation ID
+      const safeVariationId = variationId || 0;
+      
+      // Use admin's upload system with custom filename
+      const filename = `preview_${productId}_${safeVariationId}_${designArea}_${Date.now()}.png`;
+      
+      console.log('📤 Using customer upload endpoint for product:', productId, 'variation:', safeVariationId);
+      
+      const uploadResult = await uploadDesignPreview(blob, parseInt(productId), token, filename);
+      
+      if (uploadResult.success) {
+        console.log('✅ Preview image uploaded successfully via admin system:', uploadResult.file_url);
+        return uploadResult.file_url;
+      } else {
+        console.error('❌ Upload failed via admin system');
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Error uploading preview image via admin system:', error);
+      return null;
     }
   }
 }

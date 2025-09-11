@@ -230,14 +230,26 @@ useEffect(() => {
             {groupedItems.map((group, groupIndex) => (
               <div key={`${group.productId}-${group.color || 'default'}`} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-start gap-4">
-                  {/* Product Image */}
+                  {/* Product Image with Dynamic Priority Logic */}
                   <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={group.image || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
-                      alt={group.name}
+                      src={
+                        // Dynamic image selection with priority:
+                        // 1. Custom design preview (stored in group.image when generated)
+                        group.customDesign && group.image ? group.image :
+                        // 2. Default product/variation image from backend
+                        group.image || 
+                        // 3. Fallback to placeholder
+                        `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`
+                      }
+                      alt={
+                        group.customDesign ? `${group.name} (Custom Design)` : 
+                        group.color ? `${group.name} (${group.color})` : 
+                        group.name
+                      }
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        // Fallback to a default product image if the design image fails to load
+                        // Fallback to a default product image if the image fails to load
                         const target = e.target as HTMLImageElement;
                         target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
                       }}

@@ -21,6 +21,7 @@ import os
 os.makedirs("app/static/products", exist_ok=True)
 os.makedirs("app/static/users", exist_ok=True)
 os.makedirs("app/static/categories", exist_ok=True)
+os.makedirs("app/static/previews", exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,7 +33,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="eCommerce API", lifespan=lifespan)
 
-# Serve static images
+# Serve static images and files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Keep backward compatibility for existing image URLs
 app.mount("/images", StaticFiles(directory="app/static"), name="images")
 
 # Add CORS middleware
