@@ -322,58 +322,105 @@ const handleAddToCart = async () => {
     if (itemsToAdd.length === 0) return;
 
     let customizationId: number | undefined = undefined;
-    let mainPreviewImage = '';
+    let previewImageArray: string[] = [];
 
     if (selectedVariation?.variationId && availableViews.length > 0) {
       try {
-        // Use the first view (front) or fallback
-        const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
-        if (primaryView) {
-          // 1️⃣ Load the design data for this variation & area
-          const designData = await loadDesign(productId, selectedVariation.variationId, primaryView.area);
-
-          if (designData && designData.canvas_data) {
-            // 2️⃣ Generate the preview from canvas data
-            const previewDataUrl = await previewGenerator.generatePreview(
-              designData.canvas_data,
-              primaryView.image,
-              { quality: 1, multiplier: 2 }
-            );
-
-            // 3️⃣ Upload preview to backend
-            const uploadedPreviewUrl = await uploadPreviewToBackend(previewDataUrl, 'previews');
-            mainPreviewImage = uploadedPreviewUrl;
-
-            console.log('✅ Preview generated and uploaded to backend:', mainPreviewImage);
-
-            // 4️⃣ Get customization ID from backend
-            customizationId = await getCustomizationOptionId(
-              productId,
-              selectedVariation.variationId,
-              primaryView.area
-            ) || undefined;
-          } else {
-            // If no design data, use the original product image
-            mainPreviewImage = primaryView.image;
+        // Check if there are any designs for any of the views
+        let hasAnyDesign = false;
+        for (const view of availableViews) {
+          const designData = await loadDesign(
+            productId, 
+            selectedVariation.variationId, 
+            view.area
+          );
+          if (designData && designData.canvas_data && designData.canvas_data.objects && designData.canvas_data.objects.length > 0) {
+            hasAnyDesign = true;
+            break;
           }
         }
+        
+        if (hasAnyDesign) {
+          console.log('🎨 Found design data, generating previews for ALL views...');
+          
+          // Generate and upload previews for ALL views with design data
+          const uploadedPreviews: string[] = [];
+          for (const view of availableViews) {
+            try {
+              const designData = await loadDesign(
+                productId, 
+                selectedVariation.variationId, 
+                view.area
+              );
+              
+              let previewDataUrl: string;
+              if (designData && designData.canvas_data && designData.canvas_data.objects && designData.canvas_data.objects.length > 0) {
+                // Generate preview with design data
+                previewDataUrl = await previewGenerator.generatePreview(
+                  designData.canvas_data,
+                  view.image,
+                  { quality: 1, multiplier: 2 }
+                );
+                console.log(`✅ Generated custom preview for ${view.area}`);
+              } else {
+                // Generate preview with just the product image (background only)
+                previewDataUrl = await previewGenerator.generatePreview(
+                  null,
+                  view.image,
+                  { quality: 1, multiplier: 2 }
+                );
+                console.log(`✅ Generated background-only preview for ${view.area}`);
+              }
+              
+              // Upload preview to backend
+              const uploadedPreviewUrl = await uploadPreviewToBackend(previewDataUrl, 'previews');
+              uploadedPreviews.push(uploadedPreviewUrl);
+              console.log(`✅ Uploaded preview for ${view.area}:`, uploadedPreviewUrl);
+            } catch (error) {
+              console.error(`Error generating preview for ${view.area}:`, error);
+              // Use the original product image as fallback
+              uploadedPreviews.push(view.image);
+            }
+          }
+          
+          previewImageArray = uploadedPreviews;
+          
+          // Get customization ID from the primary view (front or first available)
+          const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
+          customizationId = await getCustomizationOptionId(
+            productId,
+            selectedVariation.variationId,
+            primaryView.area
+          ) || undefined;
+          
+          console.log('🎨 All design previews generated and uploaded:', previewImageArray.length, 'images');
+        } else {
+          // No design data found, use original product images as fallback
+          console.log('📷 No design data found, using original product images');
+          previewImageArray = availableViews.map(view => view.image);
+        }
       } catch (error) {
-        console.error('Error generating or uploading preview:', error);
-        // Gracefully handle error - still add to cart but log the error
-        mainPreviewImage = currentProduct.media?.[0]?.file_path || '';
+        console.error('Error generating or uploading previews:', error);
+        // Gracefully handle error - use original product images as fallback
+        previewImageArray = availableViews.length > 0 
+          ? availableViews.map(view => view.image)
+          : [currentProduct.media?.[0]?.file_path || ''];
       }
     } else {
-      // Guests or non-designed products
-      mainPreviewImage = currentProduct.media?.[0]?.file_path || '';
+      // Guests or non-designed products - use original product images
+      console.log('📷 Non-designed product or guest user, using original product images');
+      previewImageArray = availableViews.length > 0 
+        ? availableViews.map(view => view.image)
+        : [currentProduct.media?.[0]?.file_path || ''];
     }
 
-    // Add items to cart with uploaded preview URL
+    // Add items to cart with all preview images as array
     await addItemsFromQuantityPage(
       productId,
       currentProduct.name,
       itemsToAdd.map(item => ({
         ...item,
-        image: mainPreviewImage // attach the uploaded preview image URL
+        image: previewImageArray.length === 1 ? previewImageArray[0] : previewImageArray // Pass as array if multiple, string if single
       })),
       customizationId
     );

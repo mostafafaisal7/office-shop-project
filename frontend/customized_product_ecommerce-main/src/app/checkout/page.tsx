@@ -9,6 +9,7 @@ import { useShippingStore } from '@/store/shippingStore';
 import { VerificationSuccessAlert } from '@/components/common/VerificationSuccessAlert';
 import { shippingApi, ShippingAddress, ShippingMethod, ShippingCostCalculation, ProductShippingCostCalculation, ShippingProductCostRequest } from '@/services/shippingApi';
 import { paymentApi, PaymentMethod as ApiPaymentMethod } from '@/services/paymentApi';
+import PreviewCarousel from '@/components/PreviewCarousel';
 
 interface ShippingInfo {
   full_name: string;
@@ -186,38 +187,47 @@ export default function CheckoutPage() {
   }, [isAuthenticated, user, isHydrated]);
 
   // Load available payment methods
-  useEffect(() => {
-    const loadPaymentMethods = async () => {
-      if (!isHydrated) return;
+// Load available payment methods
+useEffect(() => {
+  const loadPaymentMethods = async () => {
+    if (!isHydrated) return;
 
-      setIsLoadingPaymentMethods(true);
-      try {
-        const response = await paymentApi.getPaymentMethods();
+    setIsLoadingPaymentMethods(true);
+    try {
+      const response = await paymentApi.getPaymentMethods();
+      
+      if (response.success && response.data) {
+        // Filter only active payment methods
+        const activePaymentMethods = response.data.filter(method => method.is_active);
+        setAvailablePaymentMethods(activePaymentMethods);
         
-        if (response.success && response.data) {
-          // Filter only active payment methods
-          const activePaymentMethods = response.data.filter(method => method.is_active);
-          setAvailablePaymentMethods(activePaymentMethods);
-          
-          // Set default payment method to the first active one
-          if (activePaymentMethods.length > 0) {
-            // setPaymentMethod(activePaymentMethods[0].type);
-            // setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
+        // ✅ Set default payment method to COD if available
+        if (activePaymentMethods.length > 0) {
+          const codMethod = activePaymentMethods.find(m => m.type === "cod");
+          if (codMethod) {
+            setPaymentMethod("cod");
+            setSelectedPaymentMethodId(codMethod.id.toString());
+          } else {
+            // fallback to the first active method if COD not present
+            setPaymentMethod(activePaymentMethods[0].type);
+            setSelectedPaymentMethodId(activePaymentMethods[0].id.toString());
           }
-        } else {
-          console.log('No payment methods found or error:', response.message);
-          setAvailablePaymentMethods([]);
         }
-      } catch (error) {
-        console.error('Error loading payment methods:', error);
+      } else {
+        console.log("No payment methods found or error:", response.message);
         setAvailablePaymentMethods([]);
-      } finally {
-        setIsLoadingPaymentMethods(false);
       }
-    };
+    } catch (error) {
+      console.error("Error loading payment methods:", error);
+      setAvailablePaymentMethods([]);
+    } finally {
+      setIsLoadingPaymentMethods(false);
+    }
+  };
 
-    loadPaymentMethods();
-  }, [isHydrated]);
+  loadPaymentMethods();
+}, [isHydrated]);
+
 
   // Load available shipping methods when moving to step 2
   useEffect(() => {
@@ -544,7 +554,7 @@ export default function CheckoutPage() {
             variation_id: null,
             quantity: item.quantity,
             customization_option_id: item.customizationId || 187, // Use default customization option ID if none exists
-            customized_images: item.image ? [item.image] : null
+            customized_images: item.image ? (Array.isArray(item.image) ? item.image : [item.image]) : null
           };
         }),
         shipping_method_id: parseInt(selectedShippingMethodId), // Convert to integer
@@ -1473,7 +1483,7 @@ export default function CheckoutPage() {
                       acc[key] = {
                         productId: item.productId || '',
                         name: item.name,
-                        image: item.image || '',
+                        image: item.image || '', // This will be the image from the first item, but PreviewCarousel can handle both string and array
                         price: item.price,
                         items: []
                       };
@@ -1483,7 +1493,7 @@ export default function CheckoutPage() {
                   }, {} as Record<string, {
                     productId: string;
                     name: string;
-                    image: string;
+                    image: string | string[]; // Can be single image or array
                     price: number;
                     items: typeof cartItems;
                   }>);
@@ -1495,13 +1505,13 @@ export default function CheckoutPage() {
                     return (
                       <div key={group.productId || group.name} className="border border-gray-100 rounded-lg p-3">
                         <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img
-                              src={group.image || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
-                              alt={group.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
+                          <PreviewCarousel
+                            images={group.image || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
+                            alt={group.name}
+                            size="sm"
+                            showThumbnails={false} // Keep it simple in checkout summary
+                            className="flex-shrink-0"
+                          />
                           <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-medium text-gray-900 truncate mb-1">
                               {group.name}

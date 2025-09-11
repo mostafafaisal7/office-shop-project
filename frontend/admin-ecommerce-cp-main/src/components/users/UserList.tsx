@@ -178,9 +178,9 @@ export default function UserList() {
       sorter: true,
       render: (role: string) => {
         const roleConfig = {
-          admin: { color: '#722ed1', text: 'Admin', bg: '#bba3cbff' },
-          user: { color: '#1890ff', text: 'User', bg: '#f0f5ff' },
-          customer: { color: '#52c41a', text: 'Customer', bg: '#f6ffed' }
+          admin: { color: '#722ed1', text: 'Admin', bg: '#722ed1' },
+          user: { color: '#1890ff', text: 'User', bg: '#1890ff' },
+          customer: { color: '#52c41a', text: 'Customer', bg: '#52c41a' }
         };
         const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.user;
         

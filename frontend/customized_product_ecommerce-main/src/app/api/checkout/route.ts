@@ -193,13 +193,23 @@ export async function POST(request: NextRequest) {
       }
 
       // The item already has the correct structure, just pass it through
+      // Ensure customized_images is always an array or null
+      let customizedImages: string[] | null = null;
+      if (item.customized_images) {
+        if (Array.isArray(item.customized_images)) {
+          customizedImages = item.customized_images;
+        } else if (typeof item.customized_images === 'string') {
+          customizedImages = [item.customized_images];
+        }
+      }
+
       const checkoutItem: CheckoutPayload['items'][0] = {
         cart_item_id: item.cart_item_id,
         product_id: item.product_id,
         variation_id: item.variation_id,
         quantity: item.quantity,
         customization_option_id: item.customization_option_id,
-        customized_images: item.customized_images,
+        customized_images: customizedImages,
       };
 
       console.log(`Generated checkout item ${index}:`, checkoutItem);

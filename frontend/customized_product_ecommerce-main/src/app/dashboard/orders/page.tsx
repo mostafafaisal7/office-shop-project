@@ -25,6 +25,7 @@ import { useAuthStore } from '@/store/authStore';
 import { shippingApi, ShippingMethod, ProductShippingCostCalculation } from '@/services/shippingApi';
 import ShippingAddressEditModal from '@/components/orders/ShippingAddressEditModal';
 import ShippingMethodSelector from '@/components/orders/ShippingMethodSelector';
+import PreviewCarousel from '@/components/PreviewCarousel';
 
 export default function OrdersPage() {
   const { showToast } = useToast();
@@ -671,10 +672,14 @@ export default function OrdersPage() {
                     <div className="space-y-4">
                       {selectedOrder.items.map((item) => (
                         <div key={item.id} className="flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                          {/* Product Image with Dynamic Priority Logic */}
-                          <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {/* Product Image with PreviewCarousel */}
+                          <div className="flex-shrink-0">
                             {(() => {
-                              // Priority 1: Custom design preview from customized_images
+                              // Get images for carousel
+                              let images: string | string[] | undefined;
+                              let alt = item.product_name;
+                              
+                              // Priority 1: Custom design previews from customized_images
                               if (item.customized_images) {
                                 try {
                                   const customImages = typeof item.customized_images === 'string' 
@@ -682,18 +687,15 @@ export default function OrdersPage() {
                                     : item.customized_images;
                                   
                                   if (Array.isArray(customImages) && customImages.length > 0) {
-                                    const imageUrl = typeof customImages[0] === 'string' 
-                                      ? customImages[0] 
-                                      : customImages[0]?.url || customImages[0]?.file_path;
+                                    // Clean up image URLs from the array
+                                    const cleanImages = customImages.map((img: any) => {
+                                      if (typeof img === 'string') return img;
+                                      return img?.url || img?.file_path || img?.image_url;
+                                    }).filter(Boolean);
                                     
-                                    if (imageUrl) {
-                                      return (
-                                        <img
-                                          src={imageUrl}
-                                          alt={`${item.product_name} (Custom Design)`}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      );
+                                    if (cleanImages.length > 0) {
+                                      images = cleanImages.length === 1 ? cleanImages[0] : cleanImages;
+                                      alt = `${item.product_name} (Custom Design)`;
                                     }
                                   }
                                 } catch (error) {
@@ -701,19 +703,30 @@ export default function OrdersPage() {
                                 }
                               }
                               
-                              // Priority 2: Variation image
-                              if (item.variation_details?.media && item.variation_details.media.length > 0) {
+                              // Priority 2: Variation image fallback
+                              if (!images && item.variation_details?.media && item.variation_details.media.length > 0) {
+                                images = item.variation_details.media[0].file_path;
+                                alt = item.variation_details.media[0].alt_text || `${item.product_name} (${item.variation_details.name})`;
+                              }
+                              
+                              if (images) {
                                 return (
-                                  <img
-                                    src={item.variation_details.media[0].file_path}
-                                    alt={item.variation_details.media[0].alt_text || `${item.product_name} (${item.variation_details.name})`}
-                                    className="w-full h-full object-cover"
+                                  <PreviewCarousel
+                                    images={images}
+                                    alt={alt}
+                                    size="md"
+                                    showThumbnails={false}
+                                    className=""
                                   />
                                 );
                               }
                               
-                              // Priority 3: Default fallback
-                              return <Package className="h-8 w-8 text-gray-400" />;
+                              // Fallback when no images
+                              return (
+                                <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
+                                  <Package className="h-8 w-8 text-gray-400" />
+                                </div>
+                              );
                             })()}
                           </div>
                           
@@ -749,21 +762,7 @@ export default function OrdersPage() {
                                   Customization: #{item.customization_option_id}
                                 </p>
                               )}
-                              {item.customized_images && (
-                                <div className="mt-2">
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Custom Images:</p>
-                                  <div className="flex space-x-2">
-                                    {JSON.parse(item.customized_images).map((image: string, index: number) => (
-                                      <img
-                                        key={index}
-                                        src={image}
-                                        alt={`Custom design ${index + 1}`}
-                                        className="w-12 h-12 object-cover rounded border border-gray-200 dark:border-gray-600"
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                              {/* Custom images are now handled by PreviewCarousel above */}
                               {item.discount_amount && (
                                 <div className="mt-1">
                                   <p className="text-xs text-green-600 dark:text-green-400">
