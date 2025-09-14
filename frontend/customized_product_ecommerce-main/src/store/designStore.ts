@@ -67,6 +67,7 @@ const AUTO_SAVE_INTERVAL = 5000; // 5 seconds
 
 // Helper functions for localStorage
 const saveToLocalStorage = (designs: Map<string, DesignData>) => {
+  if (typeof window === 'undefined') return; // SSR-safe
   try {
     const designsArray = Array.from(designs.entries());
     localStorage.setItem(STORAGE_KEY, JSON.stringify(designsArray));
@@ -76,6 +77,7 @@ const saveToLocalStorage = (designs: Map<string, DesignData>) => {
 };
 
 const loadFromLocalStorage = (): Map<string, DesignData> => {
+  if (typeof window === 'undefined') return new Map(); // SSR-safe
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -149,7 +151,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => {
     const state = get();
     if (!state.productId) return;
-
     const variationId = state.selectedVariation?.size || state.selectedVariation?.color || 'default';
     const designKey = generateDesignKey(state.productId, variationId, state.currentDesignArea);
     
@@ -178,11 +179,22 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
     const updatedDesigns = new Map(state.savedDesigns);
     updatedDesigns.set(designKey, designData);
-    
+
     set({ savedDesigns: updatedDesigns });
     saveToLocalStorage(updatedDesigns);
-    
+
     console.log('Design saved to localStorage:', designKey);
+  },
+
+  clearLocalStorageDesigns: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      set({ savedDesigns: new Map() });
+      console.log('localStorage designs cleared');
+    } catch (error) {
+      console.error('Failed to clear localStorage designs:', error);
+    }
   },
 
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => {

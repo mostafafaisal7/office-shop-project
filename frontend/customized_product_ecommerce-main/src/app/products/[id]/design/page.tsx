@@ -1082,190 +1082,207 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     }
   };
 
-  const handlePreview = async () => {
-    setIsGeneratingPreviews(true);
-    
-    try {
-      console.log('Preview clicked, generating previews for all views...');
-      
-      // First, save the current canvas design
-      if (fabricCanvas) {
-        try {
-          const canvasData = fabricCanvas.toJSON();
-          if (canvasData.objects && canvasData.objects.length > 0) {
-            const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-            await saveDesign(canvasData, currentViewImage);
-            console.log('Saved current design for view:', activeView);
-          }
-        } catch (error) {
-          console.error('Error saving canvas data for preview:', error);
-        }
-      }
-      
-      // Generate previews for all views
-      // Use the actual variation ID if available, otherwise fall back to string-based ID
-      const variationId = selectedVariation?.variationId 
-        ? selectedVariation.variationId.toString()
-        : selectedVariation?.size || selectedVariation?.color || 'default';
-      
-      console.log('Using variation ID for preview:', variationId, 'from selectedVariation:', selectedVariation);
-      
-      const allPreviews = await previewGenerator.generatePreviewsForAllViews(
-        productId,
-        variationId,
-        availableViews,
-        loadDesign
-      );
-      
-      console.log('Generated previews:', allPreviews);
-      
-      // Set all previews
-      setPreviewImages(allPreviews);
-      
-      // Set the current preview image and active view
-      const currentPreviewUrl = allPreviews[activeView];
-      setPreviewImageUrl(currentPreviewUrl || '');
-      setPreviewActiveView(activeView);
-      
-    } catch (error) {
-      console.error('Error generating previews:', error);
-      setPreviewImageUrl('');
-    } finally {
-      setIsGeneratingPreviews(false);
-      setShowPreviewModal(true);
-    }
-  };
+const designCanvasRef = useRef<any>(null);
 
-  const handleNext = async () => {
-    setIsGeneratingReviewPreviews(true);
-    
-    try {
-      console.log('Next clicked, generating review previews...');
-      
-      // First, save the current canvas design
-      if (fabricCanvas) {
-        try {
-          const canvasData = fabricCanvas.toJSON();
-          if (canvasData.objects && canvasData.objects.length > 0) {
-            const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-            await saveDesign(canvasData, currentViewImage);
-            console.log('Saved current design for review');
-          }
-        } catch (error) {
-          console.error('Error saving canvas data for review:', error);
-        }
-      }
-      
-      // Generate previews for all views
-      // Use the actual variation ID if available, otherwise fall back to string-based ID
-      const variationId = selectedVariation?.variationId 
-        ? selectedVariation.variationId.toString()
-        : selectedVariation?.size || selectedVariation?.color || 'default';
-      
-      console.log('Using variation ID for review previews:', variationId, 'from selectedVariation:', selectedVariation);
-      
-      const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
-        productId,
-        variationId,
-        availableViews,
-        loadDesign
-      );
-      
-      // Set all review previews
-      setReviewImages(allReviewPreviews);
-      
-      // Set the current review image and active view
-      const currentReviewUrl = allReviewPreviews[activeView];
-      setReviewImageUrl(currentReviewUrl || '');
-      setReviewActiveView(activeView);
-      
-      console.log('Generated review previews:', Object.keys(allReviewPreviews));
-    } catch (error) {
-      console.error('Error generating review previews:', error);
-      setReviewImageUrl('');
-    } finally {
-      setIsGeneratingReviewPreviews(false);
-      setShowReviewModal(true);
-    }
-  };
+<DesignCanvas
+  ref={designCanvasRef}
+  productImage={productImage}
+  onCanvasReady={(canvas) => console.log('Canvas ready')}
+/>
 
+// // When generating preview:
+// const handlePreview = () => {
+//   const canvas = designCanvasRef.current?.getFabricCanvas();
+//   if (!canvas) return;
+
+//   const previewDataUrl = canvas.toDataURL({
+//     format: 'png',
+//     quality: 1,
+//   });
+
+//   console.log('Preview generated:', previewDataUrl);
+// };
+
+
+const handlePreview = async () => {
+  const canvas = designCanvasRef.current?.getCanvas();
+  if (!canvas) return;
+
+  try {
+    let originalBg = canvas.backgroundImage;
+    let base64Bg: string | null = null;
+
+    // Convert background image to Base64 if present
+    if (originalBg && (originalBg as any).src) {
+      const url = (originalBg as any).src;
+      const response = await fetch(url);
+      const blob = await response.blob();
+      base64Bg = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // Temporarily replace background with Base64
+    if (base64Bg) {
+      await new Promise<void>((resolve) => {
+        FabricImage.fromURL(base64Bg, { crossOrigin: 'anonymous' }, (img: any) => {
+          img.set({
+            scaleX: canvas.getWidth() / img.width,
+            scaleY: canvas.getHeight() / img.height,
+            originX: 'center',
+            originY: 'center',
+            left: canvas.getWidth() / 2,
+            top: canvas.getHeight() / 2,
+            selectable: false,
+            evented: false,
+          });
+          canvas.backgroundImage = img;
+          canvas.renderAll();
+          resolve();
+        });
+      });
+    }
+
+    // Generate safe preview
+    const previewDataUrl = canvas.toDataURL({ format: 'png' });
+    console.log('Preview generated:', previewDataUrl);
+
+    // Restore original background
+    canvas.backgroundImage = originalBg;
+    canvas.renderAll();
+
+    return previewDataUrl;
+  } catch (err) {
+    console.error('Error generating preview:', err);
+  }
+};
+
+
+
+  // For Next button / review previews
+const handleNext = async () => {
+  if (!fabricCanvas) return;
+
+  setIsGeneratingReviewPreviews(true);
+
+  try {
+    console.log('🔹 Next clicked, generating review previews...');
+
+    const canvasData = fabricCanvas.toJSON();
+    const variationId = selectedVariation?.variationId?.toString();
+    if (!variationId) throw new Error('Variation not selected');
+
+    const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
+    await saveDesign(canvasData, currentViewImage);
+
+    console.log('✅ Current design saved, generating review previews...');
+
+    const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
+      productId,
+      variationId,
+      availableViews,
+      loadDesign
+    );
+
+    console.log('✅ Review previews generated:', allReviewPreviews);
+
+    setReviewImages(allReviewPreviews);
+    setReviewImageUrl(allReviewPreviews[activeView] || '');
+    setReviewActiveView(activeView);
+    setShowReviewModal(true);
+
+  } catch (error) {
+    console.error('❌ Error generating review previews:', error);
+    setReviewImageUrl('');
+    setShowReviewModal(true);
+  } finally {
+    setIsGeneratingReviewPreviews(false);
+  }
+};
   const closePreviewModal = () => {
     setShowPreviewModal(false);
   };
 
-  const handlePreviewViewChange = async (area: string) => {
-    console.log('Switching to preview view:', area);
-    setPreviewActiveView(area);
-    
-    if (previewImages[area]) {
-      setPreviewImageUrl(previewImages[area]);
-    } else {
-      // Generate preview on demand
-      try {
-        // Use the actual variation ID if available, otherwise fall back to string-based ID
-        const variationId = selectedVariation?.variationId 
-          ? selectedVariation.variationId.toString()
-          : selectedVariation?.size || selectedVariation?.color || 'default';
-        
-        const viewData = availableViews.find(v => v.area === area);
-        if (viewData) {
-          const savedDesign = await loadDesign(productId, variationId, area);
-          const previewUrl = await previewGenerator.generatePreview(
-            savedDesign?.canvas_data || null,
-            viewData.image,
-            { quality: 1, multiplier: 2 }
-          );
-          
-          setPreviewImages(prev => ({
-            ...prev,
-            [area]: previewUrl
-          }));
-          
-          setPreviewImageUrl(previewUrl);
-        }
-      } catch (error) {
-        console.error('Error generating preview on demand:', error);
-        setPreviewImageUrl('');
-      }
-    }
-  };
+  // Handle switching preview views
+const handlePreviewViewChange = async (area: string) => {
+  setPreviewActiveView(area);
 
-  const handleReviewViewChange = async (area: string) => {
-    console.log('Switching to review view:', area);
-    setReviewActiveView(area);
-    
-    if (reviewImages[area]) {
-      setReviewImageUrl(reviewImages[area]);
-    } else {
-      // Generate review on demand
-      try {
-        // Use the actual variation ID if available, otherwise fall back to string-based ID
-        const variationId = selectedVariation?.variationId 
-          ? selectedVariation.variationId.toString()
-          : selectedVariation?.size || selectedVariation?.color || 'default';
-        
-        const viewData = availableViews.find(v => v.area === area);
-        if (viewData) {
-          const savedDesign = await loadDesign(productId, variationId, area);
-          const reviewUrl = await previewGenerator.generatePreview(
-            savedDesign?.canvas_data || null,
-            viewData.image,
-            { quality: 1, multiplier: 2 }
-          );
-          
-          setReviewImages(prev => ({
-            ...prev,
-            [area]: reviewUrl
-          }));
-          
-          setReviewImageUrl(reviewUrl);
-        }
-      } catch (error) {
-        console.error('Error generating review on demand:', error);
-        setReviewImageUrl('');
-      }
+  if (previewImages[area]) {
+    setPreviewImageUrl(previewImages[area]);
+    return;
+  }
+
+  try {
+    const variationId = selectedVariation?.variationId?.toString();
+    if (!variationId) return;
+
+    const viewData = availableViews.find(v => v.area === area);
+    if (!viewData) return;
+
+    const savedDesign = await loadDesign(productId, variationId, area);
+    if (!savedDesign?.canvas_data?.objects?.length) {
+      console.warn('No canvas objects for preview:', area);
+      setPreviewImageUrl(viewData.image);
+      return;
     }
-  };
+
+    const previewUrl = await previewGenerator.generatePreview(
+      savedDesign.canvas_data,
+      viewData.image,
+      { quality: 1, multiplier: 2 }
+    );
+
+    setPreviewImages(prev => ({ ...prev, [area]: previewUrl }));
+    setPreviewImageUrl(previewUrl);
+
+  } catch (error) {
+    console.error('❌ Error generating preview on demand:', error);
+    const viewData = availableViews.find(v => v.area === area);
+    setPreviewImageUrl(viewData?.image || '');
+  }
+};
+
+  // Same logic for review modal
+const handleReviewViewChange = async (area: string) => {
+  setReviewActiveView(area);
+
+  if (reviewImages[area]) {
+    setReviewImageUrl(reviewImages[area]);
+    return;
+  }
+
+  try {
+    const variationId = selectedVariation?.variationId?.toString();
+    if (!variationId) return;
+
+    const viewData = availableViews.find(v => v.area === area);
+    if (!viewData) return;
+
+    const savedDesign = await loadDesign(productId, variationId, area);
+    if (!savedDesign?.canvas_data?.objects?.length) {
+      console.warn('No canvas objects for review preview:', area);
+      setReviewImageUrl(viewData.image);
+      return;
+    }
+
+    const reviewUrl = await previewGenerator.generatePreview(
+      savedDesign.canvas_data,
+      viewData.image,
+      { quality: 1, multiplier: 2 }
+    );
+
+    setReviewImages(prev => ({ ...prev, [area]: reviewUrl }));
+    setReviewImageUrl(reviewUrl);
+
+  } catch (error) {
+    console.error('❌ Error generating review preview on demand:', error);
+    const viewData = availableViews.find(v => v.area === area);
+    setReviewImageUrl(viewData?.image || '');
+  }
+};
 
   const closeReviewModal = () => {
     setShowReviewModal(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState,forwardRef, useImperativeHandle } from 'react';
 import { useDesignStore } from '@/store/designStore';
 
 // Dynamic import for fabric.js to avoid SSR issues
@@ -28,9 +28,10 @@ interface DesignCanvasProps {
   onCanvasReady?: (canvas: any) => void;
 }
 
-const DesignCanvas = ({ productImage, onCanvasReady }: DesignCanvasProps) => {
+const DesignCanvas = forwardRef(({ productImage, onCanvasReady }: DesignCanvasProps, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
+  
   const [fabricLoaded, setFabricLoaded] = useState(false);
   const { 
     designJson, 
@@ -58,224 +59,155 @@ const DesignCanvas = ({ productImage, onCanvasReady }: DesignCanvasProps) => {
     initializeFabric();
   }, []);
 
-  useEffect(() => {
-    if (!canvasRef.current || !fabricLoaded) return;
+useEffect(() => {
+  if (!canvasRef.current || !fabricLoaded) return;
 
-    // Initialize Fabric.js canvas
-    const canvas = new Canvas(canvasRef.current, {
-      width: 600,
-      height: 600,
-      backgroundColor: '#f3f4f6',
-    });
+  // Initialize Fabric.js canvas
+  const canvas = new Canvas(canvasRef.current, {
+    width: 600,
+    height: 600,
+    backgroundColor: '#f3f4f6',
+  });
 
-    fabricCanvasRef.current = canvas;
+  fabricCanvasRef.current = canvas;
 
-    // Ensure canvas is fully initialized before calling ready callback
-    const initializeCanvas = () => {
-      try {
-        // Check if canvas is properly initialized by testing basic properties without calling methods that might fail
-        if (canvas && canvas.width && canvas.height && canvas.width > 0 && canvas.height > 0) {
-          // Additional check to ensure canvas is truly ready
-          try {
-            // Test if we can safely call basic canvas methods
-            const testWidth = canvas.getWidth();
-            const testHeight = canvas.getHeight();
-            
-            if (testWidth > 0 && testHeight > 0) {
-              setIsCanvasReady(true);
-              
-              // Call the onCanvasReady callback if provided
-              if (onCanvasReady) {
-                console.log('DesignCanvas: Canvas fully initialized, calling onCanvasReady');
-                onCanvasReady(canvas);
-              }
-              return; // Successfully initialized
-            }
-          } catch (methodError) {
-            console.log('Canvas methods not ready yet, retrying...');
-          }
-        }
-        
-        // Retry after a short delay if canvas is not ready
-        console.log('DesignCanvas: Canvas not ready, retrying...');
-        setTimeout(initializeCanvas, 100);
-        
-      } catch (error) {
-        console.error('Error checking canvas initialization:', error);
-        // Retry after a longer delay on error
-        setTimeout(initializeCanvas, 200);
+  // Canvas initialization check
+  const initializeCanvas = () => {
+    try {
+      const testWidth = canvas.getWidth();
+      const testHeight = canvas.getHeight();
+      if (testWidth > 0 && testHeight > 0) {
+        setIsCanvasReady(true);
+        if (onCanvasReady) onCanvasReady(canvas);
+        return;
       }
-    };
-
-    // Start initialization process with a longer initial delay
+    } catch (err) {
+      console.log('Canvas not ready, retrying...', err);
+    }
     setTimeout(initializeCanvas, 100);
+  };
+  setTimeout(initializeCanvas, 100);
 
-    // Add selection event listeners
-    canvas.on('selection:created', (e: any) => {
-      setSelectedObject(e.selected?.[0] || null);
-    });
+  // Selection listeners
+  canvas.on('selection:created', (e: any) => setSelectedObject(e.selected?.[0] || null));
+  canvas.on('selection:updated', (e: any) => setSelectedObject(e.selected?.[0] || null));
+  canvas.on('selection:cleared', () => setSelectedObject(null));
 
-    canvas.on('selection:updated', (e: any) => {
-      setSelectedObject(e.selected?.[0] || null);
-    });
+  // Double-click text editing
+  canvas.on('mouse:dblclick', (e: any) => {
+    try {
+      const target = e.target;
+      if (!target || target.type !== 'text') return;
+      const textObj = target as any;
 
-    canvas.on('selection:cleared', () => {
-      setSelectedObject(null);
-    });
+      const textarea = document.createElement('textarea');
+      textarea.value = textObj.text || '';
+      textarea.style.position = 'absolute';
+      textarea.style.fontSize = `${textObj.fontSize || 40}px`;
+      textarea.style.fontFamily = textObj.fontFamily || 'Arial';
+      textarea.style.color = textObj.fill || '#000';
+      textarea.style.background = 'white';
+      textarea.style.border = '2px solid #007bff';
+      textarea.style.outline = 'none';
+      textarea.style.zIndex = '1000';
+      textarea.style.minWidth = '200px';
+      textarea.style.height = '60px';
+      textarea.style.padding = '2px 4px';
+      textarea.style.borderRadius = '4px';
+      textarea.style.resize = 'vertical';
+      textarea.style.lineHeight = '1.2';
+      textarea.style.overflow = 'auto';
 
-    // Add double-click event listener for text editing
-    canvas.on('mouse:dblclick', (e: any) => {
-      try {
-        const target = e.target;
-        if (target && target.type === 'text') {
-          const textObj = target as any;
-          
-          // Create a temporary textarea element for multi-line text editing
-          const textarea = document.createElement('textarea');
-          textarea.value = textObj.text || '';
-          textarea.style.position = 'absolute';
-          textarea.style.fontSize = `${(textObj.fontSize || 40).toString()}px`;
-          textarea.style.fontFamily = (textObj.fontFamily as string) || 'Arial';
-          textarea.style.color = textObj.fill as string || '#000000';
-          textarea.style.background = 'white';
-          textarea.style.border = '2px solid #007bff';
-          textarea.style.outline = 'none';
-          textarea.style.zIndex = '1000';
-          textarea.style.minWidth = '200px';
-          textarea.style.height = '60px';
-          textarea.style.minHeight = '60px';
-          textarea.style.maxHeight = 'none';
-          textarea.style.padding = '2px 4px';
-          textarea.style.borderRadius = '4px';
-          textarea.style.resize = 'vertical';
-          textarea.style.lineHeight = '1.2';
-          textarea.style.overflow = 'auto';
-          textarea.style.fontWeight = (textObj.fontWeight as string) || 'normal';
-          textarea.style.fontStyle = (textObj.fontStyle as string) || 'normal';
-          textarea.style.textDecoration = textObj.underline ? 'underline' : 'none';
-          
-          // Position the textarea relative to the canvas
-          const canvasElement = canvas.getElement();
-          const canvasRect = canvasElement.getBoundingClientRect();
-          textarea.style.left = `${canvasRect.left + (textObj.left || 0) - 100}px`;
-          textarea.style.top = `${canvasRect.top + (textObj.top || 0) - 30}px`;
-          
-          document.body.appendChild(textarea);
-          textarea.focus();
-          textarea.select();
-          
-          // Handle input completion
-          const handleInputComplete = () => {
-            try {
-              const newText = textarea.value.trim();
-              if (newText) {
-                textObj.set('text', newText);
-                canvas.renderAll();
-              }
-              if (document.body.contains(textarea)) {
-                document.body.removeChild(textarea);
-              }
-            } catch (error) {
-              console.error('Error updating text:', error);
-              if (document.body.contains(textarea)) {
-                document.body.removeChild(textarea);
-              }
-            }
-          };
-          
-          // Handle keyboard events
-          textarea.addEventListener('keydown', (event) => {
-            // Allow Enter for new lines, use Ctrl+Enter or Escape to finish editing
-            if (event.key === 'Escape' || (event.key === 'Enter' && event.ctrlKey)) {
-              event.preventDefault();
-              handleInputComplete();
-            }
-          });
-          
-          textarea.addEventListener('blur', handleInputComplete);
+      const canvasRect = canvas.getElement().getBoundingClientRect();
+      textarea.style.left = `${canvasRect.left + (textObj.left || 0) - 100}px`;
+      textarea.style.top = `${canvasRect.top + (textObj.top || 0) - 30}px`;
+
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      const handleInputComplete = () => {
+        const newText = textarea.value.trim();
+        if (newText) {
+          textObj.set('text', newText);
+          canvas.renderAll();
         }
-      } catch (error) {
-        console.error('Error in double-click handler:', error);
-      }
-    });
+        if (document.body.contains(textarea)) document.body.removeChild(textarea);
+      };
 
-    // Load product image as background if available
-    if (productImage) {
-      console.log('DesignCanvas: Loading product image:', productImage);
-      FabricImage.fromURL(productImage, { crossOrigin: 'anonymous' as const }).then((img: any) => {
-        console.log('DesignCanvas: Product image loaded successfully');
-        // Scale image to fit canvas while maintaining aspect ratio
-        const canvasWidth = canvas.getWidth();
-        const canvasHeight = canvas.getHeight();
-        const imgWidth = img.width || 1;
-        const imgHeight = img.height || 1;
-        
-        const scale = Math.min(canvasWidth / imgWidth, canvasHeight / imgHeight);
-        
+      textarea.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' || (ev.key === 'Enter' && ev.ctrlKey)) {
+          ev.preventDefault();
+          handleInputComplete();
+        }
+      });
+      textarea.addEventListener('blur', handleInputComplete);
+    } catch (err) {
+      console.error('Double-click error:', err);
+    }
+  });
+
+  // ------------------------------
+  // Background image loader
+  // ------------------------------
+  const setBackgroundImage = (url: string) => {
+    FabricImage.fromURL(url, { crossOrigin: 'anonymous' }).then((img: any) => {
+      const scale = Math.min(canvas.getWidth() / img.width, canvas.getHeight() / img.height);
+      img.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: canvas.getWidth() / 2,
+        top: canvas.getHeight() / 2,
+        originX: 'center',
+        originY: 'center',
+        selectable: false,
+        evented: false,
+      });
+      canvas.backgroundImage = img;
+      canvas.renderAll();
+      console.log('Background image loaded with crossOrigin');
+    }).catch(() => {
+      // fallback without crossOrigin
+      FabricImage.fromURL(url).then((img: any) => {
+        const scale = Math.min(canvas.getWidth() / img.width, canvas.getHeight() / img.height);
         img.set({
           scaleX: scale,
           scaleY: scale,
-          left: canvasWidth / 2,
-          top: canvasHeight / 2,
+          left: canvas.getWidth() / 2,
+          top: canvas.getHeight() / 2,
           originX: 'center',
           originY: 'center',
           selectable: false,
           evented: false,
         });
-
         canvas.backgroundImage = img;
         canvas.renderAll();
-        console.log('DesignCanvas: Product image set as background');
-      }).catch((error: any) => {
-        console.error('Error loading product image:', error);
-        // Fallback: try loading without crossOrigin
-        FabricImage.fromURL(productImage).then((img: any) => {
-          console.log('DesignCanvas: Product image loaded with fallback method');
-          const canvasWidth = canvas.getWidth();
-          const canvasHeight = canvas.getHeight();
-          const imgWidth = img.width || 1;
-          const imgHeight = img.height || 1;
-          
-          const scale = Math.min(canvasWidth / imgWidth, canvasHeight / imgHeight);
-          
-          img.set({
-            scaleX: scale,
-            scaleY: scale,
-            left: canvasWidth / 2,
-            top: canvasHeight / 2,
-            originX: 'center',
-            originY: 'center',
-            selectable: false,
-            evented: false,
-          });
-
-          canvas.backgroundImage = img;
-          canvas.renderAll();
-          console.log('DesignCanvas: Product image set as background with fallback');
-        }).catch((fallbackError: any) => {
-          console.error('Error loading product image (fallback):', fallbackError);
-          // Set a placeholder background or show error
-          canvas.backgroundColor = '#f3f4f6';
-          canvas.renderAll();
-          console.log('DesignCanvas: Set fallback background color');
-        });
+        console.log('Background image loaded without crossOrigin (preview may be tainted)');
+      }).catch((err) => {
+        console.error('Failed to load background image at all:', err);
+        canvas.backgroundColor = '#f3f4f6';
+        canvas.renderAll();
       });
-    } else {
-      console.log('DesignCanvas: No product image provided, using default background');
-      canvas.backgroundColor = '#f3f4f6';
-      canvas.renderAll();
-    }
+    });
+  };
 
-    // Cleanup function
-    return () => {
-      if (autoSaveIntervalRef.current) {
-        clearInterval(autoSaveIntervalRef.current);
-      }
-      canvas.dispose();
-      fabricCanvasRef.current = null;
-      setIsCanvasReady(false);
-    };
-  }, [fabricLoaded, productImage]);
+  if (productImage) setBackgroundImage(productImage);
+  else {
+    canvas.backgroundColor = '#f3f4f6';
+    canvas.renderAll();
+  }
+
+  // Cleanup
+  return () => {
+    if (autoSaveIntervalRef.current) clearInterval(autoSaveIntervalRef.current);
+    canvas.dispose();
+    fabricCanvasRef.current = null;
+    setIsCanvasReady(false);
+  };
+}, [fabricLoaded, productImage]);
+
+
+
 
   // Auto-save functionality with proper change detection
   useEffect(() => {
@@ -379,7 +311,7 @@ const DesignCanvas = ({ productImage, onCanvasReady }: DesignCanvasProps) => {
               try {
                 // Restore background image after loading
                 if (productImage) {
-                  FabricImage.fromURL(productImage, { crossOrigin: 'anonymous' as const }).then((img: any) => {
+                  FabricImage.fromURL(productImage, { crossOrigin: 'anonymous' }).then((img: any) => {
                     const canvasWidth = canvas.getWidth();
                     const canvasHeight = canvas.getHeight();
                     const imgWidth = img.width || 1;
@@ -1151,6 +1083,77 @@ const DesignCanvas = ({ productImage, onCanvasReady }: DesignCanvasProps) => {
     }
   }, [designJson, isCanvasReady]);
 
+  // Auto-save canvas changes per view (text, images, etc.)
+useEffect(() => {
+  if (!fabricCanvasRef.current || !isCanvasReady || !productId) return;
+
+  const canvas = fabricCanvasRef.current;
+
+  const handleCanvasChange = () => {
+    try {
+      const canvasData = canvas.toJSON();
+      if (canvasData.objects && canvasData.objects.length > 0) {
+        // Save design as usual
+        autoSaveDesign(canvasData, productImage);
+        console.log('✅ Auto-saved canvas for current design');
+      }
+    } catch (error) {
+      console.error('❌ Error auto-saving canvas:', error);
+    }
+  };
+
+  // Listen to changes for text/images/etc
+  canvas.on('object:added', handleCanvasChange);
+  canvas.on('object:modified', handleCanvasChange);
+  canvas.on('object:removed', handleCanvasChange);
+
+  return () => {
+    canvas.off('object:added', handleCanvasChange);
+    canvas.off('object:modified', handleCanvasChange);
+    canvas.off('object:removed', handleCanvasChange);
+  };
+}, [isCanvasReady, productImage, autoSaveDesign, productId]);
+
+useEffect(() => {
+  if (!fabricCanvasRef.current || !fabricLoaded || !productImage) return;
+
+  const canvas = fabricCanvasRef.current;
+
+  FabricImage.fromURL(productImage, { crossOrigin: 'anonymous' }, (img: any) => {
+    const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
+    img.set({
+      scaleX: scale,
+      scaleY: scale,
+      left: canvas.getWidth() / 2,
+      top: canvas.getHeight() / 2,
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+    });
+    canvas.backgroundImage = img;
+    canvas.renderAll();
+  }).catch((error) => {
+    console.error('Error loading product image:', error);
+    // fallback: show solid color
+    canvas.backgroundColor = '#f3f4f6';
+    canvas.renderAll();
+  });
+}, [fabricLoaded, productImage]);
+
+useImperativeHandle(ref, () => ({
+    generatePreview: () => {
+      if (!fabricCanvasRef.current) return null;
+      return fabricCanvasRef.current.toDataURL({
+        format: "png",
+        quality: 1,
+        multiplier: 2,
+      });
+    }
+  }));
+
+  
+
   return (
     <div className="flex justify-center bg-white rounded-lg shadow-lg overflow-hidden p-4">
       <div className="relative">
@@ -1158,12 +1161,12 @@ const DesignCanvas = ({ productImage, onCanvasReady }: DesignCanvasProps) => {
           ref={canvasRef}
           className="border border-gray-200 rounded-lg"
         />
-        
-        {/* Design area indicator overlay */}
         <div className="absolute inset-8 pointer-events-none border-2 border-dashed border-gray-400 rounded" />
       </div>
     </div>
   );
-};
+});
+
+DesignCanvas.displayName = "DesignCanvas";
 
 export default DesignCanvas;

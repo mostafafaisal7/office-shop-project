@@ -240,7 +240,7 @@ export class PreviewGenerator {
     }
   }
 
-  private async loadBackgroundImage(backgroundImageUrl: string, canvas: Canvas): Promise<FabricImage> {
+      private async loadBackgroundImage(backgroundImageUrl: string, canvas: Canvas): Promise<FabricImage> {
     return new Promise((resolve, reject) => {
       FabricImage.fromURL(backgroundImageUrl, { crossOrigin: 'anonymous' as const })
         .then((img: FabricImage) => {
@@ -261,39 +261,14 @@ export class PreviewGenerator {
             originY: 'center',
             selectable: false,
             evented: false,
+            crossOrigin: 'anonymous'
           });
 
           resolve(img);
         })
         .catch((error) => {
           console.error('Error loading background image with CORS:', error);
-          // Fallback without crossOrigin
-          FabricImage.fromURL(backgroundImageUrl)
-            .then((img: FabricImage) => {
-              const canvasWidth = canvas.getWidth();
-              const canvasHeight = canvas.getHeight();
-              const imgWidth = img.width || 1;
-              const imgHeight = img.height || 1;
-              
-              const scale = Math.min(canvasWidth / imgWidth, canvasHeight / imgHeight);
-              
-              img.set({
-                scaleX: scale,
-                scaleY: scale,
-                left: canvasWidth / 2,
-                top: canvasHeight / 2,
-                originX: 'center',
-                originY: 'center',
-                selectable: false,
-                evented: false,
-              });
-
-              resolve(img);
-            })
-            .catch((fallbackError) => {
-              console.error('Error loading background image (fallback):', fallbackError);
-              reject(fallbackError);
-            });
+          reject(error); // ❌ do not retry without crossOrigin
         });
     });
   }
@@ -302,12 +277,23 @@ export class PreviewGenerator {
     return new Promise((resolve, reject) => {
       try {
         canvas.loadFromJSON(canvasData, () => {
-          // Restore background image after loading JSON if we have one
-          if (backgroundImageUrl && canvas.backgroundImage) {
-            // Background image should already be set, just ensure it's rendered
-            canvas.renderAll();
+          try {
+            // Force crossOrigin on all image objects
+            canvas.getObjects().forEach((obj: any) => {
+              if (obj.type === 'image') {
+                obj.set({ crossOrigin: 'anonymous' });
+              }
+            });
+
+            if (backgroundImageUrl && canvas.backgroundImage) {
+              canvas.renderAll();
+            }
+
+            resolve();
+          } catch (postLoadError) {
+            console.error('Error adjusting objects after loadFromJSON:', postLoadError);
+            reject(postLoadError);
           }
-          resolve();
         });
       } catch (error) {
         console.error('Error loading canvas data:', error);
@@ -315,6 +301,7 @@ export class PreviewGenerator {
       }
     });
   }
+
 
   public async generatePreviewsForAllViews(
     productId: string,
