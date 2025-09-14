@@ -311,68 +311,102 @@ useEffect(() => {
 
   const variationId = selectedVariation?.variationId
     ? selectedVariation.variationId.toString()
-    : selectedVariation?.size || selectedVariation?.color || 'default';
+    : selectedVariation?.size || selectedVariation?.color || "default";
 
-  console.log('DesignCanvas: Loading design with variation ID:', variationId);
+  console.log("DesignCanvas: Loading design with variation ID:", variationId);
 
   const loadBackgroundImage = async (url: string) => {
     if (!url) return;
 
     try {
-      const img: FabricImage = await FabricImage.fromURL(url, { crossOrigin: 'anonymous' });
+      const img: FabricImage = await FabricImage.fromURL(url, {
+        crossOrigin: "anonymous",
+      });
 
-      const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
+      const scale = Math.min(
+        canvas.getWidth() / (img.width || 1),
+        canvas.getHeight() / (img.height || 1)
+      );
       img.set({
         scaleX: scale,
         scaleY: scale,
         left: canvas.getWidth() / 2,
         top: canvas.getHeight() / 2,
-        originX: 'center',
-        originY: 'center',
+        originX: "center",
+        originY: "center",
         selectable: false,
         evented: false,
       });
 
       canvas.backgroundImage = img;
       canvas.renderAll();
-      console.log('✅ Background image loaded successfully:', url);
+      console.log("✅ Background image loaded successfully:", url);
     } catch (error) {
-      console.error('❌ Error loading background image:', error);
-      canvas.backgroundColor = '#f3f4f6';
+      console.error("❌ Error loading background image:", error);
+      canvas.backgroundColor = "#f3f4f6";
       canvas.renderAll();
     }
   };
 
   const loadSavedDesign = async () => {
     try {
-      const savedDesign = await loadDesign(productId, variationId, currentDesignArea);
+      const savedDesign = await loadDesign(
+        productId,
+        variationId,
+        currentDesignArea
+      );
 
       // Clear current canvas objects except background
       canvas.getObjects().forEach((obj: any) => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
 
-      if (savedDesign?.canvas_data?.objects?.length > 0) {
-        // Load saved design JSON
-        canvas.loadFromJSON(savedDesign.canvas_data, async () => {
-          // Restore background image
-          await loadBackgroundImage(productImage);
+      const objects = savedDesign?.canvas_data?.objects || [];
+
+      if (objects.length > 0) {
+        // Clone saved design safely
+        const fixedCanvasData = { ...savedDesign.canvas_data };
+
+        // ✅ Remove backgroundImage to avoid blob reload issue
+        if (fixedCanvasData.backgroundImage?.src?.startsWith("blob:")) {
+            delete fixedCanvasData.backgroundImage;
+          }
+
+          fixedCanvasData.objects = fixedCanvasData.objects.map((obj: any) => {
+            if (obj.type === "image" && obj.src?.startsWith("blob:")) {
+              obj.src = obj.savedImageUrl || productImage;
+            }
+            return obj;
+        });
+
+        
+
+        // Load saved design (without blob background)
+        canvas.loadFromJSON(fixedCanvasData, async () => {
+          await loadBackgroundImage(productImage); // restore real product background
           canvas.renderAll();
-          console.log('✅ Design loaded successfully');
+          console.log("✅ Design loaded successfully (background replaced)");
         });
       } else {
         // No saved objects, just load background
         await loadBackgroundImage(productImage);
       }
     } catch (error) {
-      console.error('❌ Error loading saved design:', error);
+      console.error("❌ Error loading saved design:", error);
       canvas.clear();
       await loadBackgroundImage(productImage);
     }
   };
 
   loadSavedDesign();
-}, [isCanvasReady, productId, selectedVariation, currentDesignArea, loadDesign, productImage]);
+}, [
+  isCanvasReady,
+  productId,
+  selectedVariation,
+  currentDesignArea,
+  loadDesign,
+  productImage,
+]);
 
 // Listen for design store changes
 useEffect(() => {
@@ -613,7 +647,7 @@ useImperativeHandle(ref, () => ({
           ref={canvasRef}
           className="border border-gray-200 rounded-lg"
         />
-        <div className="absolute inset-8 pointer-events-none border-2 border-dashed border-gray-400 rounded" />
+        <div className="absolute inset-35 pointer-events-none border-5 border-dashed border-gray-600 rounded" />
       </div>
     </div>
   );

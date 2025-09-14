@@ -155,6 +155,33 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const variationIdKey = state.selectedVariation.variationId.toString();
   const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
 
+  // --- sanitize blobs before saving ---
+  const sanitizeCanvasData = (data: any) => {
+    if (!data) return data;
+
+    // clone so we don't mutate original
+    const cleaned = { ...data };
+
+    if (Array.isArray(cleaned.objects)) {
+      cleaned.objects = cleaned.objects.map((obj: any) => {
+        if (obj?.type === "image" && obj?.src?.startsWith("blob:")) {
+          console.warn("⚠️ Stripping blob src before saving:", obj.src);
+          obj.src = obj.savedImageUrl || ""; // fallback empty if nothing else
+        }
+        return obj;
+      });
+    }
+
+    if (cleaned.backgroundImage?.src?.startsWith("blob:")) {
+      console.warn("⚠️ Removing blob backgroundImage before saving");
+      delete cleaned.backgroundImage;
+    }
+
+    return cleaned;
+  };
+
+  const cleanedCanvasData = sanitizeCanvasData(canvasData);
+
   const designData: DesignData = {
     design_id: generateDesignId(),
     product_id: parseInt(state.productId),
@@ -162,9 +189,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     design_area: state.currentDesignArea,
     canvas_data: {
       version: '5.3.0',
-      objects: canvasData?.objects || [],
-      background: canvasData?.background || '',
-      backgroundImage: canvasData?.backgroundImage || {}
+      objects: cleanedCanvasData?.objects || [],
+      background: cleanedCanvasData?.background || '',
+      backgroundImage: cleanedCanvasData?.backgroundImage || {}
     },
     design_metadata: {
       canvas_width: 600,
@@ -175,7 +202,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       design_name: `Design for Product ${state.productId}`,
       is_completed: false
     },
-    design_elements: canvasData?.objects || []
+    design_elements: cleanedCanvasData?.objects || []
   };
 
   const updatedDesigns = new Map(state.savedDesigns);
