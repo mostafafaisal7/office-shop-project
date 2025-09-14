@@ -22,8 +22,8 @@ export class PreviewGenerator {
     return PreviewGenerator.instance;
   }
 
+  // --------------------- TEMP CANVAS ---------------------
   private async createTempCanvas(width: number = 600, height: number = 600): Promise<{ canvas: Canvas; element: HTMLCanvasElement }> {
-    // Create a temporary canvas element
     const canvasElement = document.createElement('canvas');
     canvasElement.width = width;
     canvasElement.height = height;
@@ -33,7 +33,6 @@ export class PreviewGenerator {
     canvasElement.style.visibility = 'hidden';
     document.body.appendChild(canvasElement);
 
-    // Create Fabric canvas with v6 compatible options
     const canvas = new Canvas(canvasElement, {
       width,
       height,
@@ -44,265 +43,137 @@ export class PreviewGenerator {
       preserveObjectStacking: true,
     });
 
-    // Ensure canvas is properly initialized for v6
     canvas.renderAll();
-    
-    // Add a small delay to ensure canvas is ready
-    return new Promise<{ canvas: Canvas; element: HTMLCanvasElement }>((resolve) => {
-      setTimeout(() => {
-        resolve({ canvas, element: canvasElement });
-      }, 100);
-    });
+    return new Promise((resolve) => setTimeout(() => resolve({ canvas, element: canvasElement }), 100));
   }
 
   private safeDisposeTempCanvas(canvasInfo: { canvas: Canvas; element: HTMLCanvasElement }): void {
     const { canvas, element } = canvasInfo;
-    
     try {
-      // Clear background image first
-      if (canvas && canvas.backgroundImage) {
-        canvas.backgroundImage = undefined;
-      }
-      
-      // Clear all objects
-      if (canvas && typeof canvas.clear === 'function') {
-        canvas.clear();
-      }
-      
-      // Dispose the fabric canvas
-      if (canvas && typeof canvas.dispose === 'function') {
-        canvas.dispose();
-      }
-    } catch (canvasError) {
-      console.error('Error disposing canvas:', canvasError);
-    }
+      if (canvas.backgroundImage) canvas.backgroundImage = undefined;
+      if (canvas.clear) canvas.clear();
+      if (canvas.dispose) canvas.dispose();
+    } catch (err) { console.error('Error disposing canvas:', err); }
 
     try {
-      // Remove the DOM element
       if (element && document.body.contains(element)) {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        } else {
-          document.body.removeChild(element);
-        }
+        element.parentNode?.removeChild(element);
       }
-    } catch (elementError) {
-      console.error('Error removing canvas element:', elementError);
-      // Final cleanup attempt
+    } catch (err) {
+      console.error('Error removing canvas element:', err);
       try {
-        const orphanedCanvases = document.querySelectorAll('canvas[style*="-9999px"]');
-        orphanedCanvases.forEach(orphanedCanvas => {
-          if (orphanedCanvas.parentNode) {
-            orphanedCanvas.parentNode.removeChild(orphanedCanvas);
-          }
-        });
-      } catch (cleanupError) {
-        console.error('Error in final cleanup:', cleanupError);
-      }
+        const orphaned = document.querySelectorAll('canvas[style*="-9999px"]');
+        orphaned.forEach(c => c.parentNode?.removeChild(c));
+      } catch (cleanupErr) { console.error('Final cleanup error:', cleanupErr); }
     }
   }
 
-  private async generateDataURL(canvas: Canvas, options: { format: string; quality: number; multiplier: number }): Promise<string> {
-    return new Promise((resolve, reject) => {
-      try {
-        // Validate canvas before any operations
-        if (!canvas) {
-          reject(new Error('Canvas is invalid or disposed'));
-          return;
-        }
-
-        // For Fabric.js v6, renderAll() is synchronous and doesn't need to be awaited
-        try {
-          canvas.renderAll();
-        } catch (renderError) {
-          console.warn('Error during renderAll:', renderError);
-        }
-        
-        // Use requestAnimationFrame for better timing with Fabric.js v6
-        requestAnimationFrame(() => {
-          try {
-            // Additional render to ensure everything is ready
-            try {
-              canvas.renderAll();
-            } catch (renderError) {
-              console.warn('Error during second renderAll:', renderError);
-            }
-            
-            // Use setTimeout for extra safety with v6's async rendering
-            setTimeout(() => {
-              try {
-                // For Fabric.js v6, we need to handle the toDataURL method differently
-                let dataURL: string;
-                
-                try {
-                  // Try the v6 approach first with proper options
-                  const formatType = options.format === 'png' ? 'png' : options.format === 'jpeg' ? 'jpeg' : 'png';
-                  const toDataURLOptions = {
-                    format: formatType as 'png' | 'jpeg',
-                    quality: options.quality,
-                    multiplier: options.multiplier
-                  };
-                  
-                  dataURL = canvas.toDataURL(toDataURLOptions);
-                } catch (v6Error) {
-                  console.warn('V6 toDataURL failed, trying fallback:', v6Error);
-                  
-                  try {
-                    // Fallback to simpler options
-                    const formatType = options.format === 'png' ? 'png' : options.format === 'jpeg' ? 'jpeg' : 'png';
-                    dataURL = canvas.toDataURL({
-                      format: formatType as 'png' | 'jpeg',
-                      quality: options.quality,
-                      multiplier: options.multiplier
-                    });
-                  } catch (fallbackError) {
-                    console.warn('Fallback toDataURL failed, trying canvas element:', fallbackError);
-                    
-                    // Final fallback to direct canvas element access
-                    const canvasElement = canvas.getElement();
-                    if (canvasElement && typeof canvasElement.toDataURL === 'function') {
-                      dataURL = canvasElement.toDataURL(`image/${options.format}`, options.quality);
-                    } else {
-                      throw new Error('Unable to generate data URL from canvas');
-                    }
-                  }
-                }
-                
-                if (!dataURL || dataURL.length < 100) {
-                  throw new Error('Generated data URL is invalid or empty');
-                }
-                
-                resolve(dataURL);
-              } catch (error) {
-                console.error('Error generating data URL:', error);
-                reject(error);
-              }
-            }, 300); // Reduced timeout
-          } catch (error) {
-            console.error('Error in render callback:', error);
-            reject(error);
-          }
-        });
-      } catch (error) {
-        console.error('Error in generateDataURL:', error);
-        reject(error);
-      }
-    });
-  }
-
-  public async generatePreview(
-    canvasData: any,
-    backgroundImageUrl: string,
-    options: PreviewOptions = {}
-  ): Promise<string> {
-    const {
-      width = 600,
-      height = 600,
-      quality = 1,
-      format = 'png',
-      multiplier = 2
-    } = options;
-
-    let canvasInfo: { canvas: Canvas; element: HTMLCanvasElement } | null = null;
-
-    try {
-      // Create temporary canvas
-      canvasInfo = await this.createTempCanvas(width, height);
-      const { canvas } = canvasInfo;
-
-      // Load background image if provided
-      if (backgroundImageUrl) {
-        const img = await this.loadBackgroundImage(backgroundImageUrl, canvas);
-        canvas.backgroundImage = img;
-      }
-
-      // Load canvas data if available
-      if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
-        await this.loadCanvasData(canvas, canvasData, backgroundImageUrl);
-      }
-
-      // Generate the preview
-      const dataURL = await this.generateDataURL(canvas, { format, quality, multiplier });
-      
-      // Clean up
-      this.safeDisposeTempCanvas(canvasInfo);
-      
-      return dataURL;
-    } catch (error) {
-      console.error('Error generating preview:', error);
-      
-      // Clean up on error
-      if (canvasInfo) {
-        this.safeDisposeTempCanvas(canvasInfo);
-      }
-      
-      throw error;
-    }
-  }
-
-      private async loadBackgroundImage(backgroundImageUrl: string, canvas: Canvas): Promise<FabricImage> {
+  // --------------------- IMAGE LOADING ---------------------
+  private async loadBackgroundImage(backgroundImageUrl: string, canvas: Canvas): Promise<FabricImage> {
     return new Promise((resolve, reject) => {
       FabricImage.fromURL(backgroundImageUrl, { crossOrigin: 'anonymous' as const })
         .then((img: FabricImage) => {
-          // Scale image to fit canvas while maintaining aspect ratio
-          const canvasWidth = canvas.getWidth();
-          const canvasHeight = canvas.getHeight();
-          const imgWidth = img.width || 1;
-          const imgHeight = img.height || 1;
-          
-          const scale = Math.min(canvasWidth / imgWidth, canvasHeight / imgHeight);
-          
+          const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
           img.set({
             scaleX: scale,
             scaleY: scale,
-            left: canvasWidth / 2,
-            top: canvasHeight / 2,
+            left: canvas.getWidth() / 2,
+            top: canvas.getHeight() / 2,
             originX: 'center',
             originY: 'center',
             selectable: false,
             evented: false,
             crossOrigin: 'anonymous'
           });
-
           resolve(img);
         })
-        .catch((error) => {
-          console.error('Error loading background image with CORS:', error);
-          reject(error); // ❌ do not retry without crossOrigin
-        });
+        .catch(reject);
     });
   }
 
-  private async loadCanvasData(canvas: Canvas, canvasData: any, backgroundImageUrl?: string): Promise<void> {
+  private async loadCanvasData(canvas: Canvas, canvasData: any): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         canvas.loadFromJSON(canvasData, () => {
           try {
-            // Force crossOrigin on all image objects
             canvas.getObjects().forEach((obj: any) => {
-              if (obj.type === 'image') {
-                obj.set({ crossOrigin: 'anonymous' });
-              }
+              if (obj.type === 'image') obj.set({ crossOrigin: 'anonymous' });
             });
-
-            if (backgroundImageUrl && canvas.backgroundImage) {
-              canvas.renderAll();
-            }
-
             resolve();
-          } catch (postLoadError) {
-            console.error('Error adjusting objects after loadFromJSON:', postLoadError);
-            reject(postLoadError);
-          }
+          } catch (err) { reject(err); }
         });
-      } catch (error) {
-        console.error('Error loading canvas data:', error);
-        reject(error);
-      }
+      } catch (err) { reject(err); }
     });
   }
 
+  // --------------------- ENSURE ALL IMAGES LOADED ---------------------
+  private async ensureImagesLoaded(canvas: Canvas): Promise<void> {
+    const promises: Promise<void>[] = [];
 
+    if (canvas.backgroundImage) {
+      const bg = canvas.backgroundImage as FabricImage;
+      if (!bg.getElement().complete) {
+        promises.push(new Promise(res => bg.getElement().onload = () => res()));
+      }
+    }
+
+    canvas.getObjects().forEach(obj => {
+      if (obj.type === 'image') {
+        const imgObj = obj as FabricImage;
+        if (!imgObj.getElement().complete) {
+          promises.push(new Promise(res => imgObj.getElement().onload = () => res()));
+        }
+      }
+    });
+
+    await Promise.all(promises);
+    canvas.renderAll();
+    await new Promise(res => setTimeout(res, 50));
+  }
+
+  // --------------------- GENERATE DATA URL ---------------------
+  private async generateDataURL(canvas: Canvas, options: { format: string; quality: number; multiplier: number }): Promise<string> {
+    await this.ensureImagesLoaded(canvas);
+
+    return new Promise((resolve, reject) => {
+      try {
+        const formatType = options.format === 'jpeg' ? 'jpeg' : 'png';
+        const dataURL = canvas.toDataURL({ format: formatType as 'png' | 'jpeg', quality: options.quality, multiplier: options.multiplier });
+        if (!dataURL || dataURL.length < 50) reject(new Error('Invalid data URL'));
+        else resolve(dataURL);
+      } catch (err) { reject(err); }
+    });
+  }
+
+  // --------------------- MAIN PREVIEW GENERATION ---------------------
+  public async generatePreview(canvasData: any, backgroundImageUrl: string, options: PreviewOptions = {}): Promise<string> {
+    const { width = 600, height = 600, quality = 1, format = 'png', multiplier = 2 } = options;
+    let canvasInfo: { canvas: Canvas; element: HTMLCanvasElement } | null = null;
+
+    try {
+      canvasInfo = await this.createTempCanvas(width, height);
+      const { canvas } = canvasInfo;
+
+      if (backgroundImageUrl) {
+        const img = await this.loadBackgroundImage(backgroundImageUrl, canvas);
+        canvas.backgroundImage = img;
+      }
+
+      if (canvasData?.objects?.length) {
+        await this.loadCanvasData(canvas, canvasData);
+      }
+
+      const dataURL = await this.generateDataURL(canvas, { format, quality, multiplier });
+      this.safeDisposeTempCanvas(canvasInfo);
+      return dataURL;
+    } catch (err) {
+      console.error('Error generating preview:', err);
+      if (canvasInfo) this.safeDisposeTempCanvas(canvasInfo);
+      throw err;
+    }
+  }
+
+  // --------------------- GENERATE ALL VIEWS ---------------------
   public async generatePreviewsForAllViews(
     productId: string,
     variationId: string,
@@ -310,41 +181,27 @@ export class PreviewGenerator {
     loadDesignFromStorage: (productId: string, variationId: string, area: string) => any
   ): Promise<{ [key: string]: string }> {
     const previews: { [key: string]: string } = {};
-    
-    // Process views sequentially to avoid canvas conflicts
+
     for (const view of availableViews) {
       try {
-        console.log(`Loading design for preview - Product: ${productId}, Variation: ${variationId}, Area: ${view.area}`);
         const savedDesign = await loadDesignFromStorage(productId, variationId, view.area);
-        
-        console.log(`Loaded design for ${view.area}:`, savedDesign ? 'found design data' : 'no design data');
-        
-        // Always generate a preview - either with design data or just background
         const previewUrl = await this.generatePreview(
           savedDesign?.canvas_data || null,
           view.image,
           { quality: 1, multiplier: 2 }
         );
-        
         previews[view.area] = previewUrl;
-        console.log(`Generated preview for ${view.area}:`, savedDesign?.canvas_data ? 'with design' : 'background only');
-      } catch (error) {
-        console.error(`Error generating preview for view ${view.area}:`, error);
-        // Try to generate at least a background-only preview as fallback
+      } catch (err) {
+        console.error(`Error generating preview for ${view.area}:`, err);
         try {
-          const fallbackPreview = await this.generatePreview(
-            null,
-            view.image,
-            { quality: 1, multiplier: 2 }
-          );
-          previews[view.area] = fallbackPreview;
-          console.log(`Generated fallback preview for ${view.area}`);
-        } catch (fallbackError) {
-          console.error(`Failed to generate fallback preview for ${view.area}:`, fallbackError);
+          const fallback = await this.generatePreview(null, view.image, { quality: 1, multiplier: 2 });
+          previews[view.area] = fallback;
+        } catch (fallbackErr) {
+          console.error(`Failed fallback preview for ${view.area}:`, fallbackErr);
         }
       }
     }
-    
+
     return previews;
   }
 }

@@ -1,4 +1,4 @@
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -16,8 +16,10 @@ from app.reviews.router import router as reviews_router
 from app.discounts.router import router as discounts_router
 from app.uploads.router import router as uploads_router
 import os
+from fastapi.responses import FileResponse  # <-- Add this
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from fastapi.responses import FileResponse
+
 
 
 # Ensure static folders exist
@@ -28,56 +30,44 @@ os.makedirs("app/static/previews", exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     await database.connect()
     yield
-    # Shutdown
     await database.disconnect()
 
 app = FastAPI(title="eCommerce API", lifespan=lifespan)
 
 # -----------------------------
-# Global CORS middleware (optional, for API routes)
+# Global CORS middleware
 # -----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Replace with your frontend domains in production
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend dev URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # -----------------------------
-# Sub-app for static files with CORS
+# Static files with CORS
 # -----------------------------
-static_app = FastAPI()
-static_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Replace with your frontend domains in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-static_app.mount("/", StaticFiles(directory="app/static"), name="static_files")
 
-# Mount static_app for both /static and /images
-app.mount("/static", static_app)
-app.mount("/images", static_app)
+class CORSMiddlewareStatic(StaticFiles):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        async def send_wrapper(message):
+            if message.get("type") == "http.response.start":
+                headers = dict(message.get("headers", []))
+                headers[b'access-control-allow-origin'] = b'*'
+                message["headers"] = list(headers.items())
+            await send(message)
+        await super().__call__(scope, receive, send_wrapper)
 
-@app.get("/images/{upload_type}/{image_name}")
-async def serve_image(upload_type: str, image_name: str):
-    file_path = f"app/static/{upload_type}/{image_name}"
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    
-    # ⚠️ Add CORS header to allow browser access from localhost:3000
-    return FileResponse(
-        file_path,
-        headers={"Access-Control-Allow-Origin": "*"}
-    )
+app.mount("/images", CORSMiddlewareStatic(directory="app/static"), name="images")
+# app.mount("/images", StaticFiles(directory="app/static"), name="images")
+
+
 
 # -----------------------------
-# Register routers
+# Routers
 # -----------------------------
 app.include_router(users_router, prefix="/users", tags=["Users"])
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
@@ -92,10 +82,18 @@ app.include_router(checkout_router, prefix="/checkout", tags=["Checkout"])
 app.include_router(discounts_router, prefix="/discounts", tags=["Discounts"])
 app.include_router(uploads_router, prefix="/uploads", tags=["Uploads"])
 
-# Already mounted as /images
+
 @app.get("/images/{upload_type}/{image_name}")
 async def serve_image(upload_type: str, image_name: str):
     file_path = f"app/static/{upload_type}/{image_name}"
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path, headers={"Access-Control-Allow-Origin": "*"})  # ⚠️ 
+
+    return FileResponse(
+        file_path,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )

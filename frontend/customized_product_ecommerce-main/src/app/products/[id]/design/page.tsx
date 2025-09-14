@@ -1082,13 +1082,13 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     }
   };
 
-const designCanvasRef = useRef<any>(null);
+// const designCanvasRef = useRef<any>(null);
 
-<DesignCanvas
-  ref={designCanvasRef}
-  productImage={productImage}
-  onCanvasReady={(canvas) => console.log('Canvas ready')}
-/>
+// <DesignCanvas
+//   ref={designCanvasRef}
+//   productImage={productImage}
+//   onCanvasReady={(canvas) => console.log('Canvas ready')}
+// />
 
 // // When generating preview:
 // const handlePreview = () => {
@@ -1104,61 +1104,111 @@ const designCanvasRef = useRef<any>(null);
 // };
 
 
+// const fabricCanvasRef = useRef<any>(null);
+
+// <DesignCanvas
+//   ref={fabricCanvasRef}   // optional if using imperative handle
+//   productImage={productImage}
+//   view={activeView}       // required prop
+//   onCanvasReady={(canvas) => {
+//     console.log('Canvas ready', canvas);
+//     fabricCanvasRef.current = canvas; // <- THIS is crucial
+//   }}
+// />
+
+
+
+
+// const handlePreview = async () => {
+//   setIsGeneratingPreviews(true);
+
+//   try {
+//     if (fabricCanvas) {
+//       const designPreview = fabricCanvas.toDataURL({
+//         format: "png",
+//         quality: 1,
+//         multiplier: 2,
+//       });
+
+//       // if (designPreview) {
+//       //   // ✅ store this instead of variation.image
+//       //   savePreviewForCartAndAdmin(designPreview);
+//       // }
+//     }
+//   } catch (err) {
+//     console.error("Error generating preview:", err);
+//   } finally {
+//     setIsGeneratingPreviews(false);
+//   }
+
+const [isCanvasReady, setIsCanvasReady] = useState(false);
+
+useEffect(() => {
+  if (fabricCanvas) {
+    fabricCanvas.on('after:render', () => {
+      setIsCanvasReady(true);
+    });
+  }
+}, [fabricCanvas]);
+
+
+const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
 const handlePreview = async () => {
-  const canvas = designCanvasRef.current?.getCanvas();
-  if (!canvas) return;
+  setIsGeneratingPreviews(true);
 
   try {
-    let originalBg = canvas.backgroundImage;
-    let base64Bg: string | null = null;
+    console.log('Preview clicked, generating previews for all views...');
 
-    // Convert background image to Base64 if present
-    if (originalBg && (originalBg as any).src) {
-      const url = (originalBg as any).src;
-      const response = await fetch(url);
-      const blob = await response.blob();
-      base64Bg = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+    // 1️⃣ Save current canvas design
+    if (fabricCanvas) {
+      try {
+        const canvasData = fabricCanvas.toJSON();
+        if (canvasData.objects && canvasData.objects.length > 0) {
+          const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
+          await saveDesign(canvasData, currentViewImage);
+          console.log('Saved current design for view:', activeView);
+        }
+      } catch (error) {
+        console.error('Error saving canvas data for preview:', error);
+      }
     }
 
-    // Temporarily replace background with Base64
-    if (base64Bg) {
-      await new Promise<void>((resolve) => {
-        FabricImage.fromURL(base64Bg, { crossOrigin: 'anonymous' }, (img: any) => {
-          img.set({
-            scaleX: canvas.getWidth() / img.width,
-            scaleY: canvas.getHeight() / img.height,
-            originX: 'center',
-            originY: 'center',
-            left: canvas.getWidth() / 2,
-            top: canvas.getHeight() / 2,
-            selectable: false,
-            evented: false,
-          });
-          canvas.backgroundImage = img;
-          canvas.renderAll();
-          resolve();
-        });
-      });
-    }
+    // 2️⃣ Generate previews for all views
+    const variationId = selectedVariation?.variationId?.toString() || selectedVariation?.size || selectedVariation?.color || 'default';
+    console.log('Using variation ID for preview:', variationId);
 
-    // Generate safe preview
-    const previewDataUrl = canvas.toDataURL({ format: 'png' });
-    console.log('Preview generated:', previewDataUrl);
+    const allPreviews = await previewGenerator.generatePreviewsForAllViews(
+      productId.toString(),
+      variationId,
+      availableViews,
+      loadDesign // this must return saved canvas_data for product + variation + view
+    );
 
-    // Restore original background
-    canvas.backgroundImage = originalBg;
-    canvas.renderAll();
+    console.log('Generated previews:', allPreviews);
 
-    return previewDataUrl;
-  } catch (err) {
-    console.error('Error generating preview:', err);
+    // 3️⃣ Set preview images state
+    setPreviewImages(allPreviews);
+
+    // 4️⃣ Set current preview image and active view
+    const currentPreviewUrl = allPreviews[activeView];
+    setPreviewImageUrl(currentPreviewUrl || '');
+    setPreviewActiveView(activeView);
+
+  } catch (error) {
+    console.error('Error generating previews:', error);
+    setPreviewImageUrl('');
+  } finally {
+    setIsGeneratingPreviews(false);
+    setShowPreviewModal(true);
   }
 };
+
+
+
+
+
+
+
 
 
 

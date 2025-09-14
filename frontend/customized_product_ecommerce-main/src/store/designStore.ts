@@ -149,42 +149,44 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => {
-    const state = get();
-    if (!state.productId) return;
-    const variationId = state.selectedVariation?.size || state.selectedVariation?.color || 'default';
-    const designKey = generateDesignKey(state.productId, variationId, state.currentDesignArea);
-    
-    const designData: DesignData = {
-      design_id: generateDesignId(),
-      product_id: parseInt(state.productId),
-      variation_id: parseInt(variationId) || undefined,
-      design_area: state.currentDesignArea,
-      canvas_data: {
-        version: '5.3.0',
-        objects: canvasData?.objects || [],
-        background: canvasData?.background || '',
-        backgroundImage: canvasData?.backgroundImage || {}
-      },
-      design_metadata: {
-        canvas_width: 600,
-        canvas_height: 600,
-        product_image_url: productImageUrl,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_name: `Design for Product ${state.productId}`,
-        is_completed: false
-      },
-      design_elements: canvasData?.objects || []
-    };
+  const state = get();
+  if (!state.productId || !state.selectedVariation?.variationId) return;
 
-    const updatedDesigns = new Map(state.savedDesigns);
-    updatedDesigns.set(designKey, designData);
+  const variationIdKey = state.selectedVariation.variationId.toString();
+  const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
 
-    set({ savedDesigns: updatedDesigns });
-    saveToLocalStorage(updatedDesigns);
+  const designData: DesignData = {
+    design_id: generateDesignId(),
+    product_id: parseInt(state.productId),
+    variation_id: parseInt(variationIdKey),
+    design_area: state.currentDesignArea,
+    canvas_data: {
+      version: '5.3.0',
+      objects: canvasData?.objects || [],
+      background: canvasData?.background || '',
+      backgroundImage: canvasData?.backgroundImage || {}
+    },
+    design_metadata: {
+      canvas_width: 600,
+      canvas_height: 600,
+      product_image_url: productImageUrl,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      design_name: `Design for Product ${state.productId}`,
+      is_completed: false
+    },
+    design_elements: canvasData?.objects || []
+  };
 
-    console.log('Design saved to localStorage:', designKey);
-  },
+  const updatedDesigns = new Map(state.savedDesigns);
+  updatedDesigns.set(designKey, designData);
+
+  set({ savedDesigns: updatedDesigns });
+  saveToLocalStorage(updatedDesigns);
+
+  console.log('Design saved to localStorage:', designKey);
+},
+
 
   clearLocalStorageDesigns: () => {
     if (typeof window === 'undefined') return;
@@ -198,17 +200,19 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => {
-    const state = get();
-    const designKey = generateDesignKey(productId, variationId, area);
-    const design = state.savedDesigns.get(designKey);
-    
-    if (design) {
-      console.log('Design loaded from localStorage:', designKey);
-      return design;
-    }
-    
-    return null;
-  },
+  const state = get();
+  const designKey = generateDesignKey(productId, variationId, area);
+  const design = state.savedDesigns.get(designKey);
+
+  if (design) {
+    console.log('Design loaded from localStorage for preview:', designKey);
+    return design;
+  }
+
+  console.warn('No design found for preview:', designKey);
+  return null;
+},
+
 
   autoSaveDesign: (canvasData: any, productImageUrl: string) => {
     const state = get();
@@ -533,43 +537,37 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   generateAndSaveAllPreviews: async (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => {
-    const { previewGenerator } = await import('@/utils/previewGenerator');
-    const state = get();
-    const previews: {[area: string]: string} = {};
-    
+  const { previewGenerator } = await import('@/utils/previewGenerator');
+  const state = get();
+  const variationIdKey = variationId.toString();
+  const previews: {[area: string]: string} = {};
+
+  console.log('Generating and saving previews for all views...');
+
+  const allPreviews = await previewGenerator.generatePreviewsForAllViews(
+    productId,
+    variationIdKey,
+    availableViews,
+    (prodId, varId, area) => state.loadDesign(prodId, varId, area)?.canvas_data || null
+  );
+
+  for (const [area, previewUrl] of Object.entries(allPreviews)) {
     try {
-      console.log('Generating and saving previews for all views...');
-      
-      // Generate previews for all views
-      const allPreviews = await previewGenerator.generatePreviewsForAllViews(
-        productId,
-        variationId.toString(),
-        availableViews,
-        state.loadDesign
-      );
-      
-      // Save each preview image with its corresponding design
-      for (const [area, previewUrl] of Object.entries(allPreviews)) {
-        try {
-          const designData = await state.loadDesign(productId, variationId.toString(), area);
-          if (designData) {
-            const currentViewImage = availableViews.find(v => v.area === area)?.image || '';
-            await state.saveDesign(designData.canvas_data, currentViewImage, previewUrl);
-            previews[area] = previewUrl;
-            console.log(`Generated and saved preview for area: ${area}`);
-          }
-        } catch (error) {
-          console.error(`Error saving preview for area ${area}:`, error);
-          // Keep the preview in memory even if saving fails
-          previews[area] = previewUrl;
-        }
+      const designData = await state.loadDesign(productId, variationIdKey, area);
+      if (designData) {
+        const currentViewImage = availableViews.find(v => v.area === area)?.image || '';
+        await state.saveDesign(designData.canvas_data, currentViewImage, previewUrl);
+        previews[area] = previewUrl;
+        console.log(`Generated and saved preview for area: ${area}`);
       }
-      
-      console.log('All previews generated and saved successfully');
-      return previews;
     } catch (error) {
-      console.error('Error generating and saving previews:', error);
-      throw error;
+      console.error(`Error saving preview for area ${area}:`, error);
+      previews[area] = previewUrl;
     }
   }
+
+  console.log('All previews generated and saved successfully');
+  return previews;
+},
+
 }));
