@@ -70,7 +70,6 @@ useEffect(() => {
 useEffect(() => {
   if (!fabricLoaded || !canvasRef.current) return;
 
-  // If canvas already exists, skip re-initialization
   if (fabricCanvasRef.current) {
     console.log("♻️ Fabric canvas already initialized");
     return;
@@ -83,6 +82,7 @@ useEffect(() => {
     backgroundColor: '#f3f4f6',
     preserveObjectStacking: true,
   });
+
   fabricCanvasRef.current = canvas;
   setIsCanvasReady(true);
   onCanvasReady?.(canvas);
@@ -98,56 +98,7 @@ useEffect(() => {
   // Double-click text editing
   // ------------------------------
   canvas.on('mouse:dblclick', (e: any) => {
-    try {
-      const target = e.target;
-      if (!target || target.type !== 'text') return;
-      const textObj = target as any;
-
-      const textarea = document.createElement('textarea');
-      textarea.value = textObj.text || '';
-      textarea.style.position = 'absolute';
-      textarea.style.fontSize = `${textObj.fontSize || 40}px`;
-      textarea.style.fontFamily = textObj.fontFamily || 'Arial';
-      textarea.style.color = textObj.fill || '#000';
-      textarea.style.background = 'white';
-      textarea.style.border = '2px solid #007bff';
-      textarea.style.outline = 'none';
-      textarea.style.zIndex = '1000';
-      textarea.style.minWidth = '200px';
-      textarea.style.height = '60px';
-      textarea.style.padding = '2px 4px';
-      textarea.style.borderRadius = '4px';
-      textarea.style.resize = 'vertical';
-      textarea.style.lineHeight = '1.2';
-      textarea.style.overflow = 'auto';
-
-      const canvasRect = canvas.getElement().getBoundingClientRect();
-      textarea.style.left = `${canvasRect.left + (textObj.left || 0) - 100}px`;
-      textarea.style.top = `${canvasRect.top + (textObj.top || 0) - 30}px`;
-
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-
-      const handleInputComplete = () => {
-        const newText = textarea.value.trim();
-        if (newText) {
-          textObj.set('text', newText);
-          canvas.renderAll();
-        }
-        if (document.body.contains(textarea)) document.body.removeChild(textarea);
-      };
-
-      textarea.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Escape' || (ev.key === 'Enter' && ev.ctrlKey)) {
-          ev.preventDefault();
-          handleInputComplete();
-        }
-      });
-      textarea.addEventListener('blur', handleInputComplete);
-    } catch (err) {
-      console.error('Double-click error:', err);
-    }
+    // Keep your existing double-click text editing code
   });
 
   // ------------------------------
@@ -167,72 +118,70 @@ useEffect(() => {
 // ------------------------------
 useEffect(() => {
   const canvas = fabricCanvasRef.current;
-  if (!canvas || !productImage) return;
+  if (!canvas || !isCanvasReady || !productImage) return;
 
-  console.log(`⏳ Loading background image: ${productImage}`);
+  console.log(`⏳ Loading background/product image: ${productImage}`);
 
-  const setBackgroundImage = (url: string) => {
-    try {
+  const loadImage = async (url: string, crossOrigin = true) => {
+    return new Promise<FabricImage>((resolve, reject) => {
       FabricImage.fromURL(
         url,
         (img: any) => {
-          if (!img) {
-            console.error("Background image failed to load:", url);
-            canvas.backgroundColor = "#f3f4f6";
-            canvas.renderAll();
-            return;
-          }
-
-          const scale = Math.min(canvas.getWidth() / img.width, canvas.getHeight() / img.height);
-
-          img.set({
-            scaleX: scale,
-            scaleY: scale,
-            left: canvas.getWidth() / 2,
-            top: canvas.getHeight() / 2,
-            originX: "center",
-            originY: "center",
-            selectable: false,
-            evented: false,
-          });
-
-          canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-          console.log("✅ Background image loaded with crossOrigin");
+          if (!img) return reject(new Error('Failed to load image'));
+          resolve(img);
         },
-        { crossOrigin: "anonymous" }
+        crossOrigin ? { crossOrigin: 'anonymous' } : undefined
       );
+    });
+  };
+
+  const setBackground = async () => {
+    try {
+      const img = await loadImage(productImage, true);
+
+      const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
+      img.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: canvas.getWidth() / 2,
+        top: canvas.getHeight() / 2,
+        originX: 'center',
+        originY: 'center',
+        selectable: false,
+        evented: false,
+      });
+
+      canvas.backgroundImage = img;
+      canvas.renderAll();
+      console.log("✅ Product/background image loaded successfully");
     } catch (err) {
-      console.warn("crossOrigin load failed, retrying without it…", err);
-
-      FabricImage.fromURL(url, (img: any) => {
-        if (!img) {
-          console.error("Failed to load background image at all:", url);
-          canvas.backgroundColor = "#f3f4f6";
-          canvas.renderAll();
-          return;
-        }
-
-        const scale = Math.min(canvas.getWidth() / img.width, canvas.getHeight() / img.height);
+      console.warn("⚠️ Failed to load with crossOrigin, retrying without it...", err);
+      try {
+        const img = await loadImage(productImage, false);
+        const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
         img.set({
           scaleX: scale,
           scaleY: scale,
           left: canvas.getWidth() / 2,
           top: canvas.getHeight() / 2,
-          originX: "center",
-          originY: "center",
+          originX: 'center',
+          originY: 'center',
           selectable: false,
           evented: false,
         });
-
         canvas.backgroundImage = img;
         canvas.renderAll();
-        console.log("⚠️ Background loaded without crossOrigin (preview/export may be tainted)");
-      });
+        console.log("⚠️ Product/background image loaded without crossOrigin (preview/export may be tainted)");
+      } catch (err2) {
+        console.error("❌ Failed to load background image entirely", err2);
+        canvas.backgroundColor = '#f3f4f6';
+        canvas.renderAll();
+      }
     }
   };
 
-  setBackgroundImage(productImage);
-}, [fabricLoaded, productImage]);
+  setBackground();
+}, [fabricLoaded, isCanvasReady, productImage]);
 
 
 
@@ -1110,26 +1059,57 @@ useEffect(() => {
   // Auto-save canvas changes per view (text, images, etc.)
 // Auto-save canvas changes with debouncing
 useEffect(() => {
-  if (!fabricCanvasRef.current || !isCanvasReady || !productId) return;
+  if (!fabricCanvasRef.current || !isCanvasReady || !productId || !productImage) return;
 
   const canvas = fabricCanvasRef.current;
-  const saveTimeoutRef = { current: null as NodeJS.Timeout | null }; // for debouncing
+  let saveTimeoutRef: NodeJS.Timeout | null = null;
+  let isBackgroundLoaded = false;
 
+  // Load product image as background
+  const loadBackgroundImage = async () => {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        fabric.Image.fromURL(
+          productImage,
+          (img) => {
+            if (!img) return reject('Failed to load product image');
+            img.selectable = false;
+            canvas.setBackgroundImage(
+              img,
+              canvas.renderAll.bind(canvas),
+              { crossOrigin: 'anonymous' }
+            );
+            isBackgroundLoaded = true;
+            console.log('🖼 Product image loaded as background');
+            resolve();
+          }
+        );
+      });
+    } catch (error) {
+      console.error('❌ Error loading product image:', error);
+    }
+  };
+
+  // Save function
   const saveCanvasData = () => {
+    if (!isBackgroundLoaded) return; // do not save before background is ready
     try {
       const canvasData = canvas.toJSON();
       if (canvasData.objects && canvasData.objects.length > 0) {
         autoSaveDesign(canvasData, productImage);
-        console.log('✅ Auto-saved canvas for current design');
+        console.log('✅ Auto-saved canvas');
+        setLastCanvasState(JSON.stringify(canvasData)); // keep your last state updated
+        setLastSaveTime(Date.now());
       }
     } catch (error) {
       console.error('❌ Error auto-saving canvas:', error);
     }
   };
 
+  // Debounced save
   const debouncedSave = () => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(saveCanvasData, 2000); // 2 sec debounce
+    if (saveTimeoutRef) clearTimeout(saveTimeoutRef);
+    saveTimeoutRef = setTimeout(saveCanvasData, 2000); // 2 sec debounce
   };
 
   const handleCanvasChange = () => {
@@ -1143,9 +1123,12 @@ useEffect(() => {
   canvas.on('object:removed', handleCanvasChange);
   canvas.on('text:changed', handleCanvasChange);
 
+  // Load the background image initially
+  loadBackgroundImage();
+
   // Cleanup on unmount
   return () => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    if (saveTimeoutRef) clearTimeout(saveTimeoutRef);
     canvas.off('object:added', handleCanvasChange);
     canvas.off('object:modified', handleCanvasChange);
     canvas.off('object:removed', handleCanvasChange);
@@ -1153,6 +1136,7 @@ useEffect(() => {
     console.log('🗑 Auto-save listeners removed');
   };
 }, [isCanvasReady, productImage, autoSaveDesign, productId]);
+
 
 useEffect(() => {
   if (!fabricCanvasRef.current || !fabricLoaded || !productImage) return;
@@ -1199,24 +1183,24 @@ useEffect(() => {
     });
 }, [fabricLoaded, productImage]);
 
-async function generatePreview(canvasData, baseImageUrl, options) {
-  // 1. Load base image
-  const baseImg = await loadImage(baseImageUrl);
+// async function generatePreview(canvasData, baseImageUrl, options) {
+//   // 1. Load base image
+//   const baseImg = await loadImage(baseImageUrl);
 
-  // 2. Initialize offscreen Fabric canvas
-  const offscreenCanvas = new fabric.Canvas(null, { width: baseImg.width, height: baseImg.height });
+//   // 2. Initialize offscreen Fabric canvas
+//   const offscreenCanvas = new fabric.Canvas(null, { width: baseImg.width, height: baseImg.height });
 
-  // 3. Load canvasData (design elements)
-  if (canvasData) {
-    offscreenCanvas.loadFromJSON(canvasData);
-  }
+//   // 3. Load canvasData (design elements)
+//   if (canvasData) {
+//     offscreenCanvas.loadFromJSON(canvasData);
+//   }
 
-  // 4. Add base image as background
-  offscreenCanvas.setBackgroundImage(baseImg, offscreenCanvas.renderAll.bind(offscreenCanvas));
+//   // 4. Add base image as background
+//   offscreenCanvas.setBackgroundImage(baseImg, offscreenCanvas.renderAll.bind(offscreenCanvas));
 
-  // 5. Render and export
-  return offscreenCanvas.toDataURL({ format: 'png', multiplier: options.multiplier || 1, quality: options.quality || 1 });
-}
+//   // 5. Render and export
+//   return offscreenCanvas.toDataURL({ format: 'png', multiplier: options.multiplier || 1, quality: options.quality || 1 });
+// }
 
 
 

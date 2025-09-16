@@ -54,7 +54,7 @@ interface CartStore {
 }
 
 // Helper function to generate or get guest ID
-const getOrCreateGuestId = (): string => {
+export const getOrCreateGuestId = (): string => {
   if (typeof window === 'undefined') return 'guest-' + Date.now();
   
   let guestId = localStorage.getItem('guest_id');
@@ -64,6 +64,7 @@ const getOrCreateGuestId = (): string => {
   }
   return guestId;
 };
+
 
 export const useCartStore = create<CartStore>()(
   persist(
