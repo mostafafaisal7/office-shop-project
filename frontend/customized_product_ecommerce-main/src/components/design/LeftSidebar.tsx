@@ -10,15 +10,17 @@ interface LeftSidebarProps {
   onImageClick: (imageUrl: string) => void; // callback when user clicks uploaded image
 }
 
-const API_UPLOAD_URL = 'http://localhost:8000/uploads/image';
+// Endpoints
+const API_UPLOAD_ADMIN = 'http://localhost:8000/uploads/image';
+const API_UPLOAD_USER  = 'http://localhost:8000/uploads/image_user';
+const API_FETCH_USER_IMAGES = 'http://localhost:8000/uploads/images/previews';
 
 const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProps) => {
   const { user, isAuthenticated } = useAuthStore();
 
-  // Token state for logged-in users
   const [token, setToken] = useState<string | null>(null);
 
-  // Generate guest ID once per session
+  // Guest ID for non-authenticated users
   const [guestId] = useState(() => {
     if (typeof window === 'undefined') return '';
     let id = localStorage.getItem('guest_id');
@@ -29,42 +31,40 @@ const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProp
     return id;
   });
 
-  const userOrGuestId = isAuthenticated && user?.id ? user.id.toString() : guestId;
-
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const [textInput, setTextInput] = useState<string>('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
 
-  // Fetch token on mount if user is logged in
+  // Fetch token if user is logged in
   useEffect(() => {
     if (isAuthenticated) {
       getValidToken().then(t => setToken(t));
     }
   }, [isAuthenticated]);
 
-  // Fetch previously uploaded images for reuse
+  // Fetch previously uploaded images for users/guests
   useEffect(() => {
-  const fetchExistingImages = async () => {
-    const folderName = isAuthenticated && user?.id ? `user_${user.id}` : `guest_${guestId}`;
-    try {
-      const query = isAuthenticated ? '' : `?guest_id=${guestId}`;
-      const res = await fetch(`http://localhost:8000/uploads/images/previews${query}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json();
-      if (data?.images) setUploadedImages(data.images);
-    } catch (err) {
-      console.error('Failed to fetch existing images:', err);
-    }
-  };
-  fetchExistingImages();
-}, [token, isAuthenticated, user?.id, guestId]);
+    const fetchExistingImages = async () => {
+      if (!isAuthenticated && !guestId) return;
+      try {
+        const query = !isAuthenticated ? `?guest_id=${guestId}` : '';
+        const res = await fetch(`${API_FETCH_USER_IMAGES}${query}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (data?.images) setUploadedImages(data.images);
+      } catch (err) {
+        console.error('Failed to fetch existing images:', err);
+      }
+    };
+    fetchExistingImages();
+  }, [token, isAuthenticated, guestId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
 
-    // Temporary preview
+    // Show temporary preview
     const previewUrl = URL.createObjectURL(file);
     setUploadedImages(prev => [...prev, previewUrl]);
 
@@ -72,17 +72,15 @@ const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProp
     formData.append('file', file);
     formData.append('upload_type', 'previews');
 
-    if (!isAuthenticated) {
-      formData.append('guest_id', guestId);
-    }
+    if (!isAuthenticated) formData.append('guest_id', guestId);
 
     const headers: Record<string, string> = {};
-    if (isAuthenticated && token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (isAuthenticated && token) headers['Authorization'] = `Bearer ${token}`;
+
+    const uploadUrl = isAuthenticated ? API_UPLOAD_USER : API_UPLOAD_USER; // both guest/user use same endpoint
 
     try {
-      const res = await fetch(API_UPLOAD_URL, {
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
         headers,
