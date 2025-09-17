@@ -5,7 +5,14 @@ import shutil
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, status, Depends
 from typing import Annotated, Optional
 from app.core.config import BASE_URL
-from app.common.dependencies import get_current_user_optional
+from app.common.dependencies import get_current_user_optional,get_current_user
+
+
+from fastapi import HTTPException, status
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -179,3 +186,84 @@ async def list_uploaded_images(
 
     return {"images": urls}
 
+
+
+def migrate_guest_images_to_user(guest_id: str, user_id: int):
+    for upload_type in ALLOWED_UPLOAD_TYPES:
+        guest_folder = os.path.join(BASE_IMAGE_DIR, upload_type, f"guest_{guest_id}")
+        user_folder = os.path.join(BASE_IMAGE_DIR, upload_type, f"user_{user_id}")
+
+        if os.path.exists(guest_folder):
+            os.makedirs(user_folder, exist_ok=True)
+
+            for filename in os.listdir(guest_folder):
+                src = os.path.join(guest_folder, filename)
+
+                if not os.path.isfile(src):
+                    continue
+
+                dst = os.path.join(user_folder, filename)
+
+                # 🔹 Prevent overwrites by renaming
+                if os.path.exists(dst):
+                    name, ext = os.path.splitext(filename)
+                    new_filename = f"{name}_{uuid.uuid4().hex}{ext}"
+                    dst = os.path.join(user_folder, new_filename)
+                    logger.warning(f"Filename conflict: {filename}, renamed to {new_filename}")
+
+                try:
+                    shutil.move(src, dst)
+                    logger.info(f"Migrated {src} → {dst}")
+                except Exception as e:
+                    logger.error(f"Failed to migrate {src}: {e}")
+
+            # Try removing empty guest folder
+            try:
+                os.rmdir(guest_folder)
+            except OSError:
+                pass
+
+
+@router.post("/migrate-guest-images", summary="Migrate guest images to user after login")
+async def migrate_guest_images(
+    guest_id: str = Form(...),
+    current_user: "User" = Depends(get_current_user)
+):
+    if not current_user or not getattr(current_user, "id", None):
+        raise HTTPException(status_code=401, detail="User authentication required")
+
+    migrated_urls = []
+
+    for upload_type in ALLOWED_UPLOAD_TYPES:
+        guest_folder = os.path.join(BASE_IMAGE_DIR, upload_type, f"guest_{guest_id}")
+        user_folder = os.path.join(BASE_IMAGE_DIR, upload_type, f"user_{current_user.id}")
+
+        if os.path.exists(guest_folder):
+            os.makedirs(user_folder, exist_ok=True)
+
+            for filename in os.listdir(guest_folder):
+                src = os.path.join(guest_folder, filename)
+                if not os.path.isfile(src):
+                    continue
+
+                dst = os.path.join(user_folder, filename)
+                if os.path.exists(dst):
+                    name, ext = os.path.splitext(filename)
+                    filename = f"{name}_{uuid.uuid4().hex}{ext}"
+                    dst = os.path.join(user_folder, filename)
+
+                shutil.move(src, dst)
+
+                # build URL for frontend
+                url = f"{BASE_URL}/images/{upload_type}/user_{current_user.id}/{filename}"
+                migrated_urls.append(url)
+
+            try:
+                os.rmdir(guest_folder)
+            except OSError:
+                pass
+
+    return {
+        "detail": "Guest images migrated successfully",
+        "images": migrated_urls
+    }

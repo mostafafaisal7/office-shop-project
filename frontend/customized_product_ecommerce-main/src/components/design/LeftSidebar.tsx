@@ -15,6 +15,9 @@ const API_UPLOAD_ADMIN = 'http://localhost:8000/uploads/image';
 const API_UPLOAD_USER  = 'http://localhost:8000/uploads/image_user';
 const API_FETCH_USER_IMAGES = 'http://localhost:8000/uploads/images/previews';
 
+const API_MIGRATE_GUEST_IMAGES = 'http://localhost:8000/uploads/migrate-guest-images';
+
+
 const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProps) => {
   const { user, isAuthenticated } = useAuthStore();
 
@@ -59,6 +62,46 @@ const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProp
     };
     fetchExistingImages();
   }, [token, isAuthenticated, guestId]);
+
+  // After user logs in, migrate guest images if any
+useEffect(() => {
+  const migrateGuestImages = async () => {
+    if (!isAuthenticated || !guestId || !token) return;
+
+    try {
+      const res = await fetch(API_MIGRATE_GUEST_IMAGES, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ guest_id: guestId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Guest images migrated to user account');
+
+        // Update sidebar immediately
+        if (data?.images?.length) {
+          setUploadedImages(prev =>
+            Array.from(new Set([...data.images, ...prev])) // avoid duplicates
+          );
+        }
+
+        localStorage.removeItem('guest_id');
+      } else {
+        console.error('Migration failed', await res.json());
+      }
+
+    } catch (err) {
+      console.error('Migration request error:', err);
+    }
+  };
+
+  migrateGuestImages();
+}, [isAuthenticated, guestId, token]);
+
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
