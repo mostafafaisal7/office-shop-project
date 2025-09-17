@@ -1370,7 +1370,7 @@ useEffect(() => {
                     )}
 
                     {/* PayPal Payment Fields */}
-                    {paymentMethod === 'paypal' && (
+                    {/* {paymentMethod === 'paypal' && (
                       <div className="space-y-4 border-t border-gray-200 pt-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1395,10 +1395,10 @@ useEffect(() => {
                           </p>
                         </div>
                       </div>
-                    )}
+                    )} */}
 
                     {/* Cash on Delivery Info */}
-                    {paymentMethod === 'cod' && (
+                    {/* {paymentMethod === 'cod' && (
                       <div className="border-t border-gray-200 pt-6">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 text-amber-800">
@@ -1410,7 +1410,7 @@ useEffect(() => {
                           </p>
                         </div>
                       </div>
-                    )}
+                    )} */}
 
                     {/* Billing Address Checkbox (only for card payments) */}
                     {paymentMethod === 'card' && (
@@ -1429,7 +1429,7 @@ useEffect(() => {
                     )}
 
                     {/* Security Info */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    {/* <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <div className="flex items-center gap-2 text-blue-800">
                         <Lock className="w-4 h-4" />
                         <span className="text-sm font-medium">Secure Payment</span>
@@ -1439,7 +1439,7 @@ useEffect(() => {
                         {paymentMethod === 'paypal' && 'Your PayPal payment is processed securely through PayPal\'s encrypted servers.'}
                         {paymentMethod === 'cod' && 'Cash on delivery is a secure payment option. Pay only when you receive your order.'}
                       </p>
-                    </div>
+                    </div> */}
 
                     <button
                       type="submit"
@@ -1449,7 +1449,7 @@ useEffect(() => {
                       {isProcessing ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Processing Payment...
+                          Placing Order...
                         </>
                       ) : (
                         <>
