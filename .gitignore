@@ -13,6 +13,10 @@ fastapi_ecommerce-main/app/static/products/*
 /frontend/admin-ecommerce-cp-main/public/uploads/*
 !/frontend/admin-ecommerce-cp-main/public/uploads/.gitkeep
 
+/fastapi_ecommerce-main/app/static/previews/*
+!/fastapi_ecommerce-main/app/static/previews/.gitkeep
+
+
 frontend/admin-ecommerce-cp-main/public/uploads/3c5b5feb-2689-4aaf-9fac-6fb79fefae8e.png
 frontend/admin-ecommerce-cp-main/public/uploads/8ae40367-4149-4dd6-8c84-3c23c9e7a27b.png
 frontend/admin-ecommerce-cp-main/public/uploads/78792fbe-d0ee-43eb-a502-a167fd35171a.png
@@ -524,3 +528,5 @@ fastapi_ecommerce-main/app/static/previews/guest_guest-zznl93c8b/c6d54f629d754fc
 fastapi_ecommerce-main/app/static/previews/user_43/2c763938c63848799de52853077ccc66.png
 fastapi_ecommerce-main/app/static/previews/user_43/7c130cae19e046bd9fa26a1988e2567f.jpg
 fastapi_ecommerce-main/app/static/previews/user_43/8ca75a52acd44571a62b341118688015.webp
+fastapi_ecommerce-main/app/static/previews/user_44/890f7481adf64e23b75e1773aa2be129.png
+fastapi_ecommerce-main/app/static/previews/user_44/cb0b02cf122043a89c16ad2a181117ab.jpg
