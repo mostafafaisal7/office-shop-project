@@ -416,32 +416,36 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string) => {
-    // Import auth store dynamically to avoid circular dependencies
-    const { useAuthStore } = await import('@/store/authStore');
-    const { isAuthenticated } = useAuthStore.getState();
-    
-    if (isAuthenticated) {
-      // Save to database for authenticated users
+  // Save to localStorage always
+  get().saveDesignToStorage(canvasData, productImageUrl);
+
+  // Optionally sync to DB if logged-in
+  const { useAuthStore } = await import('@/store/authStore');
+  const { isAuthenticated } = useAuthStore.getState();
+  if (isAuthenticated) {
+    try {
       await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl);
-    } else {
-      // Save to localStorage for guest users
-      get().saveDesignToStorage(canvasData, productImageUrl);
+    } catch (error) {
+      console.warn('DB save failed, localStorage still has the design', error);
     }
-  },
+  }
+}
+,
 
   loadDesign: async (productId: string, variationId: string, area: string) => {
-    // Import auth store dynamically to avoid circular dependencies
-    const { useAuthStore } = await import('@/store/authStore');
-    const { isAuthenticated } = useAuthStore.getState();
-    
-    if (isAuthenticated) {
-      // Load from database for authenticated users
-      return await get().loadDesignFromDatabase(productId, variationId, area);
-    } else {
-      // Load from localStorage for guest users
-      return get().loadDesignFromStorage(productId, variationId, area);
-    }
-  },
+  // Always try localStorage first
+  const localDesign = get().loadDesignFromStorage(productId, variationId, area);
+  if (localDesign) return localDesign;
+
+  // Fallback for logged-in users: database
+  const { useAuthStore } = await import('@/store/authStore');
+  const { isAuthenticated } = useAuthStore.getState();
+  if (isAuthenticated) {
+    return await get().loadDesignFromDatabase(productId, variationId, area);
+  }
+  return null;
+}
+,
 
   migrateLocalStorageToDatabase: async () => {
     const state = get();
