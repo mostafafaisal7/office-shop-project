@@ -6,8 +6,9 @@ so migrations can proceed.
 """
 
 import sys
+import os
 from sqlalchemy import create_engine, text
-from app.core.config import settings
+from dotenv import load_dotenv
 
 def fix_alembic_version():
     """Update alembic version to match current branch's migration chain"""
@@ -15,10 +16,21 @@ def fix_alembic_version():
     # The correct revision (last one before our new SVG migration)
     CORRECT_REVISION = '6b6cc1cb2a00'
 
+    # Load environment variables
+    load_dotenv()
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    if not DATABASE_URL:
+        print("❌ Error: DATABASE_URL not found in .env file")
+        print("Please make sure your .env file exists and has DATABASE_URL set")
+        sys.exit(1)
+
     print("Connecting to database...")
-    engine = create_engine(settings.DATABASE_URL)
+    print(f"Database URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'hidden'}")
 
     try:
+        engine = create_engine(DATABASE_URL)
+
         with engine.connect() as conn:
             # Check current version
             result = conn.execute(text("SELECT version_num FROM alembic_version"))
@@ -41,10 +53,14 @@ def fix_alembic_version():
             result = conn.execute(text("SELECT version_num FROM alembic_version"))
             new_version = result.scalar()
             print(f"✅ Updated alembic version to: {new_version}")
-            print("\nNow you can run: alembic upgrade head")
+            print("\n✅ Success! Now you can run: alembic upgrade head")
 
     except Exception as e:
         print(f"❌ Error: {e}")
+        print("\nTroubleshooting:")
+        print("1. Make sure MySQL is running")
+        print("2. Check your .env file has correct DATABASE_URL")
+        print("3. Verify database credentials are correct")
         sys.exit(1)
 
 if __name__ == "__main__":
