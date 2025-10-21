@@ -51,7 +51,12 @@ class OrderItem(Base):
     customized_images = sa.Column(sa.JSON, nullable=True)
     quantity = sa.Column(sa.Integer, nullable=False)
     unit_price = sa.Column(sa.Float, nullable=False)
-    
+
+    # Design data for print-ready files (preserved at order time)
+    design_svg_data = sa.Column(sa.Text, nullable=True)  # SVG data from customization
+    design_canvas_data = sa.Column(sa.JSON, nullable=True)  # Fabric.js canvas data snapshot
+    design_elements = sa.Column(sa.JSON, nullable=True)  # Design elements (text, images, shapes)
+
     # Discount tracking fields (no FK - microservice ready)
     discount_rule_id = sa.Column(sa.Integer, nullable=True)  # Reference to discount rule used
     original_unit_price = sa.Column(sa.Float, nullable=True)  # Price before discount

@@ -256,7 +256,8 @@ class DesignApiService {
     canvasData: any,
     productImageUrl: string,
     existingClientReferenceId?: string,
-    previewImageUrl?: string
+    previewImageUrl?: string,
+    svgData?: string
   ): Promise<DesignLoadResponse> {
     try {
       const userId = await this.getUserId();
@@ -310,6 +311,7 @@ class DesignApiService {
           background: canvasData?.background || '#FFFFFF',
           backgroundImage: canvasData?.backgroundImage || {}
         },
+        svg_data: svgData || undefined,  // Include SVG data for print-ready designs
         design_metadata: {
           canvas_width: 800,
           canvas_height: 600,

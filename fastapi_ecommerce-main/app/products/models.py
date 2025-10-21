@@ -56,26 +56,29 @@ class ProductVariation(Base):
     
 class CustomizationOption(Base):
     __tablename__ = "customization_options"
-    
+
     id = Column(Integer, primary_key=True, index=True)  # Auto-incrementing primary key
     client_reference_id = Column(String(255), nullable=True, index=True)  # Optional client-side reference
     user_id = Column(Integer, nullable=False)  # User who created the design
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     variation_id = Column(Integer, ForeignKey("product_variations.id"), nullable=False)
     design_area = Column(Enum(AreaType), nullable=False)  # front/back/left/right
-    
+
     # Complete Fabric.js canvas JSON
     canvas_data = Column(JSON, nullable=False)
-    
+
+    # SVG data for print-ready designs
+    svg_data = Column(Text, nullable=True)  # SVG string generated from Fabric.js canvas
+
     # Design metadata
     design_metadata = Column(JSON, nullable=False)
-    
+
     # Individual design elements for easier querying
     design_elements = Column(JSON, nullable=False)
-    
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now())
-    
+
     # Relationships
     product = relationship("Product", back_populates="customization_options")
     variation = relationship("ProductVariation")

@@ -93,20 +93,36 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         subtotal += price
         total_quantity += item.quantity
 
-        # Extract preview image URLs from customization details
+        # Extract preview image URLs and design data from customization details
         customized_images = item.customized_images or []
+        design_svg_data = None
+        design_canvas_data = None
+        design_elements = None
+
         if item.customization_option_id:
             try:
-                # Fetch customization details to get preview image URL
+                # Fetch customization details to get preview image URL and design data
                 customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
                 customization_data = await http_get(customization_url)
-                
-                if customization_data and customization_data.get("design_metadata"):
-                    preview_url = customization_data["design_metadata"].get("preview_image_url")
-                    if preview_url and preview_url not in customized_images:
-                        customized_images.append(preview_url)
-                        print(f"Added preview image URL to order item: {preview_url}")
-                        
+
+                if customization_data:
+                    # Extract preview image URL
+                    if customization_data.get("design_metadata"):
+                        preview_url = customization_data["design_metadata"].get("preview_image_url")
+                        if preview_url and preview_url not in customized_images:
+                            customized_images.append(preview_url)
+                            print(f"Added preview image URL to order item: {preview_url}")
+
+                    # Extract design data for print-ready files
+                    design_svg_data = customization_data.get("svg_data")
+                    design_canvas_data = customization_data.get("canvas_data")
+                    design_elements = customization_data.get("design_elements")
+
+                    if design_svg_data:
+                        print(f"Captured SVG data for order item (length: {len(design_svg_data)} characters)")
+                    if design_elements:
+                        print(f"Captured {len(design_elements)} design elements for order item")
+
             except Exception as e:
                 print(f"Failed to fetch customization details for option {item.customization_option_id}: {e}")
                 # Continue with existing customized_images
@@ -120,7 +136,11 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
             "customization_option_id": item.customization_option_id,
             "customized_images": customized_images,
             "unit_price": final_unit_price,
-            "shipping_method_id": data.shipping_method_id
+            "shipping_method_id": data.shipping_method_id,
+            # Include design data for print-ready files
+            "design_svg_data": design_svg_data,
+            "design_canvas_data": design_canvas_data,
+            "design_elements": design_elements
         }
         
         # Add discount fields if discount was applied

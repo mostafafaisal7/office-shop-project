@@ -423,6 +423,90 @@ export default function OrderDetailsPage() {
       ),
     },
     {
+      title: 'Design',
+      key: 'design',
+      width: 150,
+      render: (_, record) => {
+        const hasDesign = record.customization_option_id || record.design_svg_data || record.design_elements;
+
+        if (!hasDesign) {
+          return <Text type="secondary" style={{ fontSize: '11px' }}>No customization</Text>;
+        }
+
+        const handleDownloadSVG = async () => {
+          try {
+            const response = await fetch(
+              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-svg`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                }
+              }
+            );
+
+            if (!response.ok) {
+              message.error('SVG file not available for this item');
+              return;
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `order_${order.id}_item_${record.id}_design.svg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            message.success('SVG design downloaded successfully');
+          } catch (error) {
+            console.error('Download error:', error);
+            message.error('Failed to download SVG');
+          }
+        };
+
+        const textElements = record.design_elements?.filter((el: any) =>
+          el.type === 'text' || el.type === 'i-text' || el.type === 'textbox'
+        ) || [];
+
+        return (
+          <div>
+            <Tag color="purple" style={{ fontSize: '10px', marginBottom: 4 }}>
+              Custom Design
+            </Tag>
+            {textElements.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: '10px' }}>
+                  Text: {textElements.length} element{textElements.length > 1 ? 's' : ''}
+                </Text>
+              </div>
+            )}
+            {record.design_svg_data && (
+              <div style={{ marginTop: 4 }}>
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<DownloadOutlined />}
+                  onClick={handleDownloadSVG}
+                  style={{ padding: 0, fontSize: '11px' }}
+                >
+                  Download SVG
+                </Button>
+              </div>
+            )}
+            {!record.design_svg_data && textElements.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: '9px' }}>
+                  (SVG not available)
+                </Text>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       title: 'Total',
       key: 'total',
       width: 120,

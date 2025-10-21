@@ -189,6 +189,7 @@ class CustomizationOptionBase(BaseModel):
     variation_id: int
     design_area: AreaType  # front/back/left/right
     canvas_data: CanvasDataBase
+    svg_data: Optional[str] = None  # SVG string for print-ready designs
     design_metadata: DesignMetadataBase
     design_elements: List[DesignElementBase] = Field(default_factory=list)
 
@@ -199,12 +200,14 @@ class CustomizationOptionCreate(BaseModel):
     variation_id: int
     design_area: AreaType
     canvas_data: CanvasDataBase
+    svg_data: Optional[str] = None  # SVG string for print-ready designs
     design_metadata: DesignMetadataBase
     design_elements: List[DesignElementBase] = Field(default_factory=list)
 
 class CustomizationOptionUpdate(BaseModel):
     client_reference_id: Optional[str] = None
     canvas_data: Optional[CanvasDataBase] = None
+    svg_data: Optional[str] = None  # SVG string for print-ready designs
     design_metadata: Optional[DesignMetadataBase] = None
     design_elements: Optional[List[DesignElementBase]] = None
 

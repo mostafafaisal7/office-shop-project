@@ -47,9 +47,9 @@ interface DesignState {
   validateVariationSelection: () => { isValid: boolean; error?: string };
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => void;
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => DesignData | null;
-  saveDesignToDatabase: (canvasData: any, productImageUrl: string, previewImageUrl?: string) => Promise<void>;
+  saveDesignToDatabase: (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => Promise<void>;
   loadDesignFromDatabase: (productId: string, variationId: string, area: string) => Promise<DesignData | null>;
-  saveDesign: (canvasData: any, productImageUrl: string, previewImageUrl?: string) => Promise<void>;
+  saveDesign: (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => Promise<void>;
   loadDesign: (productId: string, variationId: string, area: string) => Promise<DesignData | null>;
   migrateLocalStorageToDatabase: () => Promise<void>;
   clearLocalStorageDesigns: () => void;
@@ -278,7 +278,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return Array.from(state.savedDesigns.values());
   },
 
-  saveDesignToDatabase: async (canvasData: any, productImageUrl: string, previewImageUrl?: string) => {
+  saveDesignToDatabase: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
     const state = get();
     if (!state.productId) {
       throw new Error('Product ID is required to save design');
@@ -286,7 +286,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
     try {
       set({ syncStatus: 'syncing' });
-      
+
       // Validate variation ID before proceeding
       let variationId: number;
       if (state.selectedVariation?.variationId) {
@@ -297,22 +297,22 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         set({ syncStatus: 'error' });
         throw new Error('Please select a product variation before saving your design');
       }
-      
+
       // Generate key for tracking shared client reference ID (without design area)
       const sharedKey = generateSharedClientReferenceKey(state.productId, variationId.toString());
-      
+
       // Get existing shared client reference ID if available
       let existingClientReferenceId = state.clientReferenceIds.get(sharedKey);
-      
+
       // If no existing client reference ID, generate a new shared one
       if (!existingClientReferenceId) {
         existingClientReferenceId = generateSharedClientReferenceId(state.productId, variationId.toString());
         console.log('Generated new shared client reference ID:', existingClientReferenceId);
       }
-      
+
       console.log('Saving design with variation ID:', variationId, 'for area:', state.currentDesignArea);
       console.log('Using shared client reference ID:', existingClientReferenceId);
-      
+
       // First upload the preview image to get the backend URL
       let backendPreviewUrl = previewImageUrl;
       if (previewImageUrl && variationId) {
@@ -330,7 +330,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
           // Continue with original preview URL if upload fails
         }
       }
-      
+
       const result = await designApi.saveDesignWithNewFormat(
         state.productId,
         variationId,
@@ -338,7 +338,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         canvasData,
         productImageUrl,
         existingClientReferenceId,
-        backendPreviewUrl || previewImageUrl
+        backendPreviewUrl || previewImageUrl,
+        svgData  // Pass SVG data for print-ready designs
       );
       
       // Store the shared client reference ID for future updates
@@ -415,7 +416,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   },
 
-  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string) => {
+  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
   // Save to localStorage always
   get().saveDesignToStorage(canvasData, productImageUrl);
 
@@ -424,7 +425,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const { isAuthenticated } = useAuthStore.getState();
   if (isAuthenticated) {
     try {
-      await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl);
+      await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
     } catch (error) {
       console.warn('DB save failed, localStorage still has the design', error);
     }

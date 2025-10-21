@@ -17,7 +17,12 @@ class OrderItemCreate(BaseModel):
     quantity: int
     unit_price: float
     shipping_method_id: Optional[int] = None
-    
+
+    # Design data for print-ready files
+    design_svg_data: Optional[str] = None  # SVG data from customization
+    design_canvas_data: Optional[Dict[str, Any]] = None  # Fabric.js canvas data snapshot
+    design_elements: Optional[List[Dict[str, Any]]] = None  # Design elements (text, images, shapes)
+
     # Discount tracking fields (matching the database model)
     discount_rule_id: Optional[int] = None
     original_unit_price: Optional[float] = None
@@ -36,7 +41,12 @@ class OrderItemRead(BaseModel):
     quantity: int
     unit_price: float
     shipping_method_id: Optional[int] = None
-    
+
+    # Design data for print-ready files
+    design_svg_data: Optional[str] = None  # SVG data from customization
+    design_canvas_data: Optional[Dict[str, Any]] = None  # Fabric.js canvas data snapshot
+    design_elements: Optional[List[Dict[str, Any]]] = None  # Design elements (text, images, shapes)
+
     # Discount tracking fields (matching the database model)
     discount_rule_id: Optional[int] = None
     original_unit_price: Optional[float] = None
@@ -123,14 +133,19 @@ class OrderItemDetailRead(BaseModel):
     quantity: int
     unit_price: float
     shipping_method_id: Optional[int] = None
-    
+
+    # Design data for print-ready files
+    design_svg_data: Optional[str] = None  # SVG data from customization
+    design_canvas_data: Optional[Dict[str, Any]] = None  # Fabric.js canvas data snapshot
+    design_elements: Optional[List[Dict[str, Any]]] = None  # Design elements (text, images, shapes)
+
     # Discount tracking fields (matching the database model)
     discount_rule_id: Optional[int] = None
     original_unit_price: Optional[float] = None
     discount_percentage: Optional[float] = None
     discount_amount: Optional[float] = None
     discount_type: Optional[str] = None
-    
+
     # Enriched related objects (fetched via HTTP)
     shipping_method: Optional[ShippingMethodDetail] = None
     variation_details: Optional[VariationDetail] = None

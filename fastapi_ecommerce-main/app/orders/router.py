@@ -271,3 +271,51 @@ async def cancel_order(
             raise HTTPException(status_code=400, detail="Order can only be cancelled when status is PENDING")
         else:
             raise HTTPException(status_code=400, detail=error_message)
+
+
+
+@router.get("/{order_id}/items/{item_id}/download-svg", dependencies=[Depends(require_admin)])
+async def download_order_item_svg(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download SVG design file for a specific order item (admin only).
+
+    This endpoint returns the SVG data for print-ready designs.
+    If the order item has no SVG data, it returns a 404 error.
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_svg_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No SVG design data available for this order item"
+        )
+
+    # Prepare filename
+    filename = f"order_{order_id}_item_{item_id}_design.svg"
+
+    # Return SVG as downloadable file
+    from io import BytesIO
+    svg_bytes = BytesIO(order_item.design_svg_data.encode("utf-8"))
+
+    return StreamingResponse(
+        svg_bytes,
+        media_type="image/svg+xml",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
