@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState,forwardRef, useImperativeHandle } from 'react';
 import { useDesignStore } from '@/store/designStore';
 import type { Canvas as FabricCanvas, Image as FabricImageType } from "fabric";
+import { generateCanvasSVGWithMetadata } from '@/utils/svgExport';
 
 
 // Dynamic import for fabric.js to avoid SSR issues
@@ -147,7 +148,16 @@ useEffect(() => {
 
       if (canvasData.objects && canvasData.objects.length > 0) {
         console.log("Canvas changed, auto-saving design...");
-        autoSaveDesign(canvasData, productImage);
+
+        // Generate SVG data for print-ready designs
+        const svgData = generateCanvasSVGWithMetadata(canvas, {
+          designArea: currentDesignArea,
+          productId: productId || undefined,
+          variationId: selectedVariation?.variationId,
+          createdAt: new Date().toISOString()
+        });
+
+        autoSaveDesign(canvasData, productImage, svgData);
         setLastCanvasState(JSON.stringify(canvasData));
         setLastSaveTime(Date.now());
       }

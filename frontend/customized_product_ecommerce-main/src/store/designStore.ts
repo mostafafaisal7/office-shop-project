@@ -54,7 +54,7 @@ interface DesignState {
   migrateLocalStorageToDatabase: () => Promise<void>;
   clearLocalStorageDesigns: () => void;
   syncDesigns: () => Promise<void>;
-  autoSaveDesign: (canvasData: any, productImageUrl: string) => void;
+  autoSaveDesign: (canvasData: any, productImageUrl: string, svgData?: string) => void;
   clearDesign: () => void;
   clearStoredDesign: (productId: string, variationId: string, area: string) => void;
   getAllStoredDesigns: () => DesignData[];
@@ -241,11 +241,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 },
 
 
-  autoSaveDesign: (canvasData: any, productImageUrl: string) => {
+  autoSaveDesign: (canvasData: any, productImageUrl: string, svgData?: string) => {
     const state = get();
     if (state.autoSaveEnabled && canvasData?.objects?.length > 0) {
       // Use the smart saveDesign method for auto-save as well
-      state.saveDesign(canvasData, productImageUrl).catch(error => {
+      state.saveDesign(canvasData, productImageUrl, undefined, svgData).catch(error => {
         console.error('Auto-save failed:', error);
         // Fallback to localStorage if database save fails
         state.saveDesignToStorage(canvasData, productImageUrl);
