@@ -45,22 +45,21 @@ try:
         print("\n2. Order Items Table:")
         print("-" * 60)
         result = conn.execute(text("""
-            SELECT oi.id, oi.order_id, oi.product_name,
+            SELECT oi.id, oi.order_id, oi.product_name, oi.customization_option_id,
                    CASE WHEN oi.design_svg_data IS NOT NULL THEN 'YES' ELSE 'NO' END as has_svg,
                    CASE WHEN oi.design_canvas_data IS NOT NULL THEN 'YES' ELSE 'NO' END as has_canvas,
-                   CASE WHEN oi.design_elements IS NOT NULL THEN 'YES' ELSE 'NO' END as has_elements,
-                   oi.created_at
+                   CASE WHEN oi.design_elements IS NOT NULL THEN 'YES' ELSE 'NO' END as has_elements
             FROM order_items oi
-            ORDER BY oi.created_at DESC
-            LIMIT 5
+            ORDER BY oi.id DESC
+            LIMIT 10
         """))
 
         rows = result.fetchall()
         if rows:
-            print(f"{'ID':<6} {'Order ID':<40} {'Product':<20} {'SVG':<6} {'Canvas':<8} {'Elements':<10} {'Created'}")
+            print(f"{'ID':<6} {'Order ID':<40} {'Product':<20} {'Cust.ID':<8} {'SVG':<6} {'Canvas':<8} {'Elements'}")
             print("-" * 120)
             for row in rows:
-                print(f"{row[0]:<6} {row[1]:<40} {row[2]:<20} {row[3]:<6} {row[4]:<8} {row[5]:<10} {row[6]}")
+                print(f"{row[0]:<6} {row[1]:<40} {row[2]:<20} {str(row[3]) if row[3] else 'N/A':<8} {row[4]:<6} {row[5]:<8} {row[6]}")
         else:
             print("No order items found")
 
