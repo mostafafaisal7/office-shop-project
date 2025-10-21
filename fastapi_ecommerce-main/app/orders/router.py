@@ -14,6 +14,9 @@ from app.orders.invoice import generate_invoice_pdf
 from app.orders.schemas import OrderTrackingUpdate
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+import zipfile
+import json
+from io import BytesIO
 
 router = APIRouter()
 
@@ -315,6 +318,88 @@ async def download_order_item_svg(
     return StreamingResponse(
         svg_bytes,
         media_type="image/svg+xml",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/{order_id}/items/{item_id}/download-design-zip", dependencies=[Depends(require_admin)])
+async def download_order_item_design_zip(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download all design files as ZIP for a specific order item (admin only).
+
+    The ZIP contains:
+    - design.svg: SVG file for printing
+    - canvas_data.json: Fabric.js canvas data
+    - design_elements.json: Design elements details
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    # Check if there's any design data
+    if not (order_item.design_svg_data or order_item.design_canvas_data or order_item.design_elements):
+        raise HTTPException(
+            status_code=404,
+            detail="No design data available for this order item"
+        )
+
+    # Create ZIP file in memory
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Add SVG file if available
+        if order_item.design_svg_data:
+            zip_file.writestr('design.svg', order_item.design_svg_data)
+
+        # Add canvas data JSON if available
+        if order_item.design_canvas_data:
+            canvas_json = json.dumps(order_item.design_canvas_data, indent=2)
+            zip_file.writestr('canvas_data.json', canvas_json)
+
+        # Add design elements JSON if available
+        if order_item.design_elements:
+            elements_json = json.dumps(order_item.design_elements, indent=2)
+            zip_file.writestr('design_elements.json', elements_json)
+
+        # Add a README file with order information
+        readme_content = f"""Design Files for Order Item
+============================
+
+Order ID: {order_id}
+Item ID: {item_id}
+Product: {order_item.product_name}
+
+Files included:
+- design.svg: Vector graphic file for printing
+- canvas_data.json: Complete Fabric.js canvas data
+- design_elements.json: Individual design elements
+
+Generated: {order_item.created_at}
+"""
+        zip_file.writestr('README.txt', readme_content)
+
+    # Prepare ZIP for download
+    zip_buffer.seek(0)
+    filename = f"order_{order_id}_item_{item_id}_design.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
         headers={
             "Content-Disposition": f"attachment; filename={filename}"
         }

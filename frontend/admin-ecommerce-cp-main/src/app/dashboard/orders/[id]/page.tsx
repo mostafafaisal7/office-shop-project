@@ -433,10 +433,10 @@ export default function OrderDetailsPage() {
           return <Text type="secondary" style={{ fontSize: '11px' }}>No customization</Text>;
         }
 
-        const handleDownloadSVG = async () => {
+        const handleDownloadZip = async () => {
           try {
             const response = await fetch(
-              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-svg`,
+              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-design-zip`,
               {
                 headers: {
                   'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -445,7 +445,7 @@ export default function OrderDetailsPage() {
             );
 
             if (!response.ok) {
-              message.error('SVG file not available for this item');
+              message.error('Design files not available for this item');
               return;
             }
 
@@ -453,16 +453,16 @@ export default function OrderDetailsPage() {
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `order_${order.id}_item_${record.id}_design.svg`;
+            link.download = `order_${order.id}_item_${record.id}_design.zip`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
-            message.success('SVG design downloaded successfully');
+            message.success('Design files downloaded successfully');
           } catch (error) {
             console.error('Download error:', error);
-            message.error('Failed to download SVG');
+            message.error('Failed to download design files');
           }
         };
 
@@ -482,23 +482,23 @@ export default function OrderDetailsPage() {
                 </Text>
               </div>
             )}
-            {record.design_svg_data && (
+            {(record.design_svg_data || record.design_canvas_data || record.design_elements) && (
               <div style={{ marginTop: 4 }}>
                 <Button
                   size="small"
-                  type="link"
+                  type="primary"
                   icon={<DownloadOutlined />}
-                  onClick={handleDownloadSVG}
-                  style={{ padding: 0, fontSize: '11px' }}
+                  onClick={handleDownloadZip}
+                  style={{ fontSize: '11px' }}
                 >
-                  Download SVG
+                  Download ZIP
                 </Button>
               </div>
             )}
-            {!record.design_svg_data && textElements.length > 0 && (
+            {!(record.design_svg_data || record.design_canvas_data || record.design_elements) && (
               <div style={{ marginTop: 4 }}>
                 <Text type="secondary" style={{ fontSize: '9px' }}>
-                  (SVG not available)
+                  (No design files)
                 </Text>
               </div>
             )}
