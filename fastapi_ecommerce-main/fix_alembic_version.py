@@ -25,11 +25,14 @@ def fix_alembic_version():
         print("Please make sure your .env file exists and has DATABASE_URL set")
         sys.exit(1)
 
+    # Convert async database URL to sync (replace aiomysql/asyncmy with pymysql)
+    sync_db_url = DATABASE_URL.replace('aiomysql', 'pymysql').replace('asyncmy', 'pymysql').replace('mysql+asyncmy', 'mysql+pymysql').replace('mysql+aiomysql', 'mysql+pymysql')
+
     print("Connecting to database...")
-    print(f"Database URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'hidden'}")
+    print(f"Database URL: {sync_db_url.split('@')[1] if '@' in sync_db_url else 'hidden'}")
 
     try:
-        engine = create_engine(DATABASE_URL)
+        engine = create_engine(sync_db_url)
 
         with engine.connect() as conn:
             # Check current version
