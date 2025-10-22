@@ -26,7 +26,7 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
     discount_breakdown = []
 
     # Calculate product costs, discounts, and total quantity
-    for item in data.items:
+    for index, item in enumerate(data.items):
         # Get product details
         product_url = f"{PRODUCT_SERVICE_URL}/{item.product_id}"
         try:
