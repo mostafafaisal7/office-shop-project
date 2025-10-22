@@ -112,6 +112,8 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const isWaitingForOptionDataRef = useRef(false);
   const [loadingTimeout, setLoadingTimeout] = useState<NodeJS.Timeout | null>(null);
   const loadingStartTimeRef = useRef<number | null>(null);
+  // ✅ NEW: Track loaded product to prevent unnecessary reloads
+  const loadedProductIdRef = useRef<string | null>(null);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -122,82 +124,68 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     };
   }, [loadingTimeout]);
 
-  // Debug effect to monitor productImage changes and ensure loading state is properly managed
+  // ✅ FIXED: Consolidated single useEffect to monitor productImage and manage loading
+  // Prevents circular dependencies and re-render loops
   useEffect(() => {
     console.log('productImage changed:', productImage);
     console.log('isLoading:', isLoading);
-    
-    // If we have a product image and we're still loading, check if we should clear the loading state
-    if (productImage && isLoading) {
-      console.log('Product image loaded but still in loading state, checking if we should clear loading');
-      // Only clear loading if we have a valid product image and no error
-      if (productImage.trim() !== '' && !error) {
-        console.log('Clearing loading state as product image is loaded');
-        if (loadingTimeout) {
-          clearTimeout(loadingTimeout);
-          setLoadingTimeout(null);
-        }
-        setIsLoading(false);
-      }
-    }
-  }, [productImage, isLoading, error]);
 
-  // Add image loading error handling
-  useEffect(() => {
-    if (productImage && !isLoading) {
+    // Only run validation if productImage exists and we're not loading
+    if (productImage && productImage.trim() !== '') {
       // Test if the image can be loaded
       const img = new Image();
       img.onload = () => {
-        console.log('Product image loaded successfully:', productImage);
-        // Clear any existing errors since the image loaded successfully
+        console.log('✅ Product image loaded successfully:', productImage);
+        // Clear loading state if still loading
+        if (isLoading) {
+          console.log('Clearing loading state as product image is loaded');
+          if (loadingTimeout) {
+            clearTimeout(loadingTimeout);
+            setLoadingTimeout(null);
+          }
+          setIsLoading(false);
+        }
+        // Clear any existing image load errors
         if (error && error.includes('Failed to load product image')) {
           setError(null);
         }
       };
       img.onerror = () => {
-        console.error('Failed to load product image:', productImage);
-        // Only set error if this is a critical failure (not just a temporary network issue)
-        setTimeout(() => {
+        console.error('❌ Failed to load product image:', productImage);
+        // Only set error if this is a critical failure
+        const errorTimeout = setTimeout(() => {
           setError('Failed to load product image. Please refresh the page and try again.');
-        }, 2000); // Wait 2 seconds before showing error to allow for network delays
+          setIsLoading(false);
+        }, 2000);
+        return () => clearTimeout(errorTimeout);
       };
       img.src = productImage;
     }
-  }, [productImage, isLoading, error]);
+  }, [productImage]);  // ✅ FIX: Only depend on productImage, not isLoading or error
 
-  // Add timeout for loading
+  // ✅ FIXED: Simplified loading timeout with proper cleanup
   useEffect(() => {
-    if (isLoading) {
-      // Set loading start time
-      loadingStartTimeRef.current = Date.now();
-      
-      const timeout = setTimeout(() => {
-        // Double-check that we're still loading before setting the error
-        if (isLoading) {
-          const loadingDuration = Date.now() - (loadingStartTimeRef.current || Date.now());
-          console.log(`Loading timeout reached after ${loadingDuration}ms, setting error`);
-          setError('Loading timeout. Please refresh the page and try again.');
-          setIsLoading(false);
-          loadingStartTimeRef.current = null;
-        }
-      }, 30000); // 30 second timeout
-      
-      setLoadingTimeout(timeout);
-    } else {
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-        setLoadingTimeout(null);
-      }
+    if (!isLoading) return;  // Early return if not loading
+
+    // Set loading start time
+    loadingStartTimeRef.current = Date.now();
+    console.log('⏱️ Loading timeout started');
+
+    const timeout = setTimeout(() => {
+      const loadingDuration = Date.now() - (loadingStartTimeRef.current || Date.now());
+      console.log(`⏱️ Loading timeout reached after ${loadingDuration}ms`);
+      setError('Loading timeout. Please refresh the page and try again.');
+      setIsLoading(false);
+      loadingStartTimeRef.current = null;
+    }, 30000); // 30 second timeout
+
+    // Cleanup function
+    return () => {
+      clearTimeout(timeout);
       if (loadingStartTimeRef.current) {
         const loadingDuration = Date.now() - loadingStartTimeRef.current;
-        console.log(`Loading completed successfully after ${loadingDuration}ms`);
+        console.log(`⏱️ Loading completed after ${loadingDuration}ms`);
         loadingStartTimeRef.current = null;
-      }
-    }
-    
-    return () => {
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
       }
     };
   }, [isLoading]);
@@ -519,18 +507,27 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   useEffect(() => {
     (async () => {
       try {
-        setIsLoading(true);
         const unwrappedParams = await params;
         const unwrappedSearchParams = await searchParams;
         const productId = unwrappedParams.id;
         const urlVariationId = unwrappedSearchParams.variation_id;
         const optionId = unwrappedSearchParams.option_id;
-        
+
         console.log('Loading product ID:', productId);
         console.log('URL variation_id:', urlVariationId);
         console.log('URL option_id:', optionId);
         console.log('isWaitingForOptionData:', isWaitingForOptionData);
-        
+
+        // ✅ FIX: Skip if already loaded this product (prevent re-render loops)
+        if (loadedProductIdRef.current === productId && currentProduct) {
+          console.log('✅ Product already loaded, skipping reload');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+        loadedProductIdRef.current = productId;  // Mark as loading
+
         // Fetch product from API
         const product: ApiProduct = await fetchProductById(productId);
         console.log('Found product:', product);
@@ -747,14 +744,17 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     console.log('🖼️ handleImageUpload called with:', isServerUrl ? 'SERVER URL' : 'FILE object');
     console.log('🖼️ Value:', isServerUrl ? fileOrUrl : fileOrUrl.name);
 
-    // If it's a string (server URL), use it directly
-    // If it's a File, create a temporary blob URL (fallback for old flow)
-    const imageUrl = isServerUrl
-      ? fileOrUrl
-      : URL.createObjectURL(fileOrUrl);
+    // ✅ CRITICAL FIX: NEVER create blob URLs - only accept server URLs
+    // LeftSidebar already handles upload and returns server URL
+    if (!isServerUrl) {
+      console.error('❌ ERROR: File object passed instead of server URL! This should not happen.');
+      console.error('❌ LeftSidebar should upload first and pass server URL');
+      alert('Error: Image must be uploaded first. Please try again.');
+      return;
+    }
 
-    console.log('🖼️ Adding to canvas with URL:', imageUrl);
-    console.log('🖼️ URL type:', imageUrl.startsWith('http') ? 'SERVER URL ✅' : 'BLOB URL ❌');
+    const imageUrl = fileOrUrl;  // Already a server URL
+    console.log('✅ Adding to canvas with SERVER URL:', imageUrl);
 
     // Add image to canvas automatically
     setDesignJson({
