@@ -55,15 +55,12 @@ const DesignCanvas = forwardRef(({ productImage, onCanvasReady }: DesignCanvasPr
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load fabric.js on component mount
-  // Load fabric.js on component mount
 useEffect(() => {
   const initializeFabric = async () => {
-    console.log("⏳ Loading Fabric.js dynamically...");
     await loadFabric();
-    console.log("✅ Fabric.js loaded");
     setFabricLoaded(true);
   };
-  
+
   initializeFabric();
 }, []);
 
@@ -71,11 +68,9 @@ useEffect(() => {
   if (!fabricLoaded || !canvasRef.current) return;
 
   if (fabricCanvasRef.current) {
-    console.log("♻️ Fabric canvas already initialized");
     return;
   }
 
-  console.log("🎨 Initializing Fabric canvas...");
   const canvas = new Canvas(canvasRef.current, {
     width: 600,
     height: 600,
@@ -105,7 +100,6 @@ useEffect(() => {
   // Cleanup
   // ------------------------------
   return () => {
-    console.log("🗑 Disposing Fabric canvas...");
     if (autoSaveIntervalRef.current) clearInterval(autoSaveIntervalRef.current);
     canvas.dispose();
     fabricCanvasRef.current = null;
@@ -138,23 +132,29 @@ useEffect(() => {
         delete canvasData.backgroundImage;
       }
 
-      console.log('💾 BEFORE sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src, savedImageUrl: o.savedImageUrl })));
+      // ✅ DEBUG: Log BEFORE sanitization to check savedImageUrl
+      console.log('💾 BEFORE sanitization:', canvasData.objects.map((o: any) => ({
+        type: o.type,
+        src: o.src?.substring(0, 50) + '...',
+        savedImageUrl: o.savedImageUrl?.substring(0, 50) + '...'
+      })));
 
       canvasData.objects = canvasData.objects.map((obj: any) => {
         // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
         if (obj.type?.toLowerCase() === "image" && obj.src?.startsWith("blob:")) {
-          console.log('🔄 Replacing blob URL:', obj.src);
-          console.log('🔄 With savedImageUrl:', obj.savedImageUrl);
+          console.warn('⚠️ Found blob URL, replacing with savedImageUrl');
           obj.src = obj.savedImageUrl || productImage;
-          console.log('🔄 Final src:', obj.src);
         }
         return obj;
       });
 
-      console.log('💾 AFTER sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src })));
+      // ✅ DEBUG: Log AFTER sanitization to verify replacement
+      console.log('💾 AFTER sanitization:', canvasData.objects.map((o: any) => ({
+        type: o.type,
+        src: o.src?.substring(0, 50) + '...'
+      })));
 
       if (canvasData.objects && canvasData.objects.length > 0) {
-        console.log("Canvas changed, auto-saving design...");
         autoSaveDesign(canvasData, productImage);
         setLastCanvasState(JSON.stringify(canvasData));
         setLastSaveTime(Date.now());
@@ -170,7 +170,6 @@ useEffect(() => {
   };
 
   const handleCanvasChange = () => {
-    console.log("Canvas change detected, scheduling save...");
     debouncedSave();
   };
 
@@ -202,8 +201,6 @@ useEffect(() => {
     ? selectedVariation.variationId.toString()
     : selectedVariation?.size || selectedVariation?.color || "default";
 
-  console.log("DesignCanvas: Loading design with variation ID:", variationId);
-
   // ✅ DEFINE loadBackgroundImage BEFORE using it
   const loadBackgroundImage = async (url: string) => {
     if (!url) return;
@@ -231,9 +228,8 @@ useEffect(() => {
 
       canvas.backgroundImage = img;
       canvas.renderAll();
-      console.log("✅ Background image loaded successfully:", url);
     } catch (error) {
-      console.error("❌ Error loading background image:", error);
+      console.error("❌ Failed to load background image:", error);
       canvas.backgroundColor = "#f3f4f6";
       canvas.renderAll();
     }
@@ -242,11 +238,10 @@ useEffect(() => {
   // ✅ FIX: Don't load if no valid variation is selected
   // This prevents loading wrong designs with "default" key
   if (!selectedVariation?.variationId && !selectedVariation?.size && !selectedVariation?.color) {
-    console.log("⚠️ No variation selected, skipping design load");
     canvas.getObjects().forEach((obj: any) => {
       if (obj !== canvas.backgroundImage) canvas.remove(obj);
     });
-    loadBackgroundImage(productImage);  // Now this works because function is defined above
+    loadBackgroundImage(productImage);
     return;
   }
 
@@ -259,9 +254,8 @@ useEffect(() => {
       try {
         // Use the designStore's loadDesign which handles both localStorage and database
         designData = await loadDesign(productId, variationId, currentDesignArea);
-        console.log("📦 Design loaded:", designData ? "found" : "not found");
       } catch (err) {
-        console.warn('Error loading design:', err);
+        console.error('Failed to load design:', err);
       }
 
       // 3️⃣ Clear canvas except background
@@ -295,13 +289,13 @@ useEffect(() => {
             if (canvasObj.type?.toLowerCase() === 'image' && originalData?.savedImageUrl) {
               // ✅ CRITICAL: Assign directly, not via .set() - Fabric.js v6 requirement
               canvasObj.savedImageUrl = originalData.savedImageUrl;
-              console.log('✅ Restored savedImageUrl to canvas object:', originalData.savedImageUrl);
+              // ✅ DEBUG: Log restored savedImageUrl
+              console.log('✅ Restored savedImageUrl:', originalData.savedImageUrl?.substring(0, 50) + '...');
             }
           });
 
           await loadBackgroundImage(productImage);
           canvas.renderAll();
-          console.log("✅ Design loaded successfully (localStorage-first, blob URLs cleaned)");
         });
       } else {
         await loadBackgroundImage(productImage);
@@ -486,8 +480,11 @@ useEffect(() => {
 
     case 'image':
       if (!designJson.content) return;
-      console.log('🎨 Adding image to canvas, original URL:', designJson.content);
       const originalImageUrl = designJson.content; // Store original URL
+
+      // ✅ DEBUG: Log image being added
+      console.log('🎨 Adding image with URL:', originalImageUrl?.substring(0, 50) + '...');
+
       loadImage(designJson.content, (img: FabricImage) => {
         // ✅ FIX: Set standard properties first
         img.set({
@@ -502,7 +499,9 @@ useEffect(() => {
         // ✅ CRITICAL FIX: Assign custom property directly (not via .set())
         // Fabric.js v6 requires direct assignment for custom properties to serialize
         (img as any).savedImageUrl = originalImageUrl;
-        console.log('🎨 Stored savedImageUrl on image object:', (img as any).savedImageUrl);
+
+        // ✅ DEBUG: Confirm savedImageUrl stored
+        console.log('✅ savedImageUrl stored:', originalImageUrl?.substring(0, 50) + '...');
 
         canvas.add(img);
         canvas.setActiveObject(img);
