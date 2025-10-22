@@ -519,6 +519,16 @@ async def update_my_customization_option(
     return updated_option
 
 
+@router.delete("/users/me/options/{option_id}", status_code=status.HTTP_200_OK)
+async def delete_my_customization_option(
+    option_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Delete a customization option for the current user"""
+    return await service.delete_user_customization_option(db, option_id, current_user.id)
+
+
 # @router.get("/options/{option_id}", response_model=schemas.CustomizationOptionResponse)
 # async def get_customization_option(option_id: int, db: AsyncSession = Depends(get_db)):
 #     option = await service.crud.get_customization_option(db, option_id)

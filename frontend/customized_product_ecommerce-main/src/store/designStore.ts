@@ -59,6 +59,7 @@ interface DesignState {
   clearStoredDesign: (productId: string, variationId: string, area: string) => void;
   getAllStoredDesigns: () => DesignData[];
   getCustomizationOptionId: (productId: string, variationId: number, designArea: string) => Promise<number | null>;
+  deleteDesignFromDatabase: (productId: string, variationId: number, designArea: string) => Promise<void>;
   generateAndSaveAllPreviews: (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => Promise<{[area: string]: string}>;
 }
 
@@ -539,6 +540,38 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     } catch (error) {
       console.error('Error getting customization option ID:', error);
       return null;
+    }
+  },
+
+  deleteDesignFromDatabase: async (productId: string, variationId: number, designArea: string) => {
+    try {
+      // Import auth store dynamically to avoid circular dependencies
+      const { useAuthStore } = await import('@/store/authStore');
+      const { isAuthenticated } = useAuthStore.getState();
+
+      if (!isAuthenticated) {
+        throw new Error('User not authenticated');
+      }
+
+      // First get the design ID
+      const designData = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
+
+      if (!designData || !designData.id) {
+        console.log('No design found to delete');
+        return;
+      }
+
+      // Delete from database
+      await designApi.deleteCustomizationOption(designData.id);
+
+      // Also clear from localStorage
+      const state = get();
+      state.clearStoredDesign(productId, variationId.toString(), designArea);
+
+      console.log('✅ Design deleted from database and localStorage');
+    } catch (error) {
+      console.error('❌ Error deleting design:', error);
+      throw error;
     }
   },
 

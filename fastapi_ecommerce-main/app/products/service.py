@@ -377,6 +377,19 @@ async def delete_customization_option(db: AsyncSession, option_id: int) -> dict:
     await crud.delete_customization_option(db, option)
     return {"message": "Customization option deleted successfully"}
 
+async def delete_user_customization_option(db: AsyncSession, option_id: int, user_id: int) -> dict:
+    """Delete a customization option, but only if it belongs to the user"""
+    option = await crud.get_customization_option(db, option_id)
+    if not option:
+        raise HTTPException(status_code=404, detail="Customization option not found")
+
+    # Verify the option belongs to the current user
+    if option.user_id != user_id:
+        raise HTTPException(status_code=403, detail="You don't have permission to delete this design")
+
+    await crud.delete_customization_option(db, option)
+    return {"message": "Customization option deleted successfully"}
+
 async def get_user_customization_options(
     db: AsyncSession,
     user_id: int,

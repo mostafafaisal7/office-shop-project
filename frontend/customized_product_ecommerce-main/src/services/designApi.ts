@@ -131,7 +131,6 @@ class DesignApiService {
         const validToken = await getValidToken();
         if (validToken) {
           headers['Authorization'] = `Bearer ${validToken}`;
-          console.log('Using authentication token for API request');
         } else {
           console.warn('No valid token available');
         }
@@ -140,7 +139,6 @@ class DesignApiService {
         // Fallback to the stored token
         if (tokens?.accessToken) {
           headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-          console.log('Using fallback authentication token');
         }
       }
     } else {
@@ -170,10 +168,9 @@ class DesignApiService {
         console.error('Failed to fetch user details:', response.status);
         return null;
       }
-      
+
       const userData = await response.json();
-      console.log('Fetched user data:', userData);
-      
+
       return userData.id || null;
     } catch (error) {
       console.error('Error getting user ID:', error);
@@ -283,20 +280,16 @@ class DesignApiService {
           clientReferenceId = existingDesign.client_reference_id;
           // Only set isUpdate to true if we have a valid ID for this specific area
           isUpdate = existingDesign.id !== undefined;
-          console.log('Found existing design, will', isUpdate ? 'update' : 'create new with shared client_reference_id:', clientReferenceId, 'with ID:', existingDesign.id);
         } else {
           // Generate new shared client reference ID for new design based on product+variation
           clientReferenceId = this.generateSharedClientReferenceId(productId, variationId);
-          console.log('Creating new design with shared client_reference_id:', clientReferenceId);
         }
       } else {
         // We have existing client reference ID, need to find the design to get the database ID
         existingDesign = await this.findExistingDesign(userId, parseInt(productId), variationId, designArea);
         if (existingDesign && existingDesign.id !== undefined) {
           isUpdate = true;
-          console.log('Updating existing design with client_reference_id:', clientReferenceId, 'and ID:', existingDesign.id);
         } else {
-          console.log('Client reference ID provided but no existing design found for this area, will create new with shared client_reference_id');
           isUpdate = false;
         }
       }
@@ -325,16 +318,12 @@ class DesignApiService {
         design_elements: designElements
       };
 
-      console.log(`${isUpdate ? 'Updating' : 'Creating'} design with payload:`, payload);
-
       const headers = await this.getAuthHeaders();
       const method = isUpdate ? 'PUT' : 'POST';
-      const url = isUpdate 
+      const url = isUpdate
         ? `${API_BASE_URL}/products/users/me/options/${existingDesign?.id}`
         : `${API_BASE_URL}/products/users/me/options`;
-      
-      console.log(`Making ${method} request to:`, url);
-      
+
       const response = await fetch(url, {
         method,
         headers,
@@ -363,10 +352,9 @@ class DesignApiService {
         
         throw new Error(userFriendlyMessage);
       }
-      
+
       const data = await response.json();
-      console.log(`Design ${isUpdate ? 'updated' : 'created'} successfully:`, data);
-      
+
       // Return the data with the client_reference_id for future updates
       return {
         ...data,
@@ -475,7 +463,6 @@ class DesignApiService {
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.log('No design found for this variation and area');
           return null;
         }
         throw new Error(`Failed to load design: ${response.status}`);
@@ -528,15 +515,34 @@ class DesignApiService {
         headers,
         cache: 'no-store',
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch user customization options: ${response.status}`);
       }
-      
+
       const data = await response.json();
       return data;
     } catch (error) {
       console.error('Error fetching user customization options:', error);
+      throw error;
+    }
+  }
+
+  async deleteCustomizationOption(optionId: number): Promise<void> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/products/users/me/options/${optionId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete design: ${response.status}`);
+      }
+
+      console.log('✅ Design deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting design:', error);
       throw error;
     }
   }
@@ -756,36 +762,29 @@ class DesignApiService {
   // Helper method to save preview image to backend using admin's upload system
   async savePreviewImageToBackend(previewDataURL: string, productId: string, variationId: number | null, designArea: string): Promise<string | null> {
     try {
-      console.log('🔄 Uploading preview image using admin\'s system:', { productId, variationId, designArea });
-      
       // Convert data URL to blob
       const response = await fetch(previewDataURL);
       const blob = await response.blob();
-      
-      console.log('📤 Preview blob size:', blob.size, 'bytes');
-      
+
       // Import the admin's upload utility
       const { uploadDesignPreview } = await import('@/utils/upload');
-      
+
       // Get auth token
       const token = localStorage.getItem('customer_access_token');
       if (!token) {
         console.error('❌ No authentication token found');
         return null;
       }
-      
+
       // Handle null variation ID
       const safeVariationId = variationId || 0;
-      
+
       // Use admin's upload system with custom filename
       const filename = `preview_${productId}_${safeVariationId}_${designArea}_${Date.now()}.png`;
-      
-      console.log('📤 Using customer upload endpoint for product:', productId, 'variation:', safeVariationId);
-      
+
       const uploadResult = await uploadDesignPreview(blob, parseInt(productId), token, filename);
-      
+
       if (uploadResult.success) {
-        console.log('✅ Preview image uploaded successfully via admin system:', uploadResult.file_url);
         return uploadResult.file_url;
       } else {
         console.error('❌ Upload failed via admin system');
