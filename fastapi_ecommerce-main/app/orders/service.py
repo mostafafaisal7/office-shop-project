@@ -380,6 +380,15 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
         if item.shipping_method_id:
             item_shipping_method_ids.add(item.shipping_method_id)
 
+        # Debug logging to see what design data is available
+        print(f"DEBUG Order Item {item.id}:")
+        print(f"  - customization_option_id: {item.customization_option_id}")
+        print(f"  - design_svg_data exists: {item.design_svg_data is not None}")
+        print(f"  - design_canvas_data exists: {item.design_canvas_data is not None}")
+        print(f"  - design_elements exists: {item.design_elements is not None}")
+        if item.design_elements:
+            print(f"  - design_elements count: {len(item.design_elements)}")
+
         order_dict["items"].append(item_dict)
 
     for variation_id in variation_ids:
@@ -409,6 +418,14 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
         if item_dict["shipping_method_id"]:
             shipping_method_key = f"shipping_method_{item_dict['shipping_method_id']}"
             item_dict["shipping_method"] = fetched_data.get(shipping_method_key)
+
+    # Final debug output before returning
+    print(f"DEBUG Final order_dict items count: {len(order_dict['items'])}")
+    for idx, item in enumerate(order_dict["items"]):
+        print(f"DEBUG Item {idx} design data in final dict:")
+        print(f"  - design_svg_data: {item.get('design_svg_data') is not None}")
+        print(f"  - design_canvas_data: {item.get('design_canvas_data') is not None}")
+        print(f"  - design_elements: {item.get('design_elements') is not None}")
 
     return schemas.OrderDetailRead.model_validate(order_dict)
 
