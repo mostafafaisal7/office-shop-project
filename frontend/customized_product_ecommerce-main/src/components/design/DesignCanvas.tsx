@@ -478,9 +478,8 @@ useEffect(() => {
           originY: 'center',
           scaleX: 0.5,
           scaleY: 0.5,
+          savedImageUrl: originalImageUrl,  // Use .set() to make it serializable
         });
-        // Store original server URL for later retrieval
-        (img as any).savedImageUrl = originalImageUrl;
         console.log('🎨 Stored savedImageUrl on image object:', (img as any).savedImageUrl);
         canvas.add(img);
         canvas.setActiveObject(img);
