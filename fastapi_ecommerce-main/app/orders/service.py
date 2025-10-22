@@ -649,7 +649,7 @@ async def list_orders_with_pagination(
         # Add user information if available
         if order.user_id and order.user_id in user_data_map:
             user = user_data_map[order.user_id]
-            order_dict["user_name"] = user.full_name
+            order_dict["user_name"] = user.name  # Use 'name' not 'full_name'
             order_dict["user_email"] = user.email
 
         order_items.append(schemas.OrderListItem.model_validate(order_dict))
