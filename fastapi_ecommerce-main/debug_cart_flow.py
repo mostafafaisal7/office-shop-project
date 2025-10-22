@@ -24,7 +24,7 @@ try:
         print("\n1. CURRENT CART ITEMS:")
         print("-" * 80)
         result = conn.execute(text("""
-            SELECT id, user_id, guest_id, product_id, variation_id, quantity, customization_option_id
+            SELECT id, user_id, guest_id, product_id, product_name, size, color, quantity, customization_id
             FROM cart_items
             ORDER BY id DESC
             LIMIT 10
@@ -32,12 +32,14 @@ try:
 
         cart_rows = result.fetchall()
         if cart_rows:
-            print(f"{'ID':<6} {'User':<8} {'Guest':<38} {'Product':<8} {'Var':<6} {'Qty':<5} {'Cust.Opt.ID'}")
+            print(f"{'ID':<6} {'User':<8} {'Guest':<20} {'Product':<8} {'Name':<15} {'Size':<8} {'Color':<8} {'Qty':<5} {'Cust.ID'}")
             print("-" * 80)
             for row in cart_rows:
                 user = str(row[1]) if row[1] else "N/A"
-                guest = str(row[2])[:36] if row[2] else "N/A"
-                print(f"{row[0]:<6} {user:<8} {guest:<38} {row[3]:<8} {str(row[4]) if row[4] else 'N/A':<6} {row[5]:<5} {str(row[6]) if row[6] else 'N/A'}")
+                guest = str(row[2])[:18] if row[2] else "N/A"
+                size = row[5] if row[5] else "N/A"
+                color = row[6] if row[6] else "N/A"
+                print(f"{row[0]:<6} {user:<8} {guest:<20} {row[3]:<8} {row[4]:<15} {size:<8} {color:<8} {row[7]:<5} {str(row[8]) if row[8] else 'N/A'}")
         else:
             print("❌ No items in cart")
 
@@ -45,7 +47,7 @@ try:
         if cart_rows:
             print("\n2. CUSTOMIZATION OPTIONS USED IN CART:")
             print("-" * 80)
-            cust_ids = [str(row[6]) for row in cart_rows if row[6]]
+            cust_ids = [str(row[8]) for row in cart_rows if row[8]]  # customization_id is index 8
             if cust_ids:
                 cust_ids_str = ','.join(cust_ids)
                 result = conn.execute(text(f"""
@@ -108,9 +110,9 @@ try:
 
         # Analyze the issue
         if cart_rows:
-            cart_cust_ids = [row[6] for row in cart_rows if row[6]]
+            cart_cust_ids = [row[8] for row in cart_rows if row[8]]  # customization_id is index 8
             print(f"✅ Cart has {len(cart_rows)} items")
-            print(f"✅ Cart is using customization option IDs: {cart_cust_ids}")
+            print(f"✅ Cart is using customization IDs: {cart_cust_ids}")
         else:
             print("❌ Cart is empty - add items first!")
 
