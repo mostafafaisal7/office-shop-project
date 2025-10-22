@@ -99,13 +99,20 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         design_canvas_data = None
         design_elements = None
 
+        print(f"\n=== DEBUG CHECKOUT Item {index} ===")
+        print(f"customization_option_id: {item.customization_option_id}")
+
         if item.customization_option_id:
             try:
                 # Fetch customization details to get preview image URL and design data
                 customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
+                print(f"Fetching customization from: {customization_url}")
                 customization_data = await http_get(customization_url)
 
+                print(f"Customization data received: {customization_data is not None}")
                 if customization_data:
+                    print(f"Customization keys: {list(customization_data.keys())}")
+
                     # Extract preview image URL
                     if customization_data.get("design_metadata"):
                         preview_url = customization_data["design_metadata"].get("preview_image_url")
@@ -118,14 +125,32 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                     design_canvas_data = customization_data.get("canvas_data")
                     design_elements = customization_data.get("design_elements")
 
+                    print(f"design_svg_data exists: {design_svg_data is not None}")
+                    print(f"design_canvas_data exists: {design_canvas_data is not None}")
+                    print(f"design_elements exists: {design_elements is not None}")
+
                     if design_svg_data:
                         print(f"Captured SVG data for order item (length: {len(design_svg_data)} characters)")
+                    if design_canvas_data:
+                        print(f"Captured canvas data with {len(design_canvas_data.get('objects', []))} objects")
                     if design_elements:
                         print(f"Captured {len(design_elements)} design elements for order item")
+                else:
+                    print("WARNING: customization_data is None or empty!")
 
             except Exception as e:
-                print(f"Failed to fetch customization details for option {item.customization_option_id}: {e}")
+                print(f"ERROR: Failed to fetch customization details for option {item.customization_option_id}: {e}")
+                import traceback
+                traceback.print_exc()
                 # Continue with existing customized_images
+        else:
+            print("No customization_option_id - skipping design data fetch")
+
+        print(f"Final values being set:")
+        print(f"  - design_svg_data: {design_svg_data is not None}")
+        print(f"  - design_canvas_data: {design_canvas_data is not None}")
+        print(f"  - design_elements: {design_elements is not None}")
+        print(f"=== END DEBUG CHECKOUT ===\n")
 
         # Prepare order item with discount information - matches OrderItemCreate schema
         order_item = {
