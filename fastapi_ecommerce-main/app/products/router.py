@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.products import schemas, service, crud, models
 from app.core.database import get_db
 from app.common.dependencies import get_current_user, require_admin
 from app.utils.media import (
-    convert_media_to_url, 
-    convert_product_media_urls, 
+    convert_media_to_url,
+    convert_product_media_urls,
     convert_products_media_urls,
     convert_variation_media_urls,
     convert_customization_option_media_urls
@@ -18,6 +19,10 @@ from app.core.config import BASE_URL
 from fastapi import UploadFile, File, Form
 from uuid import uuid4
 import os
+import io
+import zipfile
+import json
+from pathlib import Path
 # from sqlalchemy.ext.asyncio import AsyncSession
 # from fastapi import Depends, HTTPException
 
@@ -554,6 +559,215 @@ async def delete_customization_option(option_id: int, db: AsyncSession = Depends
     if not result:
         raise HTTPException(status_code=404, detail="Customization option not found")
     return {"message": "Customization option deleted"}
+
+
+@router.get("/options/{option_id}/download", dependencies=[Depends(require_admin)])
+async def download_customization_as_zip(option_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Download customization option as a ZIP file containing:
+    - design.svg (SVG representation of the canvas)
+    - design.json (full canvas data)
+    - metadata.json (design metadata)
+    - All associated media files
+    """
+    # Fetch the customization option
+    option = await service.crud.get_customization_option(db, option_id)
+    if not option:
+        raise HTTPException(status_code=404, detail="Customization option not found")
+
+    # Create an in-memory ZIP file
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 1. Generate SVG from canvas data
+        svg_content = generate_svg_from_canvas(option.canvas_data, option.design_metadata)
+        zip_file.writestr(f"design_{option_id}.svg", svg_content)
+
+        # 2. Add full canvas data as JSON
+        canvas_json = json.dumps(option.canvas_data, indent=2)
+        zip_file.writestr(f"canvas_data_{option_id}.json", canvas_json)
+
+        # 3. Add metadata
+        metadata = {
+            "id": option.id,
+            "design_area": option.design_area,
+            "product_id": option.product_id,
+            "variation_id": option.variation_id,
+            "canvas_width": option.design_metadata.get("canvas_width"),
+            "canvas_height": option.design_metadata.get("canvas_height"),
+            "created_at": str(option.created_at),
+            "updated_at": str(option.updated_at),
+            "design_name": option.design_metadata.get("design_name"),
+        }
+        zip_file.writestr(f"metadata_{option_id}.json", json.dumps(metadata, indent=2))
+
+        # 4. Add design elements
+        if option.design_elements:
+            elements_json = json.dumps(option.design_elements, indent=2)
+            zip_file.writestr(f"design_elements_{option_id}.json", elements_json)
+
+        # 5. Add all media files
+        if option.media:
+            for idx, media in enumerate(option.media):
+                try:
+                    # Get the file path from the media
+                    file_path = media.file_path
+
+                    # Check if it's a full path or relative
+                    if not file_path.startswith('/') and not file_path.startswith('http'):
+                        # Relative path - prepend the static directory
+                        full_path = os.path.join("app", file_path.lstrip('/'))
+                    else:
+                        # Already a full path
+                        full_path = file_path
+
+                    # Read the file and add to ZIP
+                    if os.path.exists(full_path):
+                        with open(full_path, 'rb') as f:
+                            file_data = f.read()
+                            # Use original filename
+                            zip_file.writestr(f"media/{media.file_name}", file_data)
+                except Exception as e:
+                    print(f"Error adding media file {media.file_name}: {str(e)}")
+                    continue
+
+    # Seek to the beginning of the buffer
+    zip_buffer.seek(0)
+
+    # Return as downloadable file
+    filename = f"customization_{option_id}_{option.design_area}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+def generate_svg_from_canvas(canvas_data: dict, design_metadata: dict) -> str:
+    """
+    Convert Fabric.js canvas data to SVG format
+    """
+    width = design_metadata.get("canvas_width", 800)
+    height = design_metadata.get("canvas_height", 600)
+    background = canvas_data.get("background", "#ffffff")
+    objects = canvas_data.get("objects", [])
+
+    # Start SVG
+    svg_parts = [
+        f'<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ',
+        f'width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="{background}"/>'
+    ]
+
+    # Add background image if present
+    bg_image = canvas_data.get("backgroundImage")
+    if bg_image and isinstance(bg_image, dict):
+        bg_src = bg_image.get("src", "")
+        if bg_src:
+            svg_parts.append(
+                f'<image xlink:href="{bg_src}" width="{width}" height="{height}" preserveAspectRatio="none"/>'
+            )
+
+    # Process each object
+    for obj in objects:
+        obj_type = obj.get("type", "")
+
+        if obj_type == "text" or obj_type == "i-text" or obj_type == "textbox":
+            # Handle text objects
+            text = obj.get("text", "")
+            x = obj.get("left", 0)
+            y = obj.get("top", 0)
+            font_size = obj.get("fontSize", 16)
+            font_family = obj.get("fontFamily", "Arial")
+            fill = obj.get("fill", "#000000")
+            angle = obj.get("angle", 0)
+            scale_x = obj.get("scaleX", 1)
+            scale_y = obj.get("scaleY", 1)
+
+            transform = f'translate({x}, {y})'
+            if angle != 0:
+                transform += f' rotate({angle})'
+            if scale_x != 1 or scale_y != 1:
+                transform += f' scale({scale_x}, {scale_y})'
+
+            svg_parts.append(
+                f'<text x="0" y="0" font-size="{font_size}" font-family="{font_family}" '
+                f'fill="{fill}" transform="{transform}">{text}</text>'
+            )
+
+        elif obj_type == "image":
+            # Handle image objects
+            src = obj.get("src", "")
+            x = obj.get("left", 0)
+            y = obj.get("top", 0)
+            w = obj.get("width", 100)
+            h = obj.get("height", 100)
+            scale_x = obj.get("scaleX", 1)
+            scale_y = obj.get("scaleY", 1)
+            angle = obj.get("angle", 0)
+
+            transform = f'translate({x}, {y})'
+            if angle != 0:
+                transform += f' rotate({angle})'
+
+            svg_parts.append(
+                f'<image xlink:href="{src}" x="0" y="0" width="{w * scale_x}" height="{h * scale_y}" '
+                f'transform="{transform}"/>'
+            )
+
+        elif obj_type == "rect":
+            # Handle rectangle objects
+            x = obj.get("left", 0)
+            y = obj.get("top", 0)
+            w = obj.get("width", 100)
+            h = obj.get("height", 100)
+            fill = obj.get("fill", "#000000")
+            stroke = obj.get("stroke", "")
+            stroke_width = obj.get("strokeWidth", 0)
+
+            svg_parts.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" '
+                f'stroke="{stroke}" stroke-width="{stroke_width}"/>'
+            )
+
+        elif obj_type == "circle":
+            # Handle circle objects
+            cx = obj.get("left", 0) + obj.get("radius", 50)
+            cy = obj.get("top", 0) + obj.get("radius", 50)
+            r = obj.get("radius", 50)
+            fill = obj.get("fill", "#000000")
+            stroke = obj.get("stroke", "")
+            stroke_width = obj.get("strokeWidth", 0)
+
+            svg_parts.append(
+                f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{fill}" '
+                f'stroke="{stroke}" stroke-width="{stroke_width}"/>'
+            )
+
+        elif obj_type == "path":
+            # Handle path objects (like drawn shapes)
+            path_data = obj.get("path", [])
+            fill = obj.get("fill", "transparent")
+            stroke = obj.get("stroke", "#000000")
+            stroke_width = obj.get("strokeWidth", 1)
+
+            # Convert Fabric.js path to SVG path
+            if path_data:
+                path_str = ""
+                for segment in path_data:
+                    if isinstance(segment, list):
+                        path_str += " ".join(str(v) for v in segment) + " "
+
+                svg_parts.append(
+                    f'<path d="{path_str.strip()}" fill="{fill}" '
+                    f'stroke="{stroke}" stroke-width="{stroke_width}"/>'
+                )
+
+    # Close SVG
+    svg_parts.append('</svg>')
+
+    return '\n'.join(svg_parts)
 
 
 @router.post("/{product_id}/customer-upload", status_code=201)

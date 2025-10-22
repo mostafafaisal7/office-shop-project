@@ -591,9 +591,53 @@ export default function OrderDetailsPage() {
                   if (!record.customization_details) return null;
 
                   const custDetails = record.customization_details;
+
+                  const handleDownloadCustomization = async () => {
+                    try {
+                      message.loading({ content: 'Preparing download...', key: 'download' });
+
+                      const response = await fetch(
+                        `http://127.0.0.1:8000/products/options/${custDetails.id}/download`,
+                        {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                          }
+                        }
+                      );
+
+                      if (!response.ok) {
+                        throw new Error('Download failed');
+                      }
+
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `customization_${custDetails.id}_${custDetails.design_area}.zip`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+
+                      message.success({ content: 'Download complete!', key: 'download' });
+                    } catch (error) {
+                      console.error('Download error:', error);
+                      message.error({ content: 'Failed to download customization', key: 'download' });
+                    }
+                  };
+
                   return (
                     <div style={{ padding: '16px', background: '#f7f9fc', borderRadius: '8px' }}>
-                      <Title level={5} style={{ marginTop: 0 }}>🎨 Custom Design Details</Title>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <Title level={5} style={{ margin: 0 }}>🎨 Custom Design Details</Title>
+                        <Button
+                          type="primary"
+                          icon={<DownloadOutlined />}
+                          onClick={handleDownloadCustomization}
+                        >
+                          Download as ZIP (SVG + Images)
+                        </Button>
+                      </div>
 
                       <Row gutter={[16, 16]}>
                         {/* Design Info */}
