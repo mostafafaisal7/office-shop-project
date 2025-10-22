@@ -212,7 +212,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   set({ savedDesigns: updatedDesigns });
   saveToLocalStorage(updatedDesigns);
 
-  console.log('Design saved to localStorage:', designKey);
 },
 
 
@@ -221,7 +220,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     try {
       localStorage.removeItem(STORAGE_KEY);
       set({ savedDesigns: new Map() });
-      console.log('localStorage designs cleared');
     } catch (error) {
       console.error('Failed to clear localStorage designs:', error);
     }
@@ -233,11 +231,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const design = state.savedDesigns.get(designKey);
 
   if (design) {
-    console.log('Design loaded from localStorage for preview:', designKey);
     return design;
   }
 
-  console.warn('No design found for preview:', designKey);
   return null;
 },
 
@@ -271,7 +267,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     set({ savedDesigns: updatedDesigns });
     saveToLocalStorage(updatedDesigns);
     
-    console.log('Design cleared from localStorage:', designKey);
   },
 
   getAllStoredDesigns: () => {
@@ -292,7 +287,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       let variationId: number;
       if (state.selectedVariation?.variationId) {
         variationId = state.selectedVariation.variationId;
-        console.log('Using variation ID from selectedVariation:', variationId);
       } else {
         console.error('No variation ID available in selectedVariation:', state.selectedVariation);
         set({ syncStatus: 'error' });
@@ -308,24 +302,19 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       // If no existing client reference ID, generate a new shared one
       if (!existingClientReferenceId) {
         existingClientReferenceId = generateSharedClientReferenceId(state.productId, variationId.toString());
-        console.log('Generated new shared client reference ID:', existingClientReferenceId);
       }
 
-      console.log('Saving design with variation ID:', variationId, 'for area:', state.currentDesignArea);
-      console.log('Using shared client reference ID:', existingClientReferenceId);
 
       // First upload the preview image to get the backend URL
       let backendPreviewUrl = previewImageUrl;
       if (previewImageUrl && variationId) {
         try {
-          console.log('🔄 Uploading preview image to get backend URL...');
           backendPreviewUrl = await designApi.savePreviewImageToBackend(
             previewImageUrl,
             state.productId,
             variationId,
             state.currentDesignArea
           );
-          console.log('✅ Got backend preview URL:', backendPreviewUrl);
         } catch (uploadError) {
           console.error('❌ Preview upload failed, continuing with data URL:', uploadError);
           // Continue with original preview URL if upload fails
@@ -348,21 +337,17 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         const updatedClientReferenceIds = new Map(state.clientReferenceIds);
         updatedClientReferenceIds.set(sharedKey, result.client_reference_id);
         set({ clientReferenceIds: updatedClientReferenceIds });
-        console.log('Stored shared client reference ID for future updates:', result.client_reference_id);
       }
       
       set({ syncStatus: 'success' });
-      console.log('Design saved to database with new format:', state.productId, state.currentDesignArea);
     } catch (error) {
       console.error('Failed to save design to database:', error);
       set({ syncStatus: 'error' });
       
       // If user is not authenticated, fall back to localStorage
       if (error instanceof Error && error.message.includes('User not authenticated')) {
-        console.log('User not authenticated, falling back to localStorage');
         try {
           state.saveDesignToStorage(canvasData, productImageUrl);
-          console.log('Design saved to localStorage as fallback');
           set({ syncStatus: 'idle' });
         } catch (localError) {
           console.error('Fallback to localStorage also failed:', localError);
@@ -381,7 +366,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const designData = await designApi.loadDesignWithNewFormat(productId, numericVariationId, area);
       
       if (designData) {
-        console.log('Design loaded from database with new format:', productId, area);
         
         // Store the shared client reference ID for future updates
         if (designData.client_reference_id) {
@@ -390,7 +374,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
           const updatedClientReferenceIds = new Map(state.clientReferenceIds);
           updatedClientReferenceIds.set(sharedKey, designData.client_reference_id);
           set({ clientReferenceIds: updatedClientReferenceIds });
-          console.log('Stored shared client reference ID from loaded design:', designData.client_reference_id);
         }
         
         // Convert the response to match the expected format
@@ -428,7 +411,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     try {
       await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
     } catch (error) {
-      console.warn('DB save failed, localStorage still has the design', error);
     }
   }
 }
@@ -454,7 +436,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const localDesigns = Array.from(state.savedDesigns.values());
     
     if (localDesigns.length === 0) {
-      console.log('No localStorage designs to migrate');
       return;
     }
 
@@ -495,7 +476,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
             design.design_metadata.product_image_url
           );
           
-          console.log('Migrated design to database:', design.design_id);
           migratedCount++;
         } catch (error) {
           console.error('Failed to migrate design:', design.design_id, error);
@@ -505,7 +485,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       }
       
       set({ syncStatus: 'success' });
-      console.log(`Migration completed: ${migratedCount} designs migrated, ${skippedCount} designs skipped`);
     } catch (error) {
       console.error('Migration failed:', error);
       set({ syncStatus: 'error' });
@@ -517,7 +496,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     try {
       localStorage.removeItem(STORAGE_KEY);
       set({ savedDesigns: new Map() });
-      console.log('localStorage designs cleared');
     } catch (error) {
       console.error('Failed to clear localStorage designs:', error);
     }
@@ -529,13 +507,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const { isAuthenticated } = useAuthStore.getState();
     
     if (!isAuthenticated) {
-      console.log('User not authenticated, skipping sync');
       return;
     }
 
     try {
       await get().migrateLocalStorageToDatabase();
-      console.log('Design sync completed');
     } catch (error) {
       console.error('Design sync failed:', error);
       throw error;
@@ -549,7 +525,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const { isAuthenticated, user } = useAuthStore.getState();
       
       if (!isAuthenticated || !user) {
-        console.log('User not authenticated, cannot get customization option ID');
         return null;
       }
 
@@ -557,11 +532,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const designData = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
       
       if (designData && designData.id) {
-        console.log('Found customization option ID:', designData.id);
         return designData.id;
       }
       
-      console.log('No customization option found for:', { productId, variationId, designArea });
       return null;
     } catch (error) {
       console.error('Error getting customization option ID:', error);
@@ -575,7 +548,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const variationIdKey = variationId.toString();
   const previews: {[area: string]: string} = {};
 
-  console.log('Generating and saving previews for all views...');
 
   const allPreviews = await previewGenerator.generatePreviewsForAllViews(
     productId,
@@ -591,7 +563,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         const currentViewImage = availableViews.find(v => v.area === area)?.image || '';
         await state.saveDesign(designData.canvas_data, currentViewImage, previewUrl);
         previews[area] = previewUrl;
-        console.log(`Generated and saved preview for area: ${area}`);
       }
     } catch (error) {
       console.error(`Error saving preview for area ${area}:`, error);
@@ -599,7 +570,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   }
 
-  console.log('All previews generated and saved successfully');
   return previews;
 },
 

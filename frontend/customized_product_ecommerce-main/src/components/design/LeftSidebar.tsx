@@ -80,7 +80,6 @@ useEffect(() => {
 
       if (res.ok) {
         const data = await res.json();
-        console.log('Guest images migrated to user account');
 
         // Update sidebar immediately
         if (data?.images?.length) {

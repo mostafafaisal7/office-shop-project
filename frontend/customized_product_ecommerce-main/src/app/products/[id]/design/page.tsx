@@ -42,11 +42,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const formatImageUrl = (imageUrl: string): string => {
     if (!imageUrl) return '';
     
-    console.log('Formatting image URL:', imageUrl);
     
     // If it's already a full URL or blob URL, return as is
     if (imageUrl.startsWith('http') || imageUrl.startsWith('blob:')) {
-      console.log('URL is already absolute or blob, returning as is:', imageUrl);
       return imageUrl;
     }
     
@@ -57,7 +55,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       if (filename) {
         // Try to use the frontend's public directory first
         const frontendUrl = `/uploads/${filename}`;
-        console.log('Converted uploads URL to frontend path:', frontendUrl);
         return frontendUrl;
       }
     }
@@ -65,12 +62,10 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     // If it's a relative URL that doesn't start with /, add the base path
     if (!imageUrl.startsWith('/')) {
       const formattedUrl = `/${imageUrl}`;
-      console.log('Added leading slash to relative URL:', formattedUrl);
       return formattedUrl;
     }
     
     // Return the relative URL as is (will be served by Next.js from public directory)
-    console.log('Returning relative URL as is:', imageUrl);
     return imageUrl;
   };
   const { 
@@ -127,18 +122,14 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   // ✅ FIXED: Consolidated single useEffect to monitor productImage and manage loading
   // Prevents circular dependencies and re-render loops
   useEffect(() => {
-    console.log('productImage changed:', productImage);
-    console.log('isLoading:', isLoading);
 
     // Only run validation if productImage exists and we're not loading
     if (productImage && productImage.trim() !== '') {
       // Test if the image can be loaded
       const img = new Image();
       img.onload = () => {
-        console.log('✅ Product image loaded successfully:', productImage);
         // Clear loading state if still loading
         if (isLoading) {
-          console.log('Clearing loading state as product image is loaded');
           if (loadingTimeout) {
             clearTimeout(loadingTimeout);
             setLoadingTimeout(null);
@@ -169,11 +160,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
 
     // Set loading start time
     loadingStartTimeRef.current = Date.now();
-    console.log('⏱️ Loading timeout started');
 
     const timeout = setTimeout(() => {
       const loadingDuration = Date.now() - (loadingStartTimeRef.current || Date.now());
-      console.log(`⏱️ Loading timeout reached after ${loadingDuration}ms`);
       setError('Loading timeout. Please refresh the page and try again.');
       setIsLoading(false);
       loadingStartTimeRef.current = null;
@@ -184,7 +173,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       clearTimeout(timeout);
       if (loadingStartTimeRef.current) {
         const loadingDuration = Date.now() - loadingStartTimeRef.current;
-        console.log(`⏱️ Loading completed after ${loadingDuration}ms`);
         loadingStartTimeRef.current = null;
       }
     };
@@ -195,11 +183,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     const handleMigration = async () => {
       if (isAuthenticated) {
         try {
-          console.log('User is authenticated, checking for localStorage designs to migrate...');
           await migrateLocalStorageToDatabase();
           // Clear localStorage after successful migration
           clearLocalStorageDesigns();
-          console.log('Migration completed and localStorage cleared');
         } catch (error) {
           console.error('Migration failed:', error);
         }
@@ -217,18 +203,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         const clientReferenceId = unwrappedSearchParams.client_reference_id;
         
         if (clientReferenceId && isAuthenticated && fabricCanvas && currentProduct) {
-          console.log('Loading customization options by client_reference_id:', clientReferenceId);
           
           try {
             const customizationOptions = await designApi.getCustomizationOptionsByClientReferenceId(clientReferenceId);
-            console.log('Loaded customization options:', customizationOptions);
             
             if (customizationOptions.length > 0) {
               const firstOption = customizationOptions[0];
               
               // Set the variation from the first customization option if available
               if (firstOption.variation_id) {
-                console.log('Setting variation from client_reference_id options:', firstOption.variation_id);
                 // Find the variation in the current product
                 if (currentProduct && currentProduct.variations) {
                   const foundVariation = currentProduct.variations.find((v: any) => 
@@ -241,11 +224,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                       variationId: foundVariation.id
                     };
                     setSelectedVariation(newVariation);
-                    console.log('Set variation from client_reference_id:', newVariation);
                     
                     // Complete the product setup with all available design areas
                     if (isWaitingForOptionData) {
-                      console.log('Client reference data loaded, completing product setup...');
                       setIsWaitingForOptionData(false);
                       isWaitingForOptionDataRef.current = false;
                       
@@ -278,7 +259,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                       });
                       
                       setAvailableViews(views);
-                      console.log('Set available views from client_reference_id:', views);
                       
                       // Set the first available design area as active
                       const availableAreas = customizationOptions.map(opt => 
@@ -294,7 +274,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                         setActiveView(firstArea);
                         setCurrentDesignArea(firstArea);
                         setProductImage(imageUrl);
-                        console.log('Set active view from client_reference_id:', firstArea, imageUrl);
                       } else if (views.length > 0) {
                         // Ensure the image URL is properly formatted
                         const imageUrl = formatImageUrl(views[0].image);
@@ -302,7 +281,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                         setActiveView(views[0].area);
                         setCurrentDesignArea(views[0].area);
                         setProductImage(imageUrl);
-                        console.log('Set fallback active view from client_reference_id:', views[0].area, imageUrl);
                       }
                       
                       // Clear timeout and set loading to false
@@ -338,7 +316,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         
         // Only handle option_id if client_reference_id is not present
         if (optionId && !clientReferenceId && isAuthenticated && fabricCanvas && currentProduct) {
-          console.log('Loading existing customization option:', optionId);
           
           // Add a delay and proper canvas readiness check
           const loadCustomizationOption = async () => {
@@ -351,11 +328,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                 if (!fabricCanvas || !fabricCanvas.width || !fabricCanvas.height) {
                   if (retryCount < maxRetries) {
                     retryCount++;
-                    console.log(`Canvas not ready, retry ${retryCount}/${maxRetries}`);
                     setTimeout(attemptLoad, 200 * retryCount); // Increasing delay
                     return;
                   } else {
-                    console.warn('Canvas not ready after max retries, skipping load');
                     return;
                   }
                 }
@@ -366,22 +341,18 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                     typeof fabricCanvas.loadFromJSON !== 'function') {
                   if (retryCount < maxRetries) {
                     retryCount++;
-                    console.log(`Canvas methods not ready, retry ${retryCount}/${maxRetries}`);
                     setTimeout(attemptLoad, 200 * retryCount);
                     return;
                   } else {
-                    console.warn('Canvas methods not ready after max retries, skipping load');
                     return;
                   }
                 }
                 
                 const customizationOption = await designApi.getCustomizationOption(parseInt(optionId));
-                console.log('Loaded customization option:', customizationOption);
                 
                 if (customizationOption && customizationOption.canvas_data) {
                   // Set the variation from the customization option if available
                   if (customizationOption.variation_id) {
-                    console.log('Setting variation from customization option:', customizationOption.variation_id);
                     // Find the variation in the current product
                     if (currentProduct && currentProduct.variations) {
                       const foundVariation = currentProduct.variations.find((v: any) => 
@@ -394,11 +365,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                           variationId: foundVariation.id
                         };
                         setSelectedVariation(newVariation);
-                        console.log('Set variation from customization option:', newVariation);
                         
                         // Now that we have the variation from option data, complete the product setup
                         if (isWaitingForOptionData) {
-                          console.log('Option data loaded, completing product setup...');
                           setIsWaitingForOptionData(false);
                           isWaitingForOptionDataRef.current = false;
                           
@@ -431,17 +400,14 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                           });
                           
                           setAvailableViews(views);
-                          console.log('Set available views from option data:', views);
                           
                           // Set the design area and product image
                           const designArea = customizationOption.design_area || 'front';
                           const selectedView = views.find(view => view.area === designArea);
                           if (selectedView) {
                             setProductImage(selectedView.image);
-                            console.log('Set product image from option data:', selectedView.image);
                           } else if (views.length > 0) {
                             setProductImage(views[0].image);
-                            console.log('Set fallback product image from option data:', views[0].image);
                           }
                           
                           // Clear timeout and set loading to false
@@ -462,7 +428,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                   
                   // Skip canvas loading from customization option to prevent fabric.js errors
                   // The canvas will be loaded by the DesignCanvas component's useEffect
-                  console.log('Customization option loaded, canvas will be handled by DesignCanvas component');
                   
                   // Don't override product image - keep the one from product data
                 }
@@ -496,7 +461,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       if ((optionId || clientReferenceId) && !urlVariationId) {
         setIsWaitingForOptionData(true);
         isWaitingForOptionDataRef.current = true;
-        console.log('Coming from project page, waiting for option data before setting variation');
       } else {
         setIsWaitingForOptionData(false);
         isWaitingForOptionDataRef.current = false;
@@ -513,14 +477,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         const urlVariationId = unwrappedSearchParams.variation_id;
         const optionId = unwrappedSearchParams.option_id;
 
-        console.log('Loading product ID:', productId);
-        console.log('URL variation_id:', urlVariationId);
-        console.log('URL option_id:', optionId);
-        console.log('isWaitingForOptionData:', isWaitingForOptionData);
 
         // ✅ FIX: Skip if already loaded this product (prevent re-render loops)
         if (loadedProductIdRef.current === productId && currentProduct) {
-          console.log('✅ Product already loaded, skipping reload');
           setIsLoading(false);
           return;
         }
@@ -530,12 +489,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
 
         // Fetch product from API
         const product: ApiProduct = await fetchProductById(productId);
-        console.log('Found product:', product);
-        console.log('Product ID:', product.id);
-        console.log('Product name:', product.name);
-        console.log('Product variations count:', product.variations?.length || 0);
-        console.log('Product media count:', product.media?.length || 0);
-        console.log('Product is_customizable:', product.is_customizable);
         
         // Validate that we have a product
         if (!product) {
@@ -552,13 +505,10 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         let currentVariation = null;
         
         if (product && product.variations) {
-          console.log('Product has variations:', product.variations.length);
-          console.log('Selected variation:', selectedVariation);
           
           // First priority: Use variation_id from URL if provided
           if (urlVariationId) {
             currentVariation = product.variations.find((v: any) => v.id.toString() === urlVariationId);
-            console.log('Found variation by URL ID:', currentVariation);
           }
           
           // Second priority: If a specific variation is selected in store, look for that variation
@@ -569,19 +519,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
               const colorMatch = !selectedVariation.color || attrs.color === selectedVariation.color;
               return sizeMatch && colorMatch;
             });
-            console.log('Found variation by store selection:', currentVariation);
           }
           
           // Third priority: Only use fallback if NOT waiting for option data
           if (!currentVariation && !isWaitingForOptionDataRef.current) {
             currentVariation = product.variations[0];
-            console.log('Using first variation as fallback:', currentVariation);
           } else if (!currentVariation && isWaitingForOptionDataRef.current) {
-            console.log('Skipping fallback variation, waiting for option data to load');
             // Don't set any variation yet, but continue with product setup
             // We'll set a temporary variation for product setup, but won't set selectedVariation
             currentVariation = product.variations[0]; // Temporary for product setup only
-            console.log('Using temporary variation for product setup while waiting for option data');
           }
           
           // Only set the selected variation if NOT waiting for option data
@@ -600,10 +546,8 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
               
             if (hasChanged) {
               setSelectedVariation(newVariation);
-              console.log('Set selected variation with ID:', currentVariation.id, newVariation);
             }
           } else if (isWaitingForOptionDataRef.current) {
-            console.log('Skipping selectedVariation update, waiting for option data');
           }
           
           // Extract available views from the SELECTED variation's media where design: true
@@ -612,17 +556,14 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           
           // Collect design media only from the current selected variation
           if (currentVariation && currentVariation.media) {
-            console.log('Current variation media:', currentVariation.media);
             currentVariation.media.forEach((media: any) => {
               // Only include media where design is true and area exists
               if (media.design === true && media.area && media.file_path) {
                 areaMap.set(media.area, media.file_path);
-                console.log('Found design media:', media.area, media.file_path);
               }
             });
           }
           
-          console.log('Found design areas for selected variation:', Array.from(areaMap.keys()));
           
           // Convert map to array and sort by common order
           const areaOrder = ['front', 'back', 'left', 'right'];
@@ -640,7 +581,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           });
           
           setAvailableViews(views);
-          console.log('Available views:', views);
           
           // Set the first available view as active, or default to 'front'
           if (views.length > 0) {
@@ -651,28 +591,23 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             const imageUrl = formatImageUrl(views[0].image);
             setProductImage(imageUrl);
             designImageFound = true;
-            console.log('Set initial product image:', imageUrl);
           }
           
           // If no design media found for active view, fall back to any design media
           if (!designImageFound && currentVariation && currentVariation.media) {
             const designMedia = currentVariation.media.find((m: any) => m.design === true);
             if (designMedia) {
-              console.log('Found design media (fallback):', designMedia);
               
               // Ensure the image URL is properly formatted
               const imageUrl = formatImageUrl(designMedia.file_path);
               setProductImage(imageUrl);
               designImageFound = true;
-              console.log('Set fallback product image:', imageUrl);
             }
           }
         }
         
         // If no variations or no design media found in variations, try product media as fallback
         if (!designImageFound && product && product.media && product.media.length > 0) {
-          console.log('No variations or design media found, using product media as fallback');
-          console.log('Product media:', product.media);
           
           // Create a simple view using the first product media
           const firstMedia = product.media[0];
@@ -690,23 +625,16 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             setProductImage(imageUrl);
             designImageFound = true;
             
-            console.log('Set fallback product image from product media:', imageUrl);
           }
         }
         
         if (!designImageFound) {
-          console.log('No design media found for product');
-          console.log('Product variations:', product?.variations);
-          console.log('Product media:', product?.media);
           setProductImage('');
         }
       } catch (error) {
         console.error('Error loading product:', error);
         setError('Failed to load product. Please try again.');
       } finally {
-        console.log('Setting isLoading to false');
-        console.log('Final productImage state:', productImage);
-        console.log('Final error state:', error);
         
         // Clear any existing timeout
         if (loadingTimeout) {
@@ -742,7 +670,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const handleImageUpload = (fileOrUrl: File | string) => {
     const isServerUrl = typeof fileOrUrl === 'string';
     console.log('🖼️ handleImageUpload called with:', isServerUrl ? 'SERVER URL' : 'FILE object');
-    console.log('🖼️ Value:', isServerUrl ? fileOrUrl : fileOrUrl.name);
 
     // ✅ CRITICAL FIX: NEVER create blob URLs - only accept server URLs
     // LeftSidebar already handles upload and returns server URL
@@ -896,7 +823,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   };
 
   const handleImageAction = (action: string) => {
-    console.log('Image action:', action);
     setDesignJson({
       type: 'imageAction',
       action: action,
@@ -905,7 +831,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   };
 
   const handleImageAdjust = (property: string, value: number) => {
-    console.log('Image adjust:', property, value);
     setDesignJson({
       type: 'imageAdjust',
       property: property,
@@ -925,7 +850,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
             const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
             await saveDesign(canvasData, currentViewImage);
-            console.log('Saved design for view:', activeView);
           }
         } catch (error) {
           console.error('Error saving design for view change:', error);
@@ -939,7 +863,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       // Update product image
       const selectedView = availableViews.find(view => view.area === area);
       if (selectedView) {
-        console.log('Switching to view:', area, 'with image:', selectedView.image);
         setProductImage(selectedView.image);
       }
       
@@ -952,7 +875,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
               ? selectedVariation.variationId.toString()
               : selectedVariation?.size || selectedVariation?.color || 'default';
             
-            console.log('Loading design for view change with variation ID:', variationId);
             const designData = await loadDesign(productId, variationId, area);
             
             if (designData && designData.canvas_data && fabricCanvas) {
@@ -969,7 +891,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                     fabricCanvas.loadFromJSON(designData.canvas_data, () => {
                       try {
                         fabricCanvas.renderAll();
-                        console.log('Loaded design for view:', area);
                       } catch (renderError) {
                         console.error('Error rendering after view change load:', renderError);
                       }
@@ -995,7 +916,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                       fabricCanvas.renderAll();
                     }
                   } catch (clearError) {
-                    console.warn('Cannot clear canvas in view change:', clearError);
                   }
                 }
               } catch (loadError) {
@@ -1013,7 +933,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                 }
               }
             } else {
-              console.log('No design data for view:', area);
               // Clear canvas when switching to a view with no saved design
               if (fabricCanvas) {
                 try {
@@ -1025,7 +944,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                     fabricCanvas.renderAll();
                   }
                 } catch (clearError) {
-                  console.warn('Cannot clear canvas, methods not ready:', clearError);
                 }
               }
             }
@@ -1051,7 +969,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   };
 
   const handleCanvasReady = (canvas: any) => {
-    console.log('Canvas ready callback triggered');
     
     // Ensure canvas is properly initialized before setting it
     if (canvas && canvas.width && canvas.height && canvas.width > 0 && canvas.height > 0) {
@@ -1062,11 +979,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         
         if (testWidth > 0 && testHeight > 0) {
           setFabricCanvas(canvas);
-          console.log('Canvas set and ready for use');
           return;
         }
       } catch (methodError) {
-        console.log('Canvas methods not ready yet in handleCanvasReady, retrying...');
       }
       
       // Retry after a short delay
@@ -1077,7 +992,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           
           if (testWidth > 0 && testHeight > 0) {
             setFabricCanvas(canvas);
-            console.log('Canvas set after retry');
           } else {
             console.error('Canvas still not ready after retry');
           }
@@ -1086,7 +1000,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         }
       }, 100);
     } else {
-      console.warn('Canvas not properly initialized in ready callback');
     }
   };
 
@@ -1174,7 +1087,6 @@ const handlePreview = async () => {
         if (canvasData.objects && canvasData.objects.length > 0) {
           const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
           await saveDesign(canvasData, currentViewImage);
-          console.log('Saved current design for view:', activeView);
         }
       } catch (error) {
         console.error('Error saving canvas data for preview:', error);
@@ -1183,7 +1095,6 @@ const handlePreview = async () => {
 
     // 2️⃣ Generate previews for all views
     const variationId = selectedVariation?.variationId?.toString() || selectedVariation?.size || selectedVariation?.color || 'default';
-    console.log('Using variation ID for preview:', variationId);
 
     const allPreviews = await previewGenerator.generatePreviewsForAllViews(
       productId.toString(),
