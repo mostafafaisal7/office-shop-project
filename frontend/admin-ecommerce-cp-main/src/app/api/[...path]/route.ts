@@ -96,11 +96,26 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
         },
       });
     }
-    
-    // Get response data for other status codes
-    const responseData = await response.text();
-    console.log('API Proxy - Response data:', responseData.substring(0, 500) + (responseData.length > 500 ? '...' : ''));
-    
+
+    // Check if response is binary (like ZIP files)
+    const contentType = response.headers.get('content-type') || '';
+    const isBinary = contentType.includes('application/zip') ||
+                     contentType.includes('application/octet-stream') ||
+                     contentType.includes('image/') ||
+                     contentType.includes('video/') ||
+                     contentType.includes('audio/');
+
+    let responseData;
+    if (isBinary) {
+      // For binary data, use arrayBuffer
+      responseData = await response.arrayBuffer();
+      console.log('API Proxy - Binary response, size:', responseData.byteLength, 'bytes');
+    } else {
+      // For text data, use text
+      responseData = await response.text();
+      console.log('API Proxy - Text response data:', responseData.substring(0, 500) + (responseData.length > 500 ? '...' : ''));
+    }
+
     // Create response with CORS headers
     return new NextResponse(responseData, {
       status: response.status,
@@ -110,7 +125,7 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version',
         'Access-Control-Allow-Credentials': 'true',
-        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Content-Type': contentType || 'application/json',
       },
     });
 
