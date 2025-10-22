@@ -730,8 +730,13 @@ Use these files for production, printing, or design editing.
             files_added.append("manifest.json")
             print("Added manifest.json")
 
-            # Also add the full canvas JSON for reference
-            zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
+            # Also add the full canvas JSON for reference (combined from all design areas)
+            combined_canvas_data = {
+                "version": "5.3.0",
+                "objects": objects,
+                "background": "#f3f4f6"
+            }
+            zip_file.writestr("canvas_data.json", json.dumps(combined_canvas_data, indent=2))
             files_added.append("canvas_data.json")
             print("Added canvas_data.json")
 
