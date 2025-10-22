@@ -6,7 +6,7 @@ import { useAuthStore, getValidToken } from '@/store/authStore';
 
 interface LeftSidebarProps {
   onAddText: (text: string) => void;
-  onImageUpload: (file: File) => void;      // callback with the File object
+  onImageUpload: (fileOrUrl: File | string) => void;      // callback with File object or server URL
   onImageClick: (imageUrl: string) => void; // callback when user clicks uploaded image
 }
 
@@ -135,7 +135,8 @@ useEffect(() => {
         setUploadedImages(prev =>
           prev.map(url => (url === previewUrl ? data.image_url : url))
         );
-        onImageUpload(file);
+        // Pass the server URL to canvas, not the file
+        onImageUpload(data.image_url);
       } else {
         alert('Upload failed. Please try again.');
         setUploadedImages(prev => prev.filter(url => url !== previewUrl));

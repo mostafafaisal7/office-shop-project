@@ -5,7 +5,7 @@ import React, { useState, ChangeEvent } from 'react';
 interface DesignToolbarProps {
   onColorChange: (color: string) => void;
   onAddText: (text: string) => void;
-  onImageUpload: (file: File) => void;
+  onImageUpload: (fileOrUrl: File | string) => void;
   onApplyFilter: (filter: string, value: number) => void;
   onRemoveBg: () => void;
   onCrop: () => void;
