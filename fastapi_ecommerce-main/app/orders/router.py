@@ -8,6 +8,7 @@ from app.orders.schemas import OrderStatusUpdate, OrderRead
 from app.orders.service import change_order_status
 from app.common.dependencies import get_current_user, require_admin
 from app.common.enums import OrderStatus
+from datetime import datetime
 from typing import List, Optional
 from fastapi.responses import StreamingResponse
 from app.orders.invoice import generate_invoice_pdf
@@ -440,7 +441,9 @@ async def download_order_item_design_package(
     import os
     import re
     from urllib.parse import urlparse
-    import aiohttp
+    import json
+
+    print(f"\n=== Creating design package for order {order_id}, item {item_id} ===")
 
     # Fetch the order item
     result = await db.execute(
@@ -461,37 +464,60 @@ async def download_order_item_design_package(
             detail="No design data available for this order item"
         )
 
-    # Create ZIP file in memory
-    zip_buffer = io.BytesIO()
+    try:
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
 
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        canvas_data = order_item.design_canvas_data
-        objects = canvas_data.get('objects', [])
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            canvas_data = order_item.design_canvas_data
+            objects = canvas_data.get('objects', [])
 
-        text_count = 0
-        image_count = 0
+            print(f"Processing {len(objects)} canvas objects...")
 
-        # Process each object in the canvas
-        for idx, obj in enumerate(objects):
-            obj_type = obj.get('type', '').lower()
+            text_count = 0
+            image_count = 0
+            files_added = []
 
-            # Handle text elements - convert to SVG
-            if obj_type in ['text', 'i-text', 'textbox']:
-                text_count += 1
-                text_content = obj.get('text', '')
-                font_family = obj.get('fontFamily', 'Arial')
-                font_size = obj.get('fontSize', 40)
-                fill_color = obj.get('fill', '#000000')
-                font_weight = 'bold' if obj.get('fontWeight') == 'bold' else 'normal'
-                font_style = 'italic' if obj.get('fontStyle') == 'italic' else 'normal'
-                text_decoration = ''
-                if obj.get('underline'):
-                    text_decoration = 'underline'
-                if obj.get('linethrough'):
-                    text_decoration += ' line-through'
+            # Add README file
+            readme_content = f"""Design Package for Order {order_id} - Item {item_id}
+===============================================
 
-                # Create SVG for text
-                svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+Product: {order_item.product_name}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Contents:
+- texts/ : Text elements as SVG files
+- images/ : Original uploaded images
+- manifest.json : Design metadata
+- canvas_data.json : Complete Fabric.js canvas data
+
+Use these files for production, printing, or design editing.
+"""
+            zip_file.writestr("README.txt", readme_content)
+            files_added.append("README.txt")
+            print("Added README.txt")
+
+            # Process each object in the canvas
+            for idx, obj in enumerate(objects):
+                obj_type = obj.get('type', '').lower()
+
+                # Handle text elements - convert to SVG
+                if obj_type in ['text', 'i-text', 'textbox']:
+                    text_count += 1
+                    text_content = obj.get('text', '')
+                    font_family = obj.get('fontFamily', 'Arial')
+                    font_size = obj.get('fontSize', 40)
+                    fill_color = obj.get('fill', '#000000')
+                    font_weight = 'bold' if obj.get('fontWeight') == 'bold' else 'normal'
+                    font_style = 'italic' if obj.get('fontStyle') == 'italic' else 'normal'
+                    text_decoration = ''
+                    if obj.get('underline'):
+                        text_decoration = 'underline'
+                    if obj.get('linethrough'):
+                        text_decoration += ' line-through'
+
+                    # Create SVG for text
+                    svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
   <text x="{obj.get('left', 0)}" y="{obj.get('top', 0)}"
         font-family="{font_family}"
@@ -504,68 +530,109 @@ async def download_order_item_design_package(
   </text>
 </svg>'''
 
-                # Add to ZIP
-                filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', text_content[:20])
-                zip_file.writestr(f"texts/text_{text_count}_{filename_safe}.svg", svg_content)
+                    # Add to ZIP
+                    filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', text_content[:20]) if text_content else f"text_{text_count}"
+                    svg_filename = f"texts/text_{text_count}_{filename_safe}.svg"
+                    zip_file.writestr(svg_filename, svg_content)
+                    files_added.append(svg_filename)
+                    print(f"Added {svg_filename}")
 
-            # Handle image elements
-            elif obj_type == 'image':
-                image_count += 1
-                image_src = obj.get('src', '')
+                # Handle image elements
+                elif obj_type == 'image':
+                    image_count += 1
+                    image_src = obj.get('src', '')
+                    print(f"Processing image {image_count}: {image_src}")
 
-                # Skip blob URLs
-                if image_src and not image_src.startswith('blob:'):
-                    try:
-                        # Parse the URL to get the filename
-                        parsed_url = urlparse(image_src)
-                        path_parts = parsed_url.path.split('/')
-                        original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
+                    # Skip blob URLs
+                    if image_src and not image_src.startswith('blob:'):
+                        try:
+                            # Parse the URL to get the filename
+                            parsed_url = urlparse(image_src)
+                            path_parts = parsed_url.path.split('/')
+                            original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
 
-                        # If it's a local file path
-                        if 'images/' in image_src:
-                            # Extract path after /images/
-                            image_path = image_src.split('/images/', 1)[1]
+                            # If it's a local file path
+                            if 'images/' in image_src:
+                                # Extract path after /images/
+                                image_path = image_src.split('/images/', 1)[1]
 
-                            # Construct full file path
-                            full_path = os.path.join('uploads', 'images', image_path)
+                                # Construct full file path
+                                full_path = os.path.join('uploads', 'images', image_path)
+                                print(f"Looking for image at: {full_path}")
 
-                            if os.path.exists(full_path):
-                                with open(full_path, 'rb') as img_file:
-                                    zip_file.writestr(f"images/{original_filename}", img_file.read())
-                            else:
-                                # Try without 'uploads' prefix
-                                alt_path = os.path.join('images', image_path)
-                                if os.path.exists(alt_path):
-                                    with open(alt_path, 'rb') as img_file:
-                                        zip_file.writestr(f"images/{original_filename}", img_file.read())
+                                if os.path.exists(full_path):
+                                    with open(full_path, 'rb') as img_file:
+                                        img_filename = f"images/{original_filename}"
+                                        zip_file.writestr(img_filename, img_file.read())
+                                        files_added.append(img_filename)
+                                        print(f"Added {img_filename}")
+                                else:
+                                    # Try without 'uploads' prefix
+                                    alt_path = os.path.join('images', image_path)
+                                    print(f"Trying alternate path: {alt_path}")
+                                    if os.path.exists(alt_path):
+                                        with open(alt_path, 'rb') as img_file:
+                                            img_filename = f"images/{original_filename}"
+                                            zip_file.writestr(img_filename, img_file.read())
+                                            files_added.append(img_filename)
+                                            print(f"Added {img_filename}")
+                                    else:
+                                        print(f"WARNING: Image not found at {full_path} or {alt_path}")
 
-                    except Exception as e:
-                        print(f"Error processing image {image_count}: {e}")
+                        except Exception as e:
+                            print(f"ERROR processing image {image_count}: {e}")
 
-        # Add manifest with design info
-        manifest = {
-            "order_id": order_id,
-            "order_item_id": item_id,
-            "product_id": order_item.product_id,
-            "product_name": order_item.product_name,
-            "text_elements": text_count,
-            "image_elements": image_count,
-        }
+            # Add manifest with design info
+            manifest = {
+                "order_id": order_id,
+                "order_item_id": item_id,
+                "product_id": order_item.product_id,
+                "product_name": order_item.product_name,
+                "text_elements": text_count,
+                "image_elements": image_count,
+                "files_included": files_added
+            }
 
-        import json
-        zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+            zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+            files_added.append("manifest.json")
+            print("Added manifest.json")
 
-        # Also add the full canvas JSON for reference
-        zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
+            # Also add the full canvas JSON for reference
+            zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
+            files_added.append("canvas_data.json")
+            print("Added canvas_data.json")
 
-    # Get the ZIP file bytes
-    zip_bytes = zip_buffer.getvalue()
-    filename = f"order_{order_id}_item_{item_id}_design_package.zip"
+            print(f"Total files added to ZIP: {len(files_added)}")
 
-    return StreamingResponse(
-        iter([zip_bytes]),
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
-    )
+        # Get the ZIP file bytes
+        zip_bytes = zip_buffer.getvalue()
+        zip_size = len(zip_bytes)
+        print(f"ZIP file created successfully. Size: {zip_size} bytes")
+
+        if zip_size == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Generated ZIP file is empty"
+            )
+
+        filename = f"order_{order_id}_item_{item_id}_design_package.zip"
+
+        # Use Response instead of StreamingResponse for simpler byte delivery
+        from fastapi.responses import Response
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(zip_size)
+            }
+        )
+
+    except Exception as e:
+        print(f"ERROR creating ZIP package: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create design package: {str(e)}"
+        )
