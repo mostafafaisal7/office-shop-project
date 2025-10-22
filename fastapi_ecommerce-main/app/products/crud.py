@@ -359,6 +359,7 @@ async def get_customization_options_by_user(
     db: AsyncSession,
     user_id: int,
     product_id: Optional[int] = None,
+    variation_id: Optional[int] = None,
     design_area: Optional[str] = None,
     skip: int = 0,
     limit: int = 20
@@ -366,15 +367,18 @@ async def get_customization_options_by_user(
     query = select(models.CustomizationOption).options(
         selectinload(models.CustomizationOption.media)
     ).where(models.CustomizationOption.user_id == user_id)
-    
+
     if product_id:
         query = query.where(models.CustomizationOption.product_id == product_id)
-    
+
+    if variation_id:
+        query = query.where(models.CustomizationOption.variation_id == variation_id)
+
     if design_area:
         query = query.where(models.CustomizationOption.design_area == design_area)
-    
+
     query = query.offset(skip).limit(limit).order_by(models.CustomizationOption.created_at.desc())
-    
+
     result = await db.execute(query)
     return list(result.scalars().all())
 

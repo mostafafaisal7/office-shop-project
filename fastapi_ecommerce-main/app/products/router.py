@@ -445,6 +445,7 @@ async def get_customization_options(product_id: int, db: AsyncSession = Depends(
 @router.get("/users/me/options", response_model=List[schemas.CustomizationOptionResponse])
 async def get_my_customization_options(
     product_id: Optional[int] = None,
+    variation_id: Optional[int] = None,
     design_area: Optional[schemas.AreaType] = None,
     skip: int = 0,
     limit: int = 20,
@@ -452,7 +453,7 @@ async def get_my_customization_options(
     current_user = Depends(get_current_user)
 ):
     options = await service.get_user_customization_options(
-        db, current_user.id, product_id, design_area, skip, limit
+        db, current_user.id, product_id, variation_id, design_area, skip, limit
     )
     
     # Convert media paths to full URLs

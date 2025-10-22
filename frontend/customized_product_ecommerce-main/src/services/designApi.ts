@@ -457,21 +457,22 @@ class DesignApiService {
   ): Promise<DesignLoadResponse | null> {
     try {
       const userId = await this.getUserId();
-      
+
       // Only load from database if user is authenticated
       if (!userId) {
         return null;
       }
 
       const headers = await this.getAuthHeaders();
+      // ✅ FIX: Use /users/me/options endpoint to filter by current user only
       const response = await fetch(
-        `${API_BASE_URL}/products/${productId}/options?variation_id=${variationId}&design_area=${designArea}`,
+        `${API_BASE_URL}/products/users/me/options?product_id=${productId}&variation_id=${variationId}&design_area=${designArea}`,
         {
           headers,
           cache: 'no-store',
         }
       );
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           console.log('No design found for this variation and area');
@@ -479,21 +480,20 @@ class DesignApiService {
         }
         throw new Error(`Failed to load design: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
-      // Find the design that matches our criteria
+
+      // The endpoint now filters by user, product, variation, and design_area
+      // So we should get the exact design or an empty array
       const designs = Array.isArray(data) ? data : [data];
-      const matchingDesign = designs.find((design: any) => 
-        design.variation_id === variationId && 
-        design.design_area === designArea
-      );
-      
-      if (matchingDesign) {
-        console.log('Design loaded successfully:', matchingDesign);
+
+      if (designs.length > 0) {
+        const matchingDesign = designs[0]; // Take the first (most recent) design
+        console.log('✅ Design loaded successfully for current user:', matchingDesign);
         return matchingDesign;
       }
-      
+
+      console.log('✅ No existing design found - starting with fresh canvas');
       return null;
     } catch (error) {
       console.error('Error loading design with new format:', error);

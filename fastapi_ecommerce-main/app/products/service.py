@@ -378,13 +378,14 @@ async def delete_customization_option(db: AsyncSession, option_id: int) -> dict:
     return {"message": "Customization option deleted successfully"}
 
 async def get_user_customization_options(
-    db: AsyncSession, 
+    db: AsyncSession,
     user_id: int,
     product_id: Optional[int] = None,
+    variation_id: Optional[int] = None,
     design_area: Optional[str] = None,
     skip: int = 0,
     limit: int = 20
 ) -> List[models.CustomizationOption]:
     return await crud.get_customization_options_by_user(
-        db, user_id, product_id, design_area, skip, limit
+        db, user_id, product_id, variation_id, design_area, skip, limit
     )
