@@ -15,12 +15,14 @@ export interface DesignSaveRequest {
     background?: string;
     backgroundImage?: any;
   };
+  svg_data?: string;  // Add SVG data field
   design_metadata: {
     canvas_width: number;
     canvas_height: number;
     product_image_url: string;
     design_name: string;
     is_completed: boolean;
+    preview_image_url?: string;  // Add preview image URL field
   };
   design_elements: any[];
 }
