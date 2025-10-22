@@ -425,7 +425,7 @@ export default function OrderDetailsPage() {
     {
       title: 'Design',
       key: 'design',
-      width: 150,
+      width: 180,
       render: (_, record) => {
         const hasDesign = record.customization_option_id || record.design_svg_data || record.design_elements;
 
@@ -433,10 +433,10 @@ export default function OrderDetailsPage() {
           return <Text type="secondary" style={{ fontSize: '11px' }}>No customization</Text>;
         }
 
-        const handleDownloadSVG = async () => {
+        const handleDownloadFile = async (fileType: 'svg' | 'canvas' | 'elements') => {
           try {
             const response = await fetch(
-              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-svg`,
+              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-${fileType}`,
               {
                 headers: {
                   'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -445,7 +445,7 @@ export default function OrderDetailsPage() {
             );
 
             if (!response.ok) {
-              message.error('SVG file not available for this item');
+              message.error(`${fileType.toUpperCase()} file not available for this item`);
               return;
             }
 
@@ -453,55 +453,109 @@ export default function OrderDetailsPage() {
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `order_${order.id}_item_${record.id}_design.svg`;
+
+            // Set filename based on file type
+            const extension = fileType === 'svg' ? 'svg' : 'json';
+            link.download = `order_${order.id}_item_${record.id}_${fileType}.${extension}`;
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
-            message.success('SVG design downloaded successfully');
+            message.success(`${fileType.toUpperCase()} file downloaded successfully`);
           } catch (error) {
             console.error('Download error:', error);
-            message.error('Failed to download SVG');
+            message.error(`Failed to download ${fileType.toUpperCase()}`);
           }
         };
 
-        const textElements = record.design_elements?.filter((el: any) =>
-          el.type === 'text' || el.type === 'i-text' || el.type === 'textbox'
-        ) || [];
+        // Count different element types
+        const elementCounts = {
+          text: 0,
+          image: 0,
+          shape: 0,
+          other: 0
+        };
+
+        record.design_elements?.forEach((el: any) => {
+          if (el.type === 'text' || el.type === 'i-text' || el.type === 'textbox') {
+            elementCounts.text++;
+          } else if (el.type === 'image') {
+            elementCounts.image++;
+          } else if (el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || el.type === 'path') {
+            elementCounts.shape++;
+          } else {
+            elementCounts.other++;
+          }
+        });
+
+        const totalElements = record.design_elements?.length || 0;
 
         return (
           <div>
             <Tag color="purple" style={{ fontSize: '10px', marginBottom: 4 }}>
               Custom Design
             </Tag>
-            {textElements.length > 0 && (
-              <div style={{ marginTop: 4 }}>
-                <Text type="secondary" style={{ fontSize: '10px' }}>
-                  Text: {textElements.length} element{textElements.length > 1 ? 's' : ''}
+
+            {totalElements > 0 && (
+              <div style={{ marginTop: 4, marginBottom: 4 }}>
+                <Text type="secondary" style={{ fontSize: '10px', display: 'block' }}>
+                  Total: {totalElements} element{totalElements > 1 ? 's' : ''}
                 </Text>
+                {elementCounts.text > 0 && (
+                  <Text type="secondary" style={{ fontSize: '9px', display: 'block' }}>
+                    • Text: {elementCounts.text}
+                  </Text>
+                )}
+                {elementCounts.image > 0 && (
+                  <Text type="secondary" style={{ fontSize: '9px', display: 'block' }}>
+                    • Images: {elementCounts.image}
+                  </Text>
+                )}
+                {elementCounts.shape > 0 && (
+                  <Text type="secondary" style={{ fontSize: '9px', display: 'block' }}>
+                    • Shapes: {elementCounts.shape}
+                  </Text>
+                )}
               </div>
             )}
-            {record.design_svg_data && (
-              <div style={{ marginTop: 4 }}>
+
+            <div style={{ marginTop: 6 }}>
+              {record.design_svg_data && (
                 <Button
                   size="small"
                   type="link"
                   icon={<DownloadOutlined />}
-                  onClick={handleDownloadSVG}
-                  style={{ padding: 0, fontSize: '11px' }}
+                  onClick={() => handleDownloadFile('svg')}
+                  style={{ padding: 0, fontSize: '10px', display: 'block', marginBottom: 2 }}
                 >
-                  Download SVG
+                  SVG
                 </Button>
-              </div>
-            )}
-            {!record.design_svg_data && textElements.length > 0 && (
-              <div style={{ marginTop: 4 }}>
-                <Text type="secondary" style={{ fontSize: '9px' }}>
-                  (SVG not available)
-                </Text>
-              </div>
-            )}
+              )}
+              {record.design_canvas_data && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<DownloadOutlined />}
+                  onClick={() => handleDownloadFile('canvas')}
+                  style={{ padding: 0, fontSize: '10px', display: 'block', marginBottom: 2 }}
+                >
+                  Canvas JSON
+                </Button>
+              )}
+              {record.design_elements && record.design_elements.length > 0 && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<DownloadOutlined />}
+                  onClick={() => handleDownloadFile('elements')}
+                  style={{ padding: 0, fontSize: '10px', display: 'block' }}
+                >
+                  Elements JSON
+                </Button>
+              )}
+            </div>
           </div>
         );
       },

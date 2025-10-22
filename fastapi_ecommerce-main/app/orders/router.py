@@ -319,3 +319,101 @@ async def download_order_item_svg(
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+
+@router.get("/{order_id}/items/{item_id}/download-canvas", dependencies=[Depends(require_admin)])
+async def download_order_item_canvas(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download canvas JSON data for a specific order item (admin only).
+
+    This endpoint returns the complete Fabric.js canvas data including all objects,
+    transformations, and design elements. Useful for recreating or editing the design.
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_canvas_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No canvas data available for this order item"
+        )
+
+    # Prepare filename
+    filename = f"order_{order_id}_item_{item_id}_canvas.json"
+
+    # Return canvas data as downloadable JSON file
+    import json
+    from io import BytesIO
+    canvas_json = json.dumps(order_item.design_canvas_data, indent=2)
+    canvas_bytes = BytesIO(canvas_json.encode("utf-8"))
+
+    return StreamingResponse(
+        canvas_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/{order_id}/items/{item_id}/download-elements", dependencies=[Depends(require_admin)])
+async def download_order_item_elements(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download design elements JSON for a specific order item (admin only).
+
+    This endpoint returns a simplified list of design elements (text, images, shapes)
+    with their properties. Useful for understanding the design composition.
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_elements:
+        raise HTTPException(
+            status_code=404,
+            detail="No design elements available for this order item"
+        )
+
+    # Prepare filename
+    filename = f"order_{order_id}_item_{item_id}_elements.json"
+
+    # Return design elements as downloadable JSON file
+    import json
+    from io import BytesIO
+    elements_json = json.dumps(order_item.design_elements, indent=2)
+    elements_bytes = BytesIO(elements_json.encode("utf-8"))
+
+    return StreamingResponse(
+        elements_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
