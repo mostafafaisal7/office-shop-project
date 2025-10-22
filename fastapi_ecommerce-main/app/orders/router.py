@@ -540,10 +540,16 @@ Use these files for production, printing, or design editing.
                 # Handle image elements
                 elif obj_type == 'image':
                     image_count += 1
+                    # ✅ FIX: Use savedImageUrl if src is a blob URL
                     image_src = obj.get('src', '')
+                    if image_src.startswith('blob:'):
+                        # Fall back to savedImageUrl custom property
+                        image_src = obj.get('savedImageUrl', '')
+                        print(f"⚠️ Found blob URL, using savedImageUrl instead: {image_src}")
+
                     print(f"Processing image {image_count}: {image_src}")
 
-                    # Skip blob URLs
+                    # Skip blob URLs (and empty strings)
                     if image_src and not image_src.startswith('blob:'):
                         try:
                             # Parse the URL to get the filename

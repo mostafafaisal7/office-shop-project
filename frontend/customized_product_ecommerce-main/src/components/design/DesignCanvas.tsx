@@ -141,7 +141,8 @@ useEffect(() => {
       console.log('💾 BEFORE sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src, savedImageUrl: o.savedImageUrl })));
 
       canvasData.objects = canvasData.objects.map((obj: any) => {
-        if (obj.type === "image" && obj.src?.startsWith("blob:")) {
+        // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
+        if (obj.type?.toLowerCase() === "image" && obj.src?.startsWith("blob:")) {
           console.log('🔄 Replacing blob URL:', obj.src);
           console.log('🔄 With savedImageUrl:', obj.savedImageUrl);
           obj.src = obj.savedImageUrl || productImage;
@@ -276,13 +277,25 @@ useEffect(() => {
 
         // Fix object blobs
         fixedCanvasData.objects = fixedCanvasData.objects.map((obj: any) => {
-          if (obj.type === "image" && obj.src?.startsWith("blob:")) {
+          // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
+          if (obj.type?.toLowerCase() === "image" && obj.src?.startsWith("blob:")) {
             obj.src = obj.savedImageUrl || productImage;
           }
           return obj;
         });
 
         canvas.loadFromJSON(fixedCanvasData, async () => {
+          // ✅ CRITICAL FIX: Restore custom properties after loadFromJSON
+          // canvas.loadFromJSON recreates objects and loses custom properties
+          canvas.getObjects().forEach((canvasObj: any, index: number) => {
+            const originalData = fixedCanvasData.objects[index];
+            // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
+            if (canvasObj.type?.toLowerCase() === 'image' && originalData?.savedImageUrl) {
+              canvasObj.set('savedImageUrl', originalData.savedImageUrl);
+              console.log('✅ Restored savedImageUrl to canvas object:', originalData.savedImageUrl);
+            }
+          });
+
           await loadBackgroundImage(productImage);
           canvas.renderAll();
           console.log("✅ Design loaded successfully (localStorage-first, blob URLs cleaned)");

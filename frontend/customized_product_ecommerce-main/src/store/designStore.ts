@@ -164,7 +164,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
     if (Array.isArray(cleaned.objects)) {
       cleaned.objects = cleaned.objects.map((obj: any) => {
-        if (obj?.type === "image" && obj?.src?.startsWith("blob:")) {
+        // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
+        if (obj?.type?.toLowerCase() === "image" && obj?.src?.startsWith("blob:")) {
           console.warn("⚠️ Stripping blob src before saving:", obj.src);
           obj.src = obj.savedImageUrl || ""; // fallback empty if nothing else
         }
