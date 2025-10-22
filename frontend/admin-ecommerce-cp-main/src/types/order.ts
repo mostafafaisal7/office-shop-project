@@ -56,6 +56,24 @@ export interface OrderItemDetailRead extends OrderItemRead {
   shipping_method?: any;
   shipping_address?: any;
   payment_method?: any;
+  // Design data for customized products
+  design_svg_data?: string;
+  design_canvas_data?: Record<string, any>;
+  design_elements?: Array<{
+    type: string;
+    content?: string;
+    src?: string;
+    position?: {
+      x: number;
+      y: number;
+      z: number;
+    };
+    style?: Record<string, any>;
+    dimensions?: {
+      width: number;
+      height: number;
+    };
+  }>;
   variation_details?: {
     id: number;
     product_id: number;
@@ -96,6 +114,9 @@ export interface OrderRead {
   items?: OrderItemRead[];
   created_at: string;
   updated_at?: string;
+  // User information for displaying customer details
+  user_name?: string;
+  user_email?: string;
 }
 
 export interface OrderDetailRead {

@@ -367,6 +367,10 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
             "discount_percentage": item.discount_percentage,
             "discount_amount": item.discount_amount,
             "discount_type": item.discount_type,
+            # Include design data for customized products
+            "design_svg_data": item.design_svg_data,
+            "design_canvas_data": item.design_canvas_data,
+            "design_elements": item.design_elements,
             "shipping_method": None,
             "variation_details": None
         }
@@ -623,10 +627,33 @@ async def list_orders_with_pagination(
     
     # Calculate total pages
     total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
-    
-    # Convert to OrderListItem schemas
-    order_items = [schemas.OrderListItem.model_validate(order) for order in orders]
-    
+
+    # Fetch user details for orders with user_id
+    user_ids = {order.user_id for order in orders if order.user_id}
+    user_data_map = {}
+
+    if user_ids:
+        for user_id in user_ids:
+            try:
+                user = await get_user_details(db, user_id)
+                if user:
+                    user_data_map[user_id] = user
+            except Exception as e:
+                print(f"Error fetching user details for user_id {user_id}: {str(e)}")
+
+    # Convert to OrderListItem schemas and add user information
+    order_items = []
+    for order in orders:
+        order_dict = schemas.OrderListItem.model_validate(order).model_dump()
+
+        # Add user information if available
+        if order.user_id and order.user_id in user_data_map:
+            user = user_data_map[order.user_id]
+            order_dict["user_name"] = user.full_name
+            order_dict["user_email"] = user.email
+
+        order_items.append(schemas.OrderListItem.model_validate(order_dict))
+
     return schemas.OrderListResponse(
         orders=order_items,
         total=total_count,

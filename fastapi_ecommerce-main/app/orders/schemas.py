@@ -252,6 +252,10 @@ class OrderListItem(BaseModel):
     tracking_info: Optional[str]
     # No items field - this is the key difference for performance
 
+    # User information for displaying customer name
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 

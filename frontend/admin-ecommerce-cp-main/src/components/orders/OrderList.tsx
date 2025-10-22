@@ -397,11 +397,16 @@ export const OrderList: React.FC<OrderListProps> = ({ ordersData }) => {
       render: (_: any, record: OrderRead) => (
         <div>
           <div style={{ fontWeight: '500', fontSize: '14px', marginBottom: '4px' }}>
-            {(record as any).user_name || 'Guest Customer'}
+            {record.user_name || 'Guest Customer'}
           </div>
           {record.user_id && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
               ID: {record.user_id}
+            </Text>
+          )}
+          {record.user_email && (
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+              {record.user_email}
             </Text>
           )}
         </div>
