@@ -562,28 +562,30 @@ Use these files for production, printing, or design editing.
                                 # Extract path after /images/
                                 image_path = image_src.split('/images/', 1)[1]
 
-                                # Construct full file path
-                                full_path = os.path.join('uploads', 'images', image_path)
-                                print(f"Looking for image at: {full_path}")
+                                # ✅ FIX: Try multiple possible locations for the image
+                                # 1. app/static/ (where /images/ URLs are served from)
+                                # 2. uploads/images/ (legacy location)
+                                # 3. images/ (relative path)
+                                possible_paths = [
+                                    os.path.join('app', 'static', image_path),
+                                    os.path.join('uploads', 'images', image_path),
+                                    os.path.join('images', image_path)
+                                ]
 
-                                if os.path.exists(full_path):
-                                    with open(full_path, 'rb') as img_file:
-                                        img_filename = f"images/{original_filename}"
-                                        zip_file.writestr(img_filename, img_file.read())
-                                        files_added.append(img_filename)
-                                        print(f"Added {img_filename}")
-                                else:
-                                    # Try without 'uploads' prefix
-                                    alt_path = os.path.join('images', image_path)
-                                    print(f"Trying alternate path: {alt_path}")
-                                    if os.path.exists(alt_path):
-                                        with open(alt_path, 'rb') as img_file:
+                                image_found = False
+                                for full_path in possible_paths:
+                                    print(f"Looking for image at: {full_path}")
+                                    if os.path.exists(full_path):
+                                        with open(full_path, 'rb') as img_file:
                                             img_filename = f"images/{original_filename}"
                                             zip_file.writestr(img_filename, img_file.read())
                                             files_added.append(img_filename)
-                                            print(f"Added {img_filename}")
-                                    else:
-                                        print(f"WARNING: Image not found at {full_path} or {alt_path}")
+                                            print(f"✅ Added {img_filename} from {full_path}")
+                                            image_found = True
+                                            break
+
+                                if not image_found:
+                                    print(f"⚠️ WARNING: Image not found at any of the checked paths: {possible_paths}")
 
                         except Exception as e:
                             print(f"ERROR processing image {image_count}: {e}")
