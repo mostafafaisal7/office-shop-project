@@ -507,41 +507,99 @@ Use these files for production, printing, or design editing.
             for idx, obj in enumerate(objects):
                 obj_type = obj.get('type', '').lower()
 
-                # Handle text elements - convert to SVG
+                # Handle text elements - convert to SVG with EXACT canvas properties
                 if obj_type in ['text', 'i-text', 'textbox']:
                     text_count += 1
+
+                    # Extract all text properties from canvas
                     text_content = obj.get('text', '')
+                    left = obj.get('left', 0)
+                    top = obj.get('top', 0)
                     font_family = obj.get('fontFamily', 'Arial')
                     font_size = obj.get('fontSize', 40)
                     fill_color = obj.get('fill', '#000000')
-                    font_weight = 'bold' if obj.get('fontWeight') == 'bold' else 'normal'
-                    font_style = 'italic' if obj.get('fontStyle') == 'italic' else 'normal'
-                    text_decoration = ''
-                    if obj.get('underline'):
-                        text_decoration = 'underline'
-                    if obj.get('linethrough'):
-                        text_decoration += ' line-through'
+                    font_weight = obj.get('fontWeight', 'normal')
+                    font_style = obj.get('fontStyle', 'normal')
 
-                    # Create SVG for text
+                    # Scaling
+                    scale_x = obj.get('scaleX', 1)
+                    scale_y = obj.get('scaleY', 1)
+
+                    # Rotation
+                    angle = obj.get('angle', 0)
+
+                    # Opacity
+                    opacity = obj.get('opacity', 1)
+
+                    # Text decoration
+                    text_decoration = []
+                    if obj.get('underline'):
+                        text_decoration.append('underline')
+                    if obj.get('linethrough'):
+                        text_decoration.append('line-through')
+                    text_decoration_str = ' '.join(text_decoration) if text_decoration else 'none'
+
+                    # Text alignment
+                    text_align = obj.get('textAlign', 'left')
+                    text_anchor = {'left': 'start', 'center': 'middle', 'right': 'end'}.get(text_align, 'start')
+
+                    # Stroke (outline)
+                    stroke = obj.get('stroke', '')
+                    stroke_width = obj.get('strokeWidth', 0)
+
+                    # Line height and character spacing
+                    line_height = obj.get('lineHeight', 1.16)
+                    char_spacing = obj.get('charSpacing', 0)
+
+                    # Build transform string
+                    transforms = []
+                    if left != 0 or top != 0:
+                        transforms.append(f"translate({left}, {top})")
+                    if angle != 0:
+                        transforms.append(f"rotate({angle})")
+                    if scale_x != 1 or scale_y != 1:
+                        transforms.append(f"scale({scale_x}, {scale_y})")
+                    transform_str = ' '.join(transforms)
+
+                    # Escape text content for XML
+                    import html
+                    text_escaped = html.escape(text_content)
+
+                    # Create production-ready SVG with all properties preserved
                     svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
-  <text x="{obj.get('left', 0)}" y="{obj.get('top', 0)}"
-        font-family="{font_family}"
-        font-size="{font_size}"
-        fill="{fill_color}"
-        font-weight="{font_weight}"
-        font-style="{font_style}"
-        text-decoration="{text_decoration}">
-    {text_content}
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family={font_family.replace(' ', '+')}');
+    </style>
+  </defs>
+  <text
+    x="0"
+    y="0"
+    font-family="{font_family}"
+    font-size="{font_size}"
+    font-weight="{font_weight}"
+    font-style="{font_style}"
+    fill="{fill_color}"
+    opacity="{opacity}"
+    text-anchor="{text_anchor}"
+    text-decoration="{text_decoration_str}"
+    stroke="{stroke}"
+    stroke-width="{stroke_width}"
+    letter-spacing="{char_spacing}"
+    transform="{transform_str}">
+    {text_escaped}
   </text>
 </svg>'''
 
-                    # Add to ZIP
+                    # Add to ZIP with metadata comment
                     filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', text_content[:20]) if text_content else f"text_{text_count}"
                     svg_filename = f"texts/text_{text_count}_{filename_safe}.svg"
                     zip_file.writestr(svg_filename, svg_content)
                     files_added.append(svg_filename)
-                    print(f"Added {svg_filename}")
+
+                    print(f"✅ Added {svg_filename}")
+                    print(f"   Properties: position({left},{top}), angle({angle}°), scale({scale_x}x{scale_y}), opacity({opacity})")
 
                 # Handle image elements
                 elif obj_type == 'image':
