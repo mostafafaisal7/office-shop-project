@@ -436,7 +436,7 @@ export default function OrderDetailsPage() {
         const handleDownloadFile = async (fileType: 'svg' | 'canvas' | 'elements') => {
           try {
             const response = await fetch(
-              `http://127.0.0.1:8000/orders/${order.id}/items/${record.id}/download-${fileType}`,
+              `/api/orders/${order.id}/items/${record.id}/download-${fileType}`,
               {
                 headers: {
                   'Authorization': `Bearer ${localStorage.getItem('access_token')}`
