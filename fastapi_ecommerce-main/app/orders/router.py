@@ -417,3 +417,155 @@ async def download_order_item_elements(
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+
+@router.get("/{order_id}/items/{item_id}/download-design-package", dependencies=[Depends(require_admin)])
+async def download_order_item_design_package(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download complete design package as ZIP file (admin only).
+
+    This endpoint returns a ZIP file containing:
+    - Text elements as individual SVG files
+    - Images as their original uploaded files
+    - A manifest.json with design metadata
+
+    Perfect for production/printing workflows.
+    """
+    import zipfile
+    import io
+    import os
+    import re
+    from urllib.parse import urlparse
+    import aiohttp
+
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_canvas_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No design data available for this order item"
+        )
+
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        canvas_data = order_item.design_canvas_data
+        objects = canvas_data.get('objects', [])
+
+        text_count = 0
+        image_count = 0
+
+        # Process each object in the canvas
+        for idx, obj in enumerate(objects):
+            obj_type = obj.get('type', '').lower()
+
+            # Handle text elements - convert to SVG
+            if obj_type in ['text', 'i-text', 'textbox']:
+                text_count += 1
+                text_content = obj.get('text', '')
+                font_family = obj.get('fontFamily', 'Arial')
+                font_size = obj.get('fontSize', 40)
+                fill_color = obj.get('fill', '#000000')
+                font_weight = 'bold' if obj.get('fontWeight') == 'bold' else 'normal'
+                font_style = 'italic' if obj.get('fontStyle') == 'italic' else 'normal'
+                text_decoration = ''
+                if obj.get('underline'):
+                    text_decoration = 'underline'
+                if obj.get('linethrough'):
+                    text_decoration += ' line-through'
+
+                # Create SVG for text
+                svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <text x="{obj.get('left', 0)}" y="{obj.get('top', 0)}"
+        font-family="{font_family}"
+        font-size="{font_size}"
+        fill="{fill_color}"
+        font-weight="{font_weight}"
+        font-style="{font_style}"
+        text-decoration="{text_decoration}">
+    {text_content}
+  </text>
+</svg>'''
+
+                # Add to ZIP
+                filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', text_content[:20])
+                zip_file.writestr(f"texts/text_{text_count}_{filename_safe}.svg", svg_content)
+
+            # Handle image elements
+            elif obj_type == 'image':
+                image_count += 1
+                image_src = obj.get('src', '')
+
+                # Skip blob URLs
+                if image_src and not image_src.startswith('blob:'):
+                    try:
+                        # Parse the URL to get the filename
+                        parsed_url = urlparse(image_src)
+                        path_parts = parsed_url.path.split('/')
+                        original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
+
+                        # If it's a local file path
+                        if 'images/' in image_src:
+                            # Extract path after /images/
+                            image_path = image_src.split('/images/', 1)[1]
+
+                            # Construct full file path
+                            full_path = os.path.join('uploads', 'images', image_path)
+
+                            if os.path.exists(full_path):
+                                with open(full_path, 'rb') as img_file:
+                                    zip_file.writestr(f"images/{original_filename}", img_file.read())
+                            else:
+                                # Try without 'uploads' prefix
+                                alt_path = os.path.join('images', image_path)
+                                if os.path.exists(alt_path):
+                                    with open(alt_path, 'rb') as img_file:
+                                        zip_file.writestr(f"images/{original_filename}", img_file.read())
+
+                    except Exception as e:
+                        print(f"Error processing image {image_count}: {e}")
+
+        # Add manifest with design info
+        manifest = {
+            "order_id": order_id,
+            "order_item_id": item_id,
+            "product_id": order_item.product_id,
+            "product_name": order_item.product_name,
+            "text_elements": text_count,
+            "image_elements": image_count,
+        }
+
+        import json
+        zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+        # Also add the full canvas JSON for reference
+        zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
+
+    # Prepare the ZIP file for download
+    zip_buffer.seek(0)
+    filename = f"order_{order_id}_item_{item_id}_design_package.zip"
+
+    return StreamingResponse(
+        io.BytesIO(zip_buffer.read()),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )

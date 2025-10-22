@@ -433,7 +433,7 @@ export default function OrderDetailsPage() {
           return <Text type="secondary" style={{ fontSize: '11px' }}>No customization</Text>;
         }
 
-        const handleDownloadFile = async (fileType: 'svg' | 'canvas' | 'elements') => {
+        const handleDownloadFile = async (fileType: 'svg' | 'canvas' | 'elements' | 'design-package') => {
           try {
             const response = await fetch(
               `/api/orders/${order.id}/items/${record.id}/download-${fileType}`,
@@ -445,7 +445,7 @@ export default function OrderDetailsPage() {
             );
 
             if (!response.ok) {
-              message.error(`${fileType.toUpperCase()} file not available for this item`);
+              message.error(`${fileType === 'design-package' ? 'Design package' : fileType.toUpperCase()} not available for this item`);
               return;
             }
 
@@ -455,7 +455,10 @@ export default function OrderDetailsPage() {
             link.href = url;
 
             // Set filename based on file type
-            const extension = fileType === 'svg' ? 'svg' : 'json';
+            let extension = 'json';
+            if (fileType === 'svg') extension = 'svg';
+            else if (fileType === 'design-package') extension = 'zip';
+
             link.download = `order_${order.id}_item_${record.id}_${fileType}.${extension}`;
 
             document.body.appendChild(link);
@@ -463,10 +466,16 @@ export default function OrderDetailsPage() {
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
-            message.success(`${fileType.toUpperCase()} file downloaded successfully`);
+            const successMessage = fileType === 'design-package'
+              ? 'Design package (ZIP) downloaded successfully'
+              : `${fileType.toUpperCase()} file downloaded successfully`;
+            message.success(successMessage);
           } catch (error) {
             console.error('Download error:', error);
-            message.error(`Failed to download ${fileType.toUpperCase()}`);
+            const errorMessage = fileType === 'design-package'
+              ? 'Failed to download design package'
+              : `Failed to download ${fileType.toUpperCase()}`;
+            message.error(errorMessage);
           }
         };
 
@@ -522,6 +531,17 @@ export default function OrderDetailsPage() {
             )}
 
             <div style={{ marginTop: 6 }}>
+              {record.design_canvas_data && (
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={() => handleDownloadFile('design-package')}
+                  style={{ fontSize: '10px', marginBottom: 4, width: '100%' }}
+                >
+                  Download Package (ZIP)
+                </Button>
+              )}
               {record.design_svg_data && (
                 <Button
                   size="small"
@@ -530,7 +550,7 @@ export default function OrderDetailsPage() {
                   onClick={() => handleDownloadFile('svg')}
                   style={{ padding: 0, fontSize: '10px', display: 'block', marginBottom: 2 }}
                 >
-                  SVG
+                  SVG Only
                 </Button>
               )}
               {record.design_canvas_data && (
