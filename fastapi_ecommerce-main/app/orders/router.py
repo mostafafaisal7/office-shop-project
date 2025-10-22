@@ -458,7 +458,49 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    if not order_item.design_canvas_data:
+    # ✅ FIX: Fetch ALL customization options for this product/variation
+    # User might have designed on multiple areas (front, back, left, right)
+    # Each area has separate canvas_data - we need to combine them all
+    all_objects = []
+
+    if order_item.customization_option_id:
+        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
+
+        # Import products models to access CustomizationOption
+        from app.products import models as product_models
+
+        # Get the customization option to find client_reference_id
+        result = await db.execute(
+            select(product_models.CustomizationOption)
+            .where(product_models.CustomizationOption.id == order_item.customization_option_id)
+        )
+        main_option = result.scalar_one_or_none()
+
+        if main_option and main_option.client_reference_id:
+            # Fetch ALL customization options with the same client_reference_id
+            # These represent all design areas (front, back, left, right) for this product/variation
+            result = await db.execute(
+                select(product_models.CustomizationOption)
+                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
+            )
+            all_options = result.scalars().all()
+
+            print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
+
+            # Combine objects from all design areas
+            for option in all_options:
+                area_objects = option.canvas_data.get('objects', [])
+                print(f"  - {option.design_area}: {len(area_objects)} objects")
+                all_objects.extend(area_objects)
+        else:
+            # Fallback: use just the main option's canvas_data
+            if order_item.design_canvas_data:
+                all_objects = order_item.design_canvas_data.get('objects', [])
+    elif order_item.design_canvas_data:
+        # Fallback: use order_item's saved canvas_data
+        all_objects = order_item.design_canvas_data.get('objects', [])
+
+    if not all_objects:
         raise HTTPException(
             status_code=404,
             detail="No design data available for this order item"
@@ -469,14 +511,12 @@ async def download_order_item_design_package(
         zip_buffer = io.BytesIO()
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            canvas_data = order_item.design_canvas_data
-            objects = canvas_data.get('objects', [])
+            objects = all_objects
 
             print(f"\n{'='*60}")
             print(f"DEBUG: ZIP Creation for Order {order_id}, Item {item_id}")
             print(f"{'='*60}")
-            print(f"Canvas data keys: {list(canvas_data.keys())}")
-            print(f"Total objects in canvas_data: {len(objects)}")
+            print(f"Total objects from ALL design areas: {len(objects)}")
             print(f"Object types: {[obj.get('type') for obj in objects]}")
             print(f"{'='*60}\n")
 
