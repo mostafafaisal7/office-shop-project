@@ -540,12 +540,21 @@ Use these files for production, printing, or design editing.
                 # Handle image elements
                 elif obj_type == 'image':
                     image_count += 1
-                    # ✅ FIX: Use savedImageUrl if src is a blob URL
-                    image_src = obj.get('src', '')
-                    if image_src.startswith('blob:'):
-                        # Fall back to savedImageUrl custom property
-                        image_src = obj.get('savedImageUrl', '')
-                        print(f"⚠️ Found blob URL, using savedImageUrl instead: {image_src}")
+
+                    # ✅ FIX: Prefer savedImageUrl (original uploaded image) over src
+                    # savedImageUrl contains the original uploaded image URL
+                    # src might contain blob URLs or preview images (which are composites)
+                    image_src = obj.get('savedImageUrl', '') or obj.get('src', '')
+
+                    if not image_src or image_src.startswith('blob:'):
+                        print(f"⚠️ Skipping image {image_count}: no valid source URL (blob or empty)")
+                        continue
+
+                    # ✅ Skip preview images - we want original uploaded images only
+                    if '/previews/' in image_src:
+                        print(f"⚠️ Skipping preview image {image_count}: {image_src}")
+                        print(f"   (Preview images are composites - we need original uploaded images)")
+                        continue
 
                     print(f"Processing image {image_count}: {image_src}")
 
