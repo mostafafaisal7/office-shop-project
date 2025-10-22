@@ -38,6 +38,10 @@ async def create_order(db: AsyncSession, order_data: schemas.OrderCreate) -> mod
                 quantity=item.quantity,
                 unit_price=item.unit_price,
                 shipping_method_id=item.shipping_method_id,
+                # Add design data fields for customized products
+                design_svg_data=item.design_svg_data,
+                design_canvas_data=item.design_canvas_data,
+                design_elements=item.design_elements,
                 # Add discount fields
                 discount_rule_id=item.discount_rule_id,
                 original_unit_price=item.original_unit_price,
