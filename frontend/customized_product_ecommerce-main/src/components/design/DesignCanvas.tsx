@@ -204,6 +204,17 @@ useEffect(() => {
 
   console.log("DesignCanvas: Loading design with variation ID:", variationId);
 
+  // ✅ FIX: Don't load if no valid variation is selected
+  // This prevents loading wrong designs with "default" key
+  if (!selectedVariation?.variationId && !selectedVariation?.size && !selectedVariation?.color) {
+    console.log("⚠️ No variation selected, skipping design load");
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj !== canvas.backgroundImage) canvas.remove(obj);
+    });
+    loadBackgroundImage(productImage);
+    return;
+  }
+
   const loadBackgroundImage = async (url: string) => {
     if (!url) return;
 
@@ -240,26 +251,16 @@ useEffect(() => {
 
   const loadSavedDesign = async () => {
     try {
-      // 1️⃣ Compute localStorage key
-      const localKey = `design_${productId}_${variationId}_${currentDesignArea}`;
-      const localDesign = localStorage.getItem(localKey);
-      let designData = localDesign ? JSON.parse(localDesign) : null;
+      // ✅ FIX: Use designStore's loadDesign method instead of direct localStorage access
+      // This ensures we use the correct storage format (Map in 'ecommerce_designs' key)
+      let designData = null;
 
-      // 2️⃣ If no localStorage data and user is authenticated, fetch from backend
-      if (!designData) {
-        try {
-          const { useAuthStore } = await import('@/store/authStore');
-          const { isAuthenticated } = useAuthStore.getState();
-
-          if (isAuthenticated) {
-            designData = await loadDesign(productId, variationId, currentDesignArea);
-            if (designData) {
-              localStorage.setItem(localKey, JSON.stringify(designData));
-            }
-          }
-        } catch (err) {
-          console.warn('Auth store not ready or user not logged in', err);
-        }
+      try {
+        // Use the designStore's loadDesign which handles both localStorage and database
+        designData = await loadDesign(productId, variationId, currentDesignArea);
+        console.log("📦 Design loaded:", designData ? "found" : "not found");
+      } catch (err) {
+        console.warn('Error loading design:', err);
       }
 
       // 3️⃣ Clear canvas except background
@@ -291,7 +292,8 @@ useEffect(() => {
             const originalData = fixedCanvasData.objects[index];
             // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
             if (canvasObj.type?.toLowerCase() === 'image' && originalData?.savedImageUrl) {
-              canvasObj.set('savedImageUrl', originalData.savedImageUrl);
+              // ✅ CRITICAL: Assign directly, not via .set() - Fabric.js v6 requirement
+              canvasObj.savedImageUrl = originalData.savedImageUrl;
               console.log('✅ Restored savedImageUrl to canvas object:', originalData.savedImageUrl);
             }
           });
@@ -484,6 +486,7 @@ useEffect(() => {
       console.log('🎨 Adding image to canvas, original URL:', designJson.content);
       const originalImageUrl = designJson.content; // Store original URL
       loadImage(designJson.content, (img: FabricImage) => {
+        // ✅ FIX: Set standard properties first
         img.set({
           left: canvas.getWidth() / 2,
           top: canvas.getHeight() / 2,
@@ -491,9 +494,13 @@ useEffect(() => {
           originY: 'center',
           scaleX: 0.5,
           scaleY: 0.5,
-          savedImageUrl: originalImageUrl,  // Use .set() to make it serializable
         });
+
+        // ✅ CRITICAL FIX: Assign custom property directly (not via .set())
+        // Fabric.js v6 requires direct assignment for custom properties to serialize
+        (img as any).savedImageUrl = originalImageUrl;
         console.log('🎨 Stored savedImageUrl on image object:', (img as any).savedImageUrl);
+
         canvas.add(img);
         canvas.setActiveObject(img);
         renderCanvas();
