@@ -138,12 +138,19 @@ useEffect(() => {
         delete canvasData.backgroundImage;
       }
 
+      console.log('💾 BEFORE sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src })));
+
       canvasData.objects = canvasData.objects.map((obj: any) => {
         if (obj.type === "image" && obj.src?.startsWith("blob:")) {
+          console.log('🔄 Replacing blob URL:', obj.src);
+          console.log('🔄 With savedImageUrl:', obj.savedImageUrl);
           obj.src = obj.savedImageUrl || productImage;
+          console.log('🔄 Final src:', obj.src);
         }
         return obj;
       });
+
+      console.log('💾 AFTER sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src })));
 
       if (canvasData.objects && canvasData.objects.length > 0) {
         console.log("Canvas changed, auto-saving design...");
@@ -461,6 +468,8 @@ useEffect(() => {
 
     case 'image':
       if (!designJson.content) return;
+      console.log('🎨 Adding image to canvas, original URL:', designJson.content);
+      const originalImageUrl = designJson.content; // Store original URL
       loadImage(designJson.content, (img: FabricImage) => {
         img.set({
           left: canvas.getWidth() / 2,
@@ -470,6 +479,9 @@ useEffect(() => {
           scaleX: 0.5,
           scaleY: 0.5,
         });
+        // Store original server URL for later retrieval
+        (img as any).savedImageUrl = originalImageUrl;
+        console.log('🎨 Stored savedImageUrl on image object:', (img as any).savedImageUrl);
         canvas.add(img);
         canvas.setActiveObject(img);
         renderCanvas();
