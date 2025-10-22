@@ -545,21 +545,46 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     try {
       // Import auth store dynamically to avoid circular dependencies
       const { useAuthStore } = await import('@/store/authStore');
-      const { isAuthenticated, user } = useAuthStore.getState();
-      
-      if (!isAuthenticated || !user) {
-        console.log('User not authenticated, cannot get customization option ID');
-        return null;
+      const { isAuthenticated } = useAuthStore.getState();
+
+      // Try to load the design - works for both authenticated and guest users
+      // For guests, it will use localStorage; for authenticated, it will fetch from backend
+      const designData = await get().loadDesign(productId, variationId.toString(), designArea);
+
+      if (designData) {
+        // If loaded from database/backend, try to get the customization option ID
+        if (isAuthenticated) {
+          try {
+            const backendDesign = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
+            if (backendDesign && backendDesign.id) {
+              console.log('Found customization option ID from backend:', backendDesign.id);
+              return backendDesign.id;
+            }
+          } catch (error) {
+            console.warn('Could not fetch from backend, will try to save design first:', error);
+          }
+        }
+
+        // If no ID yet, save the design to create a customization option
+        // This handles both authenticated users and prepares for guest users
+        console.log('No existing customization option ID, saving design to create one...');
+        await get().saveDesign(
+          designData.canvas_data,
+          designData.design_metadata.product_image_url,
+          undefined, // no preview URL
+          undefined  // SVG will be generated automatically
+        );
+
+        // Try to fetch the ID again after saving
+        if (isAuthenticated) {
+          const savedDesign = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
+          if (savedDesign && savedDesign.id) {
+            console.log('Created and retrieved customization option ID:', savedDesign.id);
+            return savedDesign.id;
+          }
+        }
       }
 
-      // Use the designApi to fetch the customization option
-      const designData = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
-      
-      if (designData && designData.id) {
-        console.log('Found customization option ID:', designData.id);
-        return designData.id;
-      }
-      
       console.log('No customization option found for:', { productId, variationId, designArea });
       return null;
     } catch (error) {
