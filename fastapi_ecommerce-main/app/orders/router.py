@@ -541,35 +541,36 @@ Use these files for production, printing, or design editing.
                 elif obj_type == 'image':
                     image_count += 1
 
-                    # ✅ FIX: Prefer savedImageUrl (original uploaded image) over src
-                    # savedImageUrl contains the original uploaded image URL
-                    # src might contain blob URLs or preview images (which are composites)
-                    image_src = obj.get('savedImageUrl', '') or obj.get('src', '')
+                    # ✅ FIX: Include BOTH original uploaded images AND preview images
+                    # Get both savedImageUrl (original) and src (might be preview)
+                    saved_image_url = obj.get('savedImageUrl', '')
+                    src_url = obj.get('src', '')
 
-                    if not image_src or image_src.startswith('blob:'):
-                        print(f"⚠️ Skipping image {image_count}: no valid source URL (blob or empty)")
+                    # Collect all valid image URLs
+                    image_urls = []
+                    if saved_image_url and not saved_image_url.startswith('blob:'):
+                        image_urls.append(('original', saved_image_url))
+                    if src_url and not src_url.startswith('blob:') and src_url != saved_image_url:
+                        image_urls.append(('preview', src_url))
+
+                    if not image_urls:
+                        print(f"⚠️ Skipping image {image_count}: no valid source URLs")
                         continue
 
-                    # ✅ Skip preview images - we want original uploaded images only
-                    if '/previews/' in image_src:
-                        print(f"⚠️ Skipping preview image {image_count}: {image_src}")
-                        print(f"   (Preview images are composites - we need original uploaded images)")
-                        continue
+                    print(f"Processing image {image_count} ({len(image_urls)} versions):")
 
-                    print(f"Processing image {image_count}: {image_src}")
-
-                    # Skip blob URLs (and empty strings)
-                    if image_src and not image_src.startswith('blob:'):
+                    # Process each image URL (original and/or preview)
+                    for img_type, image_url in image_urls:
                         try:
                             # Parse the URL to get the filename
-                            parsed_url = urlparse(image_src)
+                            parsed_url = urlparse(image_url)
                             path_parts = parsed_url.path.split('/')
                             original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
 
                             # If it's a local file path
-                            if 'images/' in image_src:
+                            if 'images/' in image_url:
                                 # Extract path after /images/
-                                image_path = image_src.split('/images/', 1)[1]
+                                image_path = image_url.split('/images/', 1)[1]
 
                                 # ✅ FIX: Try multiple possible locations for the image
                                 # 1. app/static/ (where /images/ URLs are served from)
@@ -583,21 +584,22 @@ Use these files for production, printing, or design editing.
 
                                 image_found = False
                                 for full_path in possible_paths:
-                                    print(f"Looking for image at: {full_path}")
+                                    print(f"  Looking for {img_type} image at: {full_path}")
                                     if os.path.exists(full_path):
                                         with open(full_path, 'rb') as img_file:
-                                            img_filename = f"images/{original_filename}"
+                                            # Add prefix to filename to distinguish original vs preview
+                                            img_filename = f"images/{img_type}_{original_filename}"
                                             zip_file.writestr(img_filename, img_file.read())
                                             files_added.append(img_filename)
-                                            print(f"✅ Added {img_filename} from {full_path}")
+                                            print(f"  ✅ Added {img_filename}")
                                             image_found = True
                                             break
 
                                 if not image_found:
-                                    print(f"⚠️ WARNING: Image not found at any of the checked paths: {possible_paths}")
+                                    print(f"  ⚠️ WARNING: {img_type} image not found at any checked path")
 
                         except Exception as e:
-                            print(f"ERROR processing image {image_count}: {e}")
+                            print(f"  ❌ ERROR processing {img_type} image {image_count}: {e}")
 
             # Add manifest with design info
             manifest = {
