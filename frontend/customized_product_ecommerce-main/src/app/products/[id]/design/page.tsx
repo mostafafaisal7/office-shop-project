@@ -743,13 +743,18 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   };
 
   const handleImageUpload = (fileOrUrl: File | string) => {
-    console.log('Image uploaded:', typeof fileOrUrl === 'string' ? fileOrUrl : fileOrUrl.name);
+    const isServerUrl = typeof fileOrUrl === 'string';
+    console.log('🖼️ handleImageUpload called with:', isServerUrl ? 'SERVER URL' : 'FILE object');
+    console.log('🖼️ Value:', isServerUrl ? fileOrUrl : fileOrUrl.name);
 
     // If it's a string (server URL), use it directly
     // If it's a File, create a temporary blob URL (fallback for old flow)
-    const imageUrl = typeof fileOrUrl === 'string'
+    const imageUrl = isServerUrl
       ? fileOrUrl
       : URL.createObjectURL(fileOrUrl);
+
+    console.log('🖼️ Adding to canvas with URL:', imageUrl);
+    console.log('🖼️ URL type:', imageUrl.startsWith('http') ? 'SERVER URL ✅' : 'BLOB URL ❌');
 
     // Add image to canvas automatically
     setDesignJson({

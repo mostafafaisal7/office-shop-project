@@ -131,13 +131,16 @@ useEffect(() => {
       const data = await res.json();
 
       if (data.image_url) {
+        console.log('✅ IMAGE UPLOAD SUCCESS - Server URL:', data.image_url);
         // Replace preview with backend URL
         setUploadedImages(prev =>
           prev.map(url => (url === previewUrl ? data.image_url : url))
         );
         // Pass the server URL to canvas, not the file
+        console.log('✅ Passing SERVER URL to canvas:', data.image_url);
         onImageUpload(data.image_url);
       } else {
+        console.error('❌ Upload failed - no image_url in response');
         alert('Upload failed. Please try again.');
         setUploadedImages(prev => prev.filter(url => url !== previewUrl));
       }
