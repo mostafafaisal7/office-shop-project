@@ -204,17 +204,7 @@ useEffect(() => {
 
   console.log("DesignCanvas: Loading design with variation ID:", variationId);
 
-  // ✅ FIX: Don't load if no valid variation is selected
-  // This prevents loading wrong designs with "default" key
-  if (!selectedVariation?.variationId && !selectedVariation?.size && !selectedVariation?.color) {
-    console.log("⚠️ No variation selected, skipping design load");
-    canvas.getObjects().forEach((obj: any) => {
-      if (obj !== canvas.backgroundImage) canvas.remove(obj);
-    });
-    loadBackgroundImage(productImage);
-    return;
-  }
-
+  // ✅ DEFINE loadBackgroundImage BEFORE using it
   const loadBackgroundImage = async (url: string) => {
     if (!url) return;
 
@@ -248,6 +238,17 @@ useEffect(() => {
       canvas.renderAll();
     }
   };
+
+  // ✅ FIX: Don't load if no valid variation is selected
+  // This prevents loading wrong designs with "default" key
+  if (!selectedVariation?.variationId && !selectedVariation?.size && !selectedVariation?.color) {
+    console.log("⚠️ No variation selected, skipping design load");
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj !== canvas.backgroundImage) canvas.remove(obj);
+    });
+    loadBackgroundImage(productImage);  // Now this works because function is defined above
+    return;
+  }
 
   const loadSavedDesign = async () => {
     try {
@@ -313,13 +314,15 @@ useEffect(() => {
   };
 
   loadSavedDesign();
+  // ✅ FIX: Removed productImage from dependencies to prevent loops
+  // productImage is used inside but doesn't need to trigger reload
+  // Only reload when productId, variation, or design area changes
 }, [
   isCanvasReady,
   productId,
   selectedVariation,
   currentDesignArea,
   loadDesign,
-  productImage,
 ]);
 
 
@@ -731,52 +734,9 @@ useEffect(() => {
 //     console.log('🗑 Auto-save listeners removed');
 //   };
 // }, [isCanvasReady, productImage, autoSaveDesign, productId]);
-
-
-useEffect(() => {
-  if (!fabricCanvasRef.current || !fabricLoaded || !productImage) return;
-
-  const canvas = fabricCanvasRef.current;
-
-  console.log('🎯 Loading product image into canvas:', productImage);
-
-  const loadFabricImage = (url: string) =>
-    new Promise<FabricImage>((resolve, reject) => {
-      FabricImage.fromURL(
-        url,
-        { crossOrigin: 'anonymous' },
-        (img: any) => {
-          if (!img) return reject(new Error('Failed to load image'));
-          resolve(img);
-        }
-      );
-    });
-
-  loadFabricImage(productImage)
-    .then((img) => {
-      const scale = Math.min(canvas.getWidth() / (img.width || 1), canvas.getHeight() / (img.height || 1));
-
-      img.set({
-        scaleX: scale,
-        scaleY: scale,
-        left: canvas.getWidth() / 2,
-        top: canvas.getHeight() / 2,
-        originX: 'center',
-        originY: 'center',
-        selectable: false,
-        evented: false,
-      });
-
-      canvas.backgroundImage = img;
-      canvas.renderAll();
-      console.log('✅ Product image loaded successfully');
-    })
-    .catch((error) => {
-      console.error('❌ Error loading product image:', error);
-      canvas.backgroundColor = '#f3f4f6';
-      canvas.renderAll();
-    });
-}, [fabricLoaded, productImage]);
+// ✅ REMOVED: Duplicate background image loading useEffect
+// Background is already loaded in the design loading useEffect above (lines 196-323)
+// This was causing duplicate product images in the canvas
 
 // async function generatePreview(canvasData, baseImageUrl, options) {
 //   // 1. Load base image
