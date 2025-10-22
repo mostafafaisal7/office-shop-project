@@ -472,7 +472,13 @@ async def download_order_item_design_package(
             canvas_data = order_item.design_canvas_data
             objects = canvas_data.get('objects', [])
 
-            print(f"Processing {len(objects)} canvas objects...")
+            print(f"\n{'='*60}")
+            print(f"DEBUG: ZIP Creation for Order {order_id}, Item {item_id}")
+            print(f"{'='*60}")
+            print(f"Canvas data keys: {list(canvas_data.keys())}")
+            print(f"Total objects in canvas_data: {len(objects)}")
+            print(f"Object types: {[obj.get('type') for obj in objects]}")
+            print(f"{'='*60}\n")
 
             text_count = 0
             image_count = 0
