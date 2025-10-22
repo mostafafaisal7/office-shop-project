@@ -125,20 +125,20 @@ useEffect(() => {
   const canvas = fabricCanvasRef.current;
 
   const hasCanvasChanged = () => {
-    const currentCanvasState = JSON.stringify(canvas.toJSON());
+    const currentCanvasState = JSON.stringify(canvas.toJSON(['savedImageUrl']));
     return currentCanvasState !== lastCanvasState;
   };
 
   const saveIfChanged = () => {
     if (hasCanvasChanged()) {
-      // ✅ Sanitize canvas data to remove blob URLs
-      const canvasData = canvas.toJSON();
+      // ✅ Include custom properties in serialization
+      const canvasData = canvas.toJSON(['savedImageUrl']);
 
       if (canvasData.backgroundImage?.src?.startsWith("blob:")) {
         delete canvasData.backgroundImage;
       }
 
-      console.log('💾 BEFORE sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src })));
+      console.log('💾 BEFORE sanitization - canvas objects:', canvasData.objects.map((o: any) => ({ type: o.type, src: o.src, savedImageUrl: o.savedImageUrl })));
 
       canvasData.objects = canvasData.objects.map((obj: any) => {
         if (obj.type === "image" && obj.src?.startsWith("blob:")) {
@@ -178,7 +178,7 @@ useEffect(() => {
   canvas.on("object:modified", handleCanvasChange);
   canvas.on("text:changed", handleCanvasChange);
 
-  setLastCanvasState(JSON.stringify(canvas.toJSON()));
+  setLastCanvasState(JSON.stringify(canvas.toJSON(['savedImageUrl'])));
 
   return () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
