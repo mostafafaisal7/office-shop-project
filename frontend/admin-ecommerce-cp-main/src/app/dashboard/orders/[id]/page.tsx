@@ -439,7 +439,7 @@ export default function OrderDetailsPage() {
               `/api/orders/${order.id}/items/${record.id}/download-${fileType}`,
               {
                 headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                  'Authorization': `Bearer ${localStorage.getItem('admin_access_token')}`
                 }
               }
             );
