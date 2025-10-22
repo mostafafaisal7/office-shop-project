@@ -123,17 +123,18 @@ class OrderItemDetailRead(BaseModel):
     quantity: int
     unit_price: float
     shipping_method_id: Optional[int] = None
-    
+
     # Discount tracking fields (matching the database model)
     discount_rule_id: Optional[int] = None
     original_unit_price: Optional[float] = None
     discount_percentage: Optional[float] = None
     discount_amount: Optional[float] = None
     discount_type: Optional[str] = None
-    
+
     # Enriched related objects (fetched via HTTP)
     shipping_method: Optional[ShippingMethodDetail] = None
     variation_details: Optional[VariationDetail] = None
+    customization_details: Optional[dict] = None  # Full customization option data
 
     model_config = ConfigDict(from_attributes=True)
 

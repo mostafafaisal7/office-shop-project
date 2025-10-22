@@ -97,7 +97,7 @@ async def fetch_payment_method_details(method_id: int) -> Optional[PaymentMethod
     try:
         base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         url = f"{base_url}/payment/methods/{method_id}"
-        
+
         response = await http_get(url)
         if response and response.get("id"):
             return PaymentMethodDetail(
@@ -110,7 +110,23 @@ async def fetch_payment_method_details(method_id: int) -> Optional[PaymentMethod
     except Exception as e:
         print(f"Error fetching payment method details for method_id {method_id}: {str(e)}")
         return None
-    
+
+    return None
+
+
+async def fetch_customization_option_details(option_id: int) -> Optional[dict]:
+    """Fetch customization option details from the products service"""
+    try:
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        url = f"{base_url}/products/options/{option_id}"
+
+        response = await http_get(url)
+        if response and response.get("id"):
+            return response  # Return the full customization option data
+    except Exception as e:
+        print(f"Error fetching customization option details for option_id {option_id}: {str(e)}")
+        return None
+
     return None
 
 
@@ -342,6 +358,7 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
     # 4️⃣ The rest is exactly the same
     variation_ids = set()
     item_shipping_method_ids = set()
+    customization_option_ids = set()
     fetch_tasks = []
 
     if order.payment_method_id is not None:
@@ -368,13 +385,16 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
             "discount_amount": item.discount_amount,
             "discount_type": item.discount_type,
             "shipping_method": None,
-            "variation_details": None
+            "variation_details": None,
+            "customization_details": None
         }
 
         if item.variation_id:
             variation_ids.add(item.variation_id)
         if item.shipping_method_id:
             item_shipping_method_ids.add(item.shipping_method_id)
+        if item.customization_option_id:
+            customization_option_ids.add(item.customization_option_id)
 
         order_dict["items"].append(item_dict)
 
@@ -382,6 +402,8 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
         fetch_tasks.append((f"variation_{variation_id}", fetch_variation_details(variation_id)))
     for method_id in item_shipping_method_ids:
         fetch_tasks.append((f"shipping_method_{method_id}", fetch_shipping_method_details(method_id)))
+    for option_id in customization_option_ids:
+        fetch_tasks.append((f"customization_{option_id}", fetch_customization_option_details(option_id)))
 
     if fetch_tasks:
         task_names, tasks = zip(*fetch_tasks)
@@ -405,6 +427,9 @@ async def get_order(db: AsyncSession, order_id: str) -> Optional[schemas.OrderDe
         if item_dict["shipping_method_id"]:
             shipping_method_key = f"shipping_method_{item_dict['shipping_method_id']}"
             item_dict["shipping_method"] = fetched_data.get(shipping_method_key)
+        if item_dict["customization_option_id"]:
+            customization_key = f"customization_{item_dict['customization_option_id']}"
+            item_dict["customization_details"] = fetched_data.get(customization_key)
 
     return schemas.OrderDetailRead.model_validate(order_dict)
 

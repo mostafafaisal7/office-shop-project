@@ -81,6 +81,45 @@ export interface OrderItemDetailRead extends OrderItemRead {
       uploaded_at: string;
     }>;
   };
+  customization_details?: {
+    id: number;
+    client_reference_id?: string;
+    user_id: number;
+    product_id: number;
+    variation_id: number;
+    design_area: string;
+    canvas_data: {
+      version: string;
+      objects: any[];
+      background?: string;
+      backgroundImage?: any;
+    };
+    design_metadata: {
+      canvas_width: number;
+      canvas_height: number;
+      product_image_url?: string;
+      preview_image_url?: string;
+      created_at?: string;
+      updated_at?: string;
+      design_name?: string;
+      is_completed: boolean;
+    };
+    design_elements: any[];
+    created_at: string;
+    updated_at: string;
+    media?: Array<{
+      id: number;
+      file_path: string;
+      file_name: string;
+      file_size?: number;
+      media_type: string;
+      mime_type?: string;
+      alt_text?: string;
+      canvas_object_id?: string;
+      layer_order: number;
+      uploaded_at: string;
+    }>;
+  };
 }
 
 export interface OrderRead {

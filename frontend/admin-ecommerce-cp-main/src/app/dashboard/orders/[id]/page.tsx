@@ -586,6 +586,104 @@ export default function OrderDetailsPage() {
               dataSource={order.items}
               rowKey="id"
               pagination={false}
+              expandable={{
+                expandedRowRender: (record) => {
+                  if (!record.customization_details) return null;
+
+                  const custDetails = record.customization_details;
+                  return (
+                    <div style={{ padding: '16px', background: '#f7f9fc', borderRadius: '8px' }}>
+                      <Title level={5} style={{ marginTop: 0 }}>🎨 Custom Design Details</Title>
+
+                      <Row gutter={[16, 16]}>
+                        {/* Design Info */}
+                        <Col span={8}>
+                          <Card size="small" title="Design Information">
+                            <p><Text strong>Design Area:</Text> {custDetails.design_area}</p>
+                            <p><Text strong>Design ID:</Text> {custDetails.id}</p>
+                            <p><Text strong>Canvas Size:</Text> {custDetails.design_metadata.canvas_width} x {custDetails.design_metadata.canvas_height}</p>
+                            <p><Text strong>Elements:</Text> {custDetails.canvas_data.objects?.length || 0} objects</p>
+                            <p><Text strong>Created:</Text> {dayjs(custDetails.created_at).format('MMM DD, YYYY HH:mm')}</p>
+                          </Card>
+                        </Col>
+
+                        {/* Preview Image */}
+                        <Col span={8}>
+                          <Card size="small" title="Design Preview">
+                            {custDetails.design_metadata.preview_image_url ? (
+                              <img
+                                src={custDetails.design_metadata.preview_image_url}
+                                alt="Design Preview"
+                                style={{ width: '100%', borderRadius: '4px', border: '1px solid #d9d9d9' }}
+                              />
+                            ) : custDetails.media && custDetails.media.length > 0 ? (
+                              <img
+                                src={custDetails.media[0].file_path}
+                                alt="Design Media"
+                                style={{ width: '100%', borderRadius: '4px', border: '1px solid #d9d9d9' }}
+                              />
+                            ) : (
+                              <div style={{ padding: '24px', textAlign: 'center', background: '#fafafa', borderRadius: '4px' }}>
+                                <Text type="secondary">No preview available</Text>
+                              </div>
+                            )}
+                          </Card>
+                        </Col>
+
+                        {/* Design Elements */}
+                        <Col span={8}>
+                          <Card size="small" title="Design Elements">
+                            {custDetails.design_elements && custDetails.design_elements.length > 0 ? (
+                              <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                                {custDetails.design_elements.map((element: any, idx: number) => (
+                                  <div key={idx} style={{ marginBottom: '8px', padding: '8px', background: '#fff', borderRadius: '4px', border: '1px solid #e8e8e8' }}>
+                                    <Text strong>{element.type}</Text>
+                                    {element.content && <div><Text type="secondary">{element.content}</Text></div>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : custDetails.canvas_data.objects && custDetails.canvas_data.objects.length > 0 ? (
+                              <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                                {custDetails.canvas_data.objects.slice(0, 5).map((obj: any, idx: number) => (
+                                  <div key={idx} style={{ marginBottom: '4px', padding: '4px 8px', background: '#fff', borderRadius: '4px', fontSize: '12px' }}>
+                                    <Tag color="blue">{obj.type || 'object'}</Tag>
+                                    {obj.text && <Text type="secondary">{obj.text.substring(0, 30)}...</Text>}
+                                  </div>
+                                ))}
+                                {custDetails.canvas_data.objects.length > 5 && (
+                                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                                    +{custDetails.canvas_data.objects.length - 5} more objects
+                                  </Text>
+                                )}
+                              </div>
+                            ) : (
+                              <Text type="secondary">No design elements</Text>
+                            )}
+                          </Card>
+                        </Col>
+                      </Row>
+
+                      {/* Additional Media */}
+                      {custDetails.media && custDetails.media.length > 1 && (
+                        <div style={{ marginTop: '16px' }}>
+                          <Text strong>Additional Design Media:</Text>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            {custDetails.media.slice(1).map((media: any, idx: number) => (
+                              <img
+                                key={idx}
+                                src={media.file_path}
+                                alt={media.alt_text || `Media ${idx + 1}`}
+                                style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #d9d9d9' }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                },
+                rowExpandable: (record) => !!record.customization_details,
+              }}
               summary={(pageData) => {
                 const total = pageData.reduce(
                   (sum, record) => sum + record.quantity * record.unit_price,
