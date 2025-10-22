@@ -546,18 +546,26 @@ Use these files for production, printing, or design editing.
                     saved_image_url = obj.get('savedImageUrl', '')
                     src_url = obj.get('src', '')
 
+                    print(f"\nProcessing image {image_count}:")
+                    print(f"  savedImageUrl: {saved_image_url[:80] if saved_image_url else 'None'}...")
+                    print(f"  src: {src_url[:80] if src_url else 'None'}...")
+
                     # Collect all valid image URLs
                     image_urls = []
                     if saved_image_url and not saved_image_url.startswith('blob:'):
                         image_urls.append(('original', saved_image_url))
+                        print(f"  ✓ Will include original image")
                     if src_url and not src_url.startswith('blob:') and src_url != saved_image_url:
                         image_urls.append(('preview', src_url))
+                        print(f"  ✓ Will include preview image (different from original)")
+                    elif src_url == saved_image_url:
+                        print(f"  ℹ️ src and savedImageUrl are the same - including only once")
 
                     if not image_urls:
                         print(f"⚠️ Skipping image {image_count}: no valid source URLs")
                         continue
 
-                    print(f"Processing image {image_count} ({len(image_urls)} versions):")
+                    print(f"  Total versions to add: {len(image_urls)}")
 
                     # Process each image URL (original and/or preview)
                     for img_type, image_url in image_urls:
@@ -587,8 +595,9 @@ Use these files for production, printing, or design editing.
                                     print(f"  Looking for {img_type} image at: {full_path}")
                                     if os.path.exists(full_path):
                                         with open(full_path, 'rb') as img_file:
-                                            # Add prefix to filename to distinguish original vs preview
-                                            img_filename = f"images/{img_type}_{original_filename}"
+                                            # ✅ FIX: Add image_count to make each filename unique
+                                            # This prevents overwriting when multiple images have same filename
+                                            img_filename = f"images/{img_type}_{image_count}_{original_filename}"
                                             zip_file.writestr(img_filename, img_file.read())
                                             files_added.append(img_filename)
                                             print(f"  ✅ Added {img_filename}")
@@ -597,6 +606,7 @@ Use these files for production, printing, or design editing.
 
                                 if not image_found:
                                     print(f"  ⚠️ WARNING: {img_type} image not found at any checked path")
+                                    print(f"      URL was: {image_url}")
 
                         except Exception as e:
                             print(f"  ❌ ERROR processing {img_type} image {image_count}: {e}")
