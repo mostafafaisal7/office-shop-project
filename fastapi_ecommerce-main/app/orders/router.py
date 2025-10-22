@@ -558,12 +558,12 @@ async def download_order_item_design_package(
         # Also add the full canvas JSON for reference
         zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
 
-    # Prepare the ZIP file for download
-    zip_buffer.seek(0)
+    # Get the ZIP file bytes
+    zip_bytes = zip_buffer.getvalue()
     filename = f"order_{order_id}_item_{item_id}_design_package.zip"
 
     return StreamingResponse(
-        io.BytesIO(zip_buffer.read()),
+        iter([zip_bytes]),
         media_type="application/zip",
         headers={
             "Content-Disposition": f"attachment; filename={filename}"
