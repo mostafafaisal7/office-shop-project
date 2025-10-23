@@ -150,10 +150,15 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
       onClick={handleBackdropClick}
       style={{ margin: 0, padding: '1rem' }}
     >
-      {/* 400x400 Centered Modal */}
+      {/* Responsive Centered Modal - larger for better viewing */}
       <div
         className="relative bg-white rounded-lg shadow-2xl"
-        style={{ width: '400px', height: '400px' }}
+        style={{
+          width: 'min(800px, 90vw)',
+          height: 'min(800px, 90vh)',
+          maxWidth: '90vw',
+          maxHeight: '90vh'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

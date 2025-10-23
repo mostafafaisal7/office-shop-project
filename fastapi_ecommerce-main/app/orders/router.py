@@ -1180,14 +1180,23 @@ Use these files for production, printing, or design editing.
                             if not image_data_uri:
                                 continue  # Skip if we can't embed the image
 
-                            # Build transform string
+                            # ✅ FIX: Proper SVG transform handling
+                            # Fabric.js uses center-based transforms, SVG uses corner-based
+                            # We need to translate to center, rotate/scale, then position
+                            center_x = width / 2
+                            center_y = height / 2
+
+                            # Build transform: translate to position, then rotate around center, then scale
                             transforms = []
-                            if left != 0 or top != 0:
-                                transforms.append(f"translate({left}, {top})")
+                            transforms.append(f"translate({left}, {top})")
                             if angle != 0:
-                                transforms.append(f"rotate({angle})")
+                                # Rotate around the center of the image
+                                transforms.append(f"rotate({angle}, {center_x}, {center_y})")
                             if scale_x != 1 or scale_y != 1:
+                                # Scale from center
+                                transforms.append(f"translate({center_x}, {center_y})")
                                 transforms.append(f"scale({scale_x}, {scale_y})")
+                                transforms.append(f"translate({-center_x}, {-center_y})")
                             transform_str = ' '.join(transforms)
 
                             # Create image element
@@ -1367,13 +1376,21 @@ Use these files for production, printing, or design editing.
                             if not image_data_uri:
                                 continue
 
+                            # ✅ FIX: Proper SVG transform handling
+                            # Fabric.js uses center-based transforms, SVG uses corner-based
+                            center_x = width / 2
+                            center_y = height / 2
+
                             transforms = []
-                            if left != 0 or top != 0:
-                                transforms.append(f"translate({left}, {top})")
+                            transforms.append(f"translate({left}, {top})")
                             if angle != 0:
-                                transforms.append(f"rotate({angle})")
+                                # Rotate around the center of the image
+                                transforms.append(f"rotate({angle}, {center_x}, {center_y})")
                             if scale_x != 1 or scale_y != 1:
+                                # Scale from center
+                                transforms.append(f"translate({center_x}, {center_y})")
                                 transforms.append(f"scale({scale_x}, {scale_y})")
+                                transforms.append(f"translate({-center_x}, {-center_y})")
                             transform_str = ' '.join(transforms)
 
                             svg_image = f'''  <image
