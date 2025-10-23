@@ -536,11 +536,19 @@ Product: {order_item.product_name}
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Contents:
-- texts/ : Text elements as SVG files
-- images/ : Original uploaded images
+- texts/ : Text elements as SVG files with exact canvas properties
+- images/ : Original uploaded images (without transformations)
+- images_transformed/ : Images as SVG with transformations (position, rotation, scale)
+  * Use these to see exactly how user designed each image
+  * Contains transformation metadata for production
 - previews/ : Preview images showing complete design composited on product
 - manifest.json : Design metadata
 - canvas_data.json : Complete Fabric.js canvas data
+
+IMPORTANT FOR PRODUCTION:
+- Use images_transformed/ to see images as user designed them (with rotation/scale)
+- Use previews/ to see the complete final design on the product
+- Use texts/ for text elements with exact styling and positioning
 
 Use these files for production, printing, or design editing.
 """
@@ -664,6 +672,16 @@ Use these files for production, printing, or design editing.
                 elif obj_type == 'image':
                     image_count += 1
 
+                    # ✅ Extract transformation properties from canvas
+                    left = obj.get('left', 0)
+                    top = obj.get('top', 0)
+                    scale_x = obj.get('scaleX', 1)
+                    scale_y = obj.get('scaleY', 1)
+                    angle = obj.get('angle', 0)
+                    opacity = obj.get('opacity', 1)
+                    width = obj.get('width', 100)
+                    height = obj.get('height', 100)
+
                     # ✅ FIX: Include BOTH original uploaded images AND preview images
                     # Get both savedImageUrl (original) and src (might be preview)
                     saved_image_url = obj.get('savedImageUrl', '')
@@ -672,6 +690,7 @@ Use these files for production, printing, or design editing.
                     print(f"\nProcessing image {image_count}:")
                     print(f"  savedImageUrl: {saved_image_url[:80] if saved_image_url else 'None'}...")
                     print(f"  src: {src_url[:80] if src_url else 'None'}...")
+                    print(f"  Transformations: position({left},{top}), angle({angle}°), scale({scale_x}x{scale_y}), opacity({opacity})")
 
                     # Collect all valid image URLs
                     image_urls = []
@@ -689,6 +708,9 @@ Use these files for production, printing, or design editing.
                         continue
 
                     print(f"  Total versions to add: {len(image_urls)}")
+
+                    # ✅ NEW: Store image URL for transformed SVG generation
+                    primary_image_url = saved_image_url or src_url
 
                     # Process each image URL (original and/or preview)
                     for img_type, image_url in image_urls:
@@ -733,6 +755,65 @@ Use these files for production, printing, or design editing.
 
                         except Exception as e:
                             print(f"  ❌ ERROR processing {img_type} image {image_count}: {e}")
+
+                    # ✅ NEW: Generate SVG with transformations to show image as user designed it
+                    # This is critical for production - manufacturers need to see exactly how the image should be positioned/rotated/scaled
+                    if primary_image_url:
+                        try:
+                            # Build transform string
+                            transforms = []
+                            if left != 0 or top != 0:
+                                transforms.append(f"translate({left}, {top})")
+                            if angle != 0:
+                                transforms.append(f"rotate({angle})")
+                            if scale_x != 1 or scale_y != 1:
+                                transforms.append(f"scale({scale_x}, {scale_y})")
+                            transform_str = ' '.join(transforms)
+
+                            # Calculate SVG bounds to fit transformed image
+                            transformed_width = width * scale_x
+                            transformed_height = height * scale_y
+                            padding = 100
+                            svg_width = max(1200, int((left + transformed_width + padding + 99) / 100) * 100)
+                            svg_height = max(1200, int((top + transformed_height + padding + 99) / 100) * 100)
+
+                            # Create SVG with embedded/referenced image and transformations
+                            # Note: Using href to reference the original image file in the ZIP
+                            parsed_url = urlparse(primary_image_url)
+                            path_parts = parsed_url.path.split('/')
+                            original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
+
+                            # Reference the original image file that's already in the ZIP
+                            image_ref = f"../images/original_{image_count}_{original_filename}"
+
+                            svg_with_transforms = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">
+  <image
+    href="{image_ref}"
+    width="{width}"
+    height="{height}"
+    x="0"
+    y="0"
+    opacity="{opacity}"
+    transform="{transform_str}"
+    preserveAspectRatio="none"/>
+  <text x="10" y="20" font-size="12" fill="#666" font-family="Arial">
+    Transformations: Position({left:.1f}, {top:.1f}), Rotation({angle:.1f}°), Scale({scale_x:.2f}, {scale_y:.2f})
+  </text>
+</svg>'''
+
+                            # Add transformed image SVG to ZIP
+                            filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', original_filename[:20])
+                            transformed_svg_filename = f"images_transformed/image_{image_count}_{filename_safe}_TRANSFORMED.svg"
+                            zip_file.writestr(transformed_svg_filename, svg_with_transforms)
+                            files_added.append(transformed_svg_filename)
+
+                            print(f"  ✅ Added transformed image SVG: {transformed_svg_filename}")
+                            print(f"     Shows image with all transformations as user designed it")
+
+                        except Exception as e:
+                            print(f"  ❌ ERROR generating transformed image SVG: {e}")
 
             # ✅ FIX: Include preview images for each design area
             preview_count = 0
