@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, Download } from 'lucide-react';
 
 interface ImageLightboxProps {
@@ -143,10 +144,11 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const lightboxContent = (
     <div
       className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
+      style={{ margin: 0, padding: '1rem' }}
     >
       {/* 400x400 Centered Modal */}
       <div
@@ -252,6 +254,11 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
       </div>
     </div>
   );
+
+  // Use portal to render at document body level to ensure proper centering
+  return typeof document !== 'undefined'
+    ? createPortal(lightboxContent, document.body)
+    : null;
 };
 
 export default ImageLightbox;

@@ -112,9 +112,13 @@ export const useCartStore = create<CartStore>()(
       // Add item with hybrid approach
       addItem: async (item) => {
         console.log('🔧 addItem called with:', item);
-        
+
         const { isAuthenticated } = useAuth.getState();
-        const id = `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
+        // ✅ FIX: Include customizationId in ID for custom designs to prevent overwriting
+        // Custom designs with different customization IDs should be separate cart items
+        const id = item.customizationId
+          ? `${item.productId}-${item.size || 'default'}-${item.color || 'default'}-custom-${item.customizationId}`
+          : `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
         const existingItem = get().items.find(i => i.id === id);
         
         console.log('🔧 isAuthenticated:', isAuthenticated);

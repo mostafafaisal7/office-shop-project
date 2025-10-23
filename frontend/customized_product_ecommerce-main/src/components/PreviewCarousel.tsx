@@ -100,10 +100,10 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
             }}
           />
 
-          {/* NEW: View icon overlay on hover */}
+          {/* View icon overlay on hover - only show on hover */}
           {enableLightbox && (
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center transition-all pointer-events-none">
-              <Eye className="w-1/3 h-1/3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 flex items-center justify-center transition-all duration-200 pointer-events-none">
+              <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </div>
           )}
 
