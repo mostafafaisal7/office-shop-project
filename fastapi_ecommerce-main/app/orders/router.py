@@ -619,18 +619,30 @@ Use these files for production, printing, or design editing.
                     text_escaped = html.escape(text_content)
 
                     # ✅ FIX: Calculate proper SVG bounds to prevent text cut-off
-                    # Estimate text width (approximate: fontSize * charCount * 0.6 for average chars)
-                    estimated_text_width = font_size * len(text_content) * 0.6 * scale_x
-                    estimated_text_height = font_size * line_height * scale_y
+                    # More accurate text width estimation
+                    # Account for font-weight, character spacing, and multi-line text
+                    char_width_multiplier = 0.65 if font_weight == 'bold' else 0.55
+                    estimated_text_width = (font_size * len(text_content) * char_width_multiplier + char_spacing * len(text_content)) * scale_x
 
-                    # Calculate bounds with padding for rotation and positioning
-                    padding = 100  # Extra padding to ensure nothing is cut off
-                    max_x = max(left + estimated_text_width + padding, 1200)
-                    max_y = max(top + estimated_text_height + padding, 1200)
+                    # Handle multi-line text
+                    line_count = text_content.count('\n') + 1
+                    estimated_text_height = (font_size * line_height * line_count) * scale_y
+
+                    # Account for rotation by calculating bounding box
+                    import math
+                    angle_rad = math.radians(angle)
+                    # Rotated bounding box dimensions
+                    rotated_width = abs(estimated_text_width * math.cos(angle_rad)) + abs(estimated_text_height * math.sin(angle_rad))
+                    rotated_height = abs(estimated_text_width * math.sin(angle_rad)) + abs(estimated_text_height * math.cos(angle_rad))
+
+                    # Calculate bounds with generous padding for rotation and positioning
+                    padding = 300  # Increased padding to ensure nothing is cut off
+                    max_x = left + rotated_width + padding
+                    max_y = top + rotated_height + padding
 
                     # Ensure minimum size and round up to nearest 100
-                    svg_width = max(1200, int((max_x + 99) / 100) * 100)
-                    svg_height = max(1200, int((max_y + 99) / 100) * 100)
+                    svg_width = max(1500, int((max_x + 99) / 100) * 100)
+                    svg_height = max(1500, int((max_y + 99) / 100) * 100)
 
                     # Create production-ready SVG with dynamic size to prevent cut-off
                     svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -771,26 +783,70 @@ Use these files for production, printing, or design editing.
                             transform_str = ' '.join(transforms)
 
                             # Calculate SVG bounds to fit transformed image
-                            transformed_width = width * scale_x
-                            transformed_height = height * scale_y
-                            padding = 100
-                            svg_width = max(1200, int((left + transformed_width + padding + 99) / 100) * 100)
-                            svg_height = max(1200, int((top + transformed_height + padding + 99) / 100) * 100)
+                            # Account for rotation by using diagonal
+                            import math
+                            diagonal = math.sqrt((width * scale_x)**2 + (height * scale_y)**2)
+                            padding = 200  # Increased padding for rotation
+                            svg_width = max(1500, int((left + diagonal + padding + 99) / 100) * 100)
+                            svg_height = max(1500, int((top + diagonal + padding + 99) / 100) * 100)
 
-                            # Create SVG with embedded/referenced image and transformations
-                            # Note: Using href to reference the original image file in the ZIP
+                            # Get the actual filename that was saved to ZIP
                             parsed_url = urlparse(primary_image_url)
                             path_parts = parsed_url.path.split('/')
                             original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
 
-                            # Reference the original image file that's already in the ZIP
-                            image_ref = f"../images/original_{image_count}_{original_filename}"
+                            # ✅ FIX: Reference the actual image file added to ZIP
+                            # The image was added as "images/{img_type}_{image_count}_{filename}"
+                            # Find which type was actually added (original or preview)
+                            img_type_used = 'preview' if not saved_image_url or saved_image_url.startswith('blob:') else 'original'
+                            image_ref = f"../images/{img_type_used}_{image_count}_{original_filename}"
+
+                            # ✅ ALTERNATIVE: Embed image as base64 to avoid reference issues
+                            # Try to read the image file and embed it
+                            image_data_uri = None
+                            if 'previews/' in primary_image_url or 'images/' in primary_image_url:
+                                import base64
+                                if 'previews/' in primary_image_url:
+                                    image_path = primary_image_url.split('/previews/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'previews', image_path),
+                                        os.path.join('uploads', 'previews', image_path),
+                                        os.path.join('previews', image_path)
+                                    ]
+                                else:
+                                    image_path = primary_image_url.split('/images/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'images', image_path),
+                                        os.path.join('uploads', 'images', image_path),
+                                        os.path.join('images', image_path)
+                                    ]
+
+                                for full_path in possible_paths:
+                                    if os.path.exists(full_path):
+                                        try:
+                                            with open(full_path, 'rb') as img_file:
+                                                image_bytes = img_file.read()
+                                                # Detect MIME type from file extension
+                                                ext = original_filename.lower().split('.')[-1]
+                                                mime_type = {
+                                                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                                                    'png': 'image/png', 'gif': 'image/gif',
+                                                    'webp': 'image/webp', 'svg': 'image/svg+xml'
+                                                }.get(ext, 'image/jpeg')
+                                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                image_data_uri = f"data:{mime_type};base64,{image_base64}"
+                                            break
+                                        except Exception as e:
+                                            print(f"  ⚠️ Could not embed image: {e}")
+
+                            # Use embedded image if available, otherwise use reference
+                            image_href = image_data_uri if image_data_uri else image_ref
 
                             svg_with_transforms = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">
   <image
-    href="{image_ref}"
+    href="{image_href}"
     width="{width}"
     height="{height}"
     x="0"
@@ -798,8 +854,8 @@ Use these files for production, printing, or design editing.
     opacity="{opacity}"
     transform="{transform_str}"
     preserveAspectRatio="none"/>
-  <text x="10" y="20" font-size="12" fill="#666" font-family="Arial">
-    Transformations: Position({left:.1f}, {top:.1f}), Rotation({angle:.1f}°), Scale({scale_x:.2f}, {scale_y:.2f})
+  <text x="10" y="{svg_height - 10}" font-size="14" fill="#333" font-family="Arial" font-weight="bold">
+    📐 Position: ({left:.0f}, {top:.0f}) | 🔄 Rotation: {angle:.0f}° | 📏 Scale: {scale_x:.2f}x, {scale_y:.2f}x
   </text>
 </svg>'''
 
@@ -810,10 +866,12 @@ Use these files for production, printing, or design editing.
                             files_added.append(transformed_svg_filename)
 
                             print(f"  ✅ Added transformed image SVG: {transformed_svg_filename}")
-                            print(f"     Shows image with all transformations as user designed it")
+                            print(f"     {'Embedded' if image_data_uri else 'Referenced'} image with transformations")
 
                         except Exception as e:
                             print(f"  ❌ ERROR generating transformed image SVG: {e}")
+                            import traceback
+                            traceback.print_exc()
 
             # ✅ FIX: Include preview images for each design area
             preview_count = 0
@@ -821,12 +879,21 @@ Use these files for production, printing, or design editing.
                 print(f"\n{'='*60}")
                 print("Adding preview images from customization options")
                 print(f"{'='*60}")
+                print(f"Found {len(customization_options)} customization options")
 
-                for option in customization_options:
+                for idx, option in enumerate(customization_options):
+                    print(f"\nOption {idx + 1}:")
+                    print(f"  Design area: {option.design_area}")
+                    print(f"  Has design_metadata: {option.design_metadata is not None}")
+
                     # ✅ FIX: preview_image_url is stored in design_metadata JSON field
                     preview_url = None
                     if option.design_metadata and isinstance(option.design_metadata, dict):
                         preview_url = option.design_metadata.get('preview_image_url')
+                        print(f"  preview_image_url from design_metadata: {preview_url[:80] if preview_url else 'None'}...")
+                    else:
+                        print(f"  design_metadata type: {type(option.design_metadata)}")
+                        print(f"  design_metadata keys: {list(option.design_metadata.keys()) if hasattr(option.design_metadata, 'keys') else 'N/A'}")
 
                     if preview_url and not preview_url.startswith('data:'):
                         preview_count += 1
