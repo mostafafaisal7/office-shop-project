@@ -12,8 +12,8 @@ interface ImageLightboxProps {
 }
 
 /**
- * Reusable ImageLightbox component for viewing images in full-screen modal
- * Features: Navigation, Zoom, Rotate, Download
+ * Reusable ImageLightbox component for viewing images in centered 400x400 popup
+ * Features: Navigation, Zoom, Rotate, Download, Click outside to close
  *
  * Usage:
  * ```tsx
@@ -145,107 +145,110 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black bg-opacity-95 flex items-center justify-center"
+      className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      {/* Close Button */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors z-10"
-        aria-label="Close lightbox"
+      {/* 400x400 Centered Modal */}
+      <div
+        className="relative bg-white rounded-lg shadow-2xl"
+        style={{ width: '400px', height: '400px' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <X size={24} />
-      </button>
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors z-20"
+          aria-label="Close lightbox"
+        >
+          <X size={20} className="text-gray-700" />
+        </button>
 
-      {/* Image Counter */}
-      {images.length > 1 && (
-        <div className="absolute top-4 left-4 px-4 py-2 bg-black bg-opacity-60 text-white rounded-full text-sm z-10">
-          {currentIndex + 1} / {images.length}
+        {/* Image Counter */}
+        {images.length > 1 && (
+          <div className="absolute top-2 left-2 px-3 py-1 bg-black bg-opacity-70 text-white rounded-full text-xs z-10">
+            {currentIndex + 1} / {images.length}
+          </div>
+        )}
+
+        {/* Main Image Container */}
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden rounded-lg p-2">
+          <img
+            src={images[currentIndex]}
+            alt={`${altText} ${currentIndex + 1}`}
+            className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
+            style={{
+              transform: `scale(${zoom}) rotate(${rotation}deg)`,
+              cursor: zoom > 1 ? 'move' : 'default'
+            }}
+            draggable={false}
+          />
+
+          {/* Navigation Arrows - Inside Modal */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={handlePrevious}
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 p-2 bg-black bg-opacity-60 text-white hover:bg-opacity-80 rounded-full transition-all z-10"
+                aria-label="Previous image"
+              >
+                <ChevronLeft size={24} />
+              </button>
+
+              <button
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-black bg-opacity-60 text-white hover:bg-opacity-80 rounded-full transition-all z-10"
+                aria-label="Next image"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
         </div>
-      )}
 
-      {/* Control Bar */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-black bg-opacity-60 px-4 py-2 rounded-full z-10">
-        <button
-          onClick={handleZoomOut}
-          className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-          aria-label="Zoom out"
-          disabled={zoom <= 0.5}
-        >
-          <ZoomOut size={20} />
-        </button>
-
-        <button
-          onClick={handleZoomIn}
-          className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-          aria-label="Zoom in"
-          disabled={zoom >= 3}
-        >
-          <ZoomIn size={20} />
-        </button>
-
-        <button
-          onClick={handleRotate}
-          className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-          aria-label="Rotate"
-        >
-          <RotateCw size={20} />
-        </button>
-
-        <button
-          onClick={handleDownload}
-          className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-          aria-label="Download"
-        >
-          <Download size={20} />
-        </button>
-
-        <div className="px-3 py-2 text-white text-sm flex items-center border-l border-white border-opacity-30 ml-2">
-          {Math.round(zoom * 100)}%
-        </div>
-      </div>
-
-      {/* Navigation Buttons */}
-      {images.length > 1 && (
-        <>
+        {/* Control Bar - Bottom of Modal */}
+        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1 bg-black bg-opacity-70 px-3 py-1.5 rounded-full">
           <button
-            onClick={handlePrevious}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 p-3 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors z-10"
-            aria-label="Previous image"
+            onClick={handleZoomOut}
+            className="p-1.5 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors disabled:opacity-30"
+            aria-label="Zoom out"
+            disabled={zoom <= 0.5}
+            title="Zoom Out (-)"
           >
-            <ChevronLeft size={32} />
+            <ZoomOut size={16} />
           </button>
 
           <button
-            onClick={handleNext}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 p-3 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors z-10"
-            aria-label="Next image"
+            onClick={handleZoomIn}
+            className="p-1.5 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors disabled:opacity-30"
+            aria-label="Zoom in"
+            disabled={zoom >= 3}
+            title="Zoom In (+)"
           >
-            <ChevronRight size={32} />
+            <ZoomIn size={16} />
           </button>
-        </>
-      )}
 
-      {/* Main Image */}
-      <div className="relative w-full h-full flex items-center justify-center p-16">
-        <img
-          src={images[currentIndex]}
-          alt={`${altText} ${currentIndex + 1}`}
-          className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
-          style={{
-            transform: `scale(${zoom}) rotate(${rotation}deg)`,
-            cursor: zoom > 1 ? 'move' : 'default'
-          }}
-          draggable={false}
-        />
-      </div>
+          <button
+            onClick={handleRotate}
+            className="p-1.5 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+            aria-label="Rotate"
+            title="Rotate (R)"
+          >
+            <RotateCw size={16} />
+          </button>
 
-      {/* Keyboard Shortcuts Help */}
-      <div className="absolute bottom-20 left-4 text-white text-xs bg-black bg-opacity-60 px-3 py-2 rounded opacity-50 hover:opacity-100 transition-opacity">
-        <div>← → : Navigate</div>
-        <div>+ - : Zoom</div>
-        <div>R : Rotate</div>
-        <div>ESC : Close</div>
+          <button
+            onClick={handleDownload}
+            className="p-1.5 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+            aria-label="Download"
+            title="Download"
+          >
+            <Download size={16} />
+          </button>
+
+          <div className="px-2 py-1 text-white text-xs flex items-center border-l border-white border-opacity-30 ml-1">
+            {Math.round(zoom * 100)}%
+          </div>
+        </div>
       </div>
     </div>
   );
