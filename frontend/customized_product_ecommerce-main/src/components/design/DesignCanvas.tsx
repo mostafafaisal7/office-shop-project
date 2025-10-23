@@ -36,13 +36,13 @@ interface DesignCanvasProps {
 const DesignCanvas = forwardRef(({ productImage, onCanvasReady }: DesignCanvasProps, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
-  
+
   const [fabricLoaded, setFabricLoaded] = useState(false);
-  const { 
-    designJson, 
-    setSelectedObject, 
-    productId, 
-    selectedVariation, 
+  const {
+    designJson,
+    setSelectedObject,
+    productId,
+    selectedVariation,
     currentDesignArea,
     saveDesign,
     loadDesign,
@@ -53,6 +53,12 @@ const DesignCanvas = forwardRef(({ productImage, onCanvasReady }: DesignCanvasPr
   const [lastCanvasState, setLastCanvasState] = useState<string>('');
   const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ FIX: Track last loaded product to prevent data leak
+  const lastLoadedProductRef = useRef<{productId: string | null, variationId: string | null}>({
+    productId: null,
+    variationId: null
+  });
 
   // Load fabric.js on component mount
 useEffect(() => {
@@ -235,6 +241,25 @@ useEffect(() => {
     }
   };
 
+  // ✅ FIX: Detect product/variation change and clear canvas to prevent data leak
+  const currentProductKey = `${productId}_${variationId}`;
+  const lastProductKey = `${lastLoadedProductRef.current.productId}_${lastLoadedProductRef.current.variationId}`;
+
+  const isProductChanged = currentProductKey !== lastProductKey && lastLoadedProductRef.current.productId !== null;
+
+  if (isProductChanged) {
+    console.log('🔄 Product changed - clearing canvas to prevent data leak');
+    console.log('  Previous:', lastProductKey);
+    console.log('  Current:', currentProductKey);
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj !== canvas.backgroundImage) canvas.remove(obj);
+    });
+    canvas.renderAll();
+  }
+
+  // Update last loaded product reference
+  lastLoadedProductRef.current = { productId, variationId };
+
   // ✅ FIX: Don't load if no valid variation is selected
   // This prevents loading wrong designs with "default" key
   if (!selectedVariation?.variationId && !selectedVariation?.size && !selectedVariation?.color) {
@@ -256,6 +281,14 @@ useEffect(() => {
         designData = await loadDesign(productId, variationId, currentDesignArea);
       } catch (err) {
         console.error('Failed to load design:', err);
+      }
+
+      // ✅ FIX: Validate design belongs to current product (prevent data leak)
+      if (designData && designData.product_id && designData.product_id.toString() !== productId) {
+        console.warn('⚠️ DATA LEAK PREVENTED: Design belongs to different product');
+        console.warn(`  Design product ID: ${designData.product_id}`);
+        console.warn(`  Current product ID: ${productId}`);
+        designData = null; // Reject design from wrong product
       }
 
       // 3️⃣ Clear canvas except background

@@ -757,11 +757,39 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     });
   };
 
-  const handleClearCanvas = () => {
-    setDesignJson({
-      type: 'clear',
-      timestamp: Date.now()
-    });
+  const handleClearCanvas = async () => {
+    // ✅ FIX: Clear ALL design areas (front, back, left, right), not just current area
+    try {
+      // Clear current visible canvas
+      setDesignJson({
+        type: 'clear',
+        timestamp: Date.now()
+      });
+
+      // Clear saved designs for all available views
+      if (productId && selectedVariation?.variationId) {
+        const variationId = selectedVariation.variationId.toString();
+
+        console.log('🧹 Clearing ALL design areas for product:', productId, 'variation:', variationId);
+
+        // Import deleteDesignFromDatabase from designStore
+        const { deleteDesignFromDatabase } = useDesignStore.getState();
+
+        // Delete designs for all available views
+        for (const view of availableViews) {
+          try {
+            console.log(`🧹 Clearing design for area: ${view.area}`);
+            await deleteDesignFromDatabase(productId, selectedVariation.variationId, view.area);
+          } catch (error) {
+            console.error(`Error clearing design for ${view.area}:`, error);
+          }
+        }
+
+        console.log('✅ All design areas cleared');
+      }
+    } catch (error) {
+      console.error('Error clearing all canvas areas:', error);
+    }
   };
 
   const handleTextColorChange = (color: string) => {
