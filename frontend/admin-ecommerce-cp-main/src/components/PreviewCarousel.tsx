@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { LeftOutlined, RightOutlined, EyeOutlined } from '@ant-design/icons';
+import { ImageLightbox } from './common/ImageLightbox';
 
 interface PreviewCarouselProps {
   images: string | string[];
@@ -9,6 +10,7 @@ interface PreviewCarouselProps {
   size?: number;
   showThumbnails?: boolean;
   style?: React.CSSProperties;
+  enableLightbox?: boolean; // NEW: Enable lightbox on click
 }
 
 export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
@@ -16,9 +18,11 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
   alt,
   size = 64,
   showThumbnails = true,
-  style = {}
+  style = {},
+  enableLightbox = true // NEW: Default enabled
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false); // NEW: Lightbox state
   
   // Convert to array for consistent handling
   const imageArray = Array.isArray(images) ? images : [images];
@@ -50,37 +54,91 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
     return imageUrl;
   };
 
+  // NEW: Open lightbox handler
+  const openLightbox = () => {
+    if (enableLightbox) {
+      setLightboxOpen(true);
+    }
+  };
+
+  // NEW: Format all image URLs for lightbox
+  const formattedImageArray = imageArray.map(img => formatImageUrl(img));
+
   return (
-    <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* Main Image */}
-      <div 
-        style={{
-          position: 'relative',
-          width: size,
-          height: size,
-          backgroundColor: '#f0f0f0',
-          borderRadius: '8px',
-          overflow: 'hidden'
-        }}
-      >
-        <img
-          src={formatImageUrl(imageArray[currentIndex]) || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
-          alt={`${alt} ${hasMultipleImages ? `- View ${currentIndex + 1}` : ''}`}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            if (target.src.includes('unsplash')) {
-              return; // Prevent infinite loop
-            }
-            target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
+    <>
+      <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* Main Image */}
+        <div
+          style={{
+            position: 'relative',
+            width: size,
+            height: size,
+            backgroundColor: '#f0f0f0',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            cursor: enableLightbox ? 'pointer' : 'default', // NEW: Pointer cursor
+            transition: 'transform 0.2s', // NEW: Hover effect
           }}
-        />
+          onClick={openLightbox} // NEW: Click to open lightbox
+          onMouseEnter={(e) => {
+            if (enableLightbox) {
+              (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (enableLightbox) {
+              (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+            }
+          }}
+        >
+          <img
+            src={formatImageUrl(imageArray[currentIndex]) || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
+            alt={`${alt} ${hasMultipleImages ? `- View ${currentIndex + 1}` : ''}`}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (target.src.includes('unsplash')) {
+                return; // Prevent infinite loop
+              }
+              target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
+            }}
+          />
+
+          {/* NEW: View icon overlay on hover */}
+          {enableLightbox && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.3s',
+                pointerEvents: 'none'
+              }}
+              className="lightbox-overlay"
+            >
+              <EyeOutlined
+                style={{
+                  fontSize: size / 3,
+                  color: 'white',
+                  opacity: 0,
+                  transition: 'opacity 0.3s'
+                }}
+                className="lightbox-icon"
+              />
+            </div>
+          )}
         
         {/* Navigation Arrows - only show if multiple images */}
         {hasMultipleImages && (
           <>
             <div
-              onClick={prevImage}
+              onClick={(e) => {
+                e.stopPropagation(); // NEW: Prevent lightbox from opening
+                prevImage();
+              }}
               style={{
                 position: 'absolute',
                 left: '4px',
@@ -107,7 +165,10 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
               <LeftOutlined style={{ fontSize: '10px' }} />
             </div>
             <div
-              onClick={nextImage}
+              onClick={(e) => {
+                e.stopPropagation(); // NEW: Prevent lightbox from opening
+                nextImage();
+              }}
               style={{
                 position: 'absolute',
                 right: '4px',
@@ -211,6 +272,28 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
         </div>
       )}
     </div>
+
+    {/* NEW: ImageLightbox modal */}
+    {enableLightbox && (
+      <ImageLightbox
+        images={formattedImageArray}
+        initialIndex={currentIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        altText={alt}
+      />
+    )}
+
+    {/* NEW: CSS for hover effect */}
+    <style jsx>{`
+      .lightbox-overlay:hover {
+        background-color: rgba(0, 0, 0, 0.3) !important;
+      }
+      .lightbox-overlay:hover .lightbox-icon {
+        opacity: 1 !important;
+      }
+    `}</style>
+    </>
   );
 };
 
