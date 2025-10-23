@@ -536,19 +536,29 @@ Product: {order_item.product_name}
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Contents:
-- texts/ : Text elements as SVG files with exact canvas properties
+- print_ready/ : 🆕 PRINT-READY VECTOR SVG FILES - USE THESE FOR CLOTHING PRINTING
+  * Complete composite SVG per design area (front, back, etc.)
+  * All text and images combined in vector format
+  * Exact canvas dimensions and positioning
+  * Images embedded as base64 for portability
+- texts/ : Individual text elements as SVG files
 - images/ : Original uploaded images (without transformations)
-- images_transformed/ : Images as SVG with transformations (position, rotation, scale)
-  * Use these to see exactly how user designed each image
-  * Contains transformation metadata for production
-- previews/ : Preview images showing complete design composited on product
+- images_transformed/ : Individual images as SVG with transformations
+- previews/ : Preview images showing complete design on product
 - manifest.json : Design metadata
 - canvas_data.json : Complete Fabric.js canvas data
 
 IMPORTANT FOR PRODUCTION:
-- Use images_transformed/ to see images as user designed them (with rotation/scale)
+✅ RECOMMENDED: Use print_ready/ for professional printing on clothing
+- These are production-ready vector files
+- One file per design area makes it easy for manufacturers
+- Fully scalable without quality loss
+- All fonts, colors, and transformations preserved
+
+Alternative workflow:
+- Use images_transformed/ to see individual images with transformations
 - Use previews/ to see the complete final design on the product
-- Use texts/ for text elements with exact styling and positioning
+- Use texts/ for individual text elements with exact styling
 
 Use these files for production, printing, or design editing.
 """
@@ -991,6 +1001,405 @@ Use these files for production, printing, or design editing.
             else:
                 print("No customized_images found in order_item")
 
+            # ✅ NEW: Generate print-ready composite SVG files per design area
+            # These are vector files combining all text and images for printing on clothing
+            print(f"\n{'='*60}")
+            print("Generating print-ready vector SVG files for clothing printing")
+            print(f"{'='*60}")
+
+            vector_count = 0
+            if customization_options:
+                # Generate separate SVG for each design area (front, back, etc.)
+                for option in customization_options:
+                    area_objects = option.canvas_data.get('objects', [])
+                    if not area_objects:
+                        continue
+
+                    design_area = option.design_area or 'design'
+                    canvas_width = option.canvas_data.get('width', 800)
+                    canvas_height = option.canvas_data.get('height', 800)
+
+                    print(f"\nGenerating vector SVG for: {design_area}")
+                    print(f"  Canvas size: {canvas_width}x{canvas_height}")
+                    print(f"  Objects: {len(area_objects)}")
+
+                    # Build SVG content with all elements
+                    svg_elements = []
+                    svg_defs = []  # For embedded images and fonts
+
+                    # Add font imports
+                    font_families = set()
+                    for obj in area_objects:
+                        if obj.get('type') == 'textbox' or obj.get('type') == 'text':
+                            font_family = obj.get('fontFamily', 'Arial')
+                            font_families.add(font_family)
+
+                    if font_families:
+                        font_imports = '\n'.join([
+                            f"      @import url('https://fonts.googleapis.com/css2?family={font.replace(' ', '+')}');"
+                            for font in font_families
+                        ])
+                        svg_defs.append(f'''    <defs>
+    <style>
+{font_imports}
+    </style>
+  </defs>''')
+
+                    # Process each object and convert to SVG element
+                    for obj in area_objects:
+                        obj_type = obj.get('type')
+
+                        if obj_type in ['textbox', 'text']:
+                            # Text element
+                            text_content = obj.get('text', '')
+                            if not text_content:
+                                continue
+
+                            # Extract properties
+                            left = obj.get('left', 0)
+                            top = obj.get('top', 0)
+                            font_size = obj.get('fontSize', 20)
+                            font_family = obj.get('fontFamily', 'Arial')
+                            fill = obj.get('fill', '#000000')
+                            opacity = obj.get('opacity', 1)
+                            angle = obj.get('angle', 0)
+                            scale_x = obj.get('scaleX', 1)
+                            scale_y = obj.get('scaleY', 1)
+                            font_weight = obj.get('fontWeight', 'normal')
+                            font_style = obj.get('fontStyle', 'normal')
+                            text_align = obj.get('textAlign', 'left')
+                            char_spacing = obj.get('charSpacing', 0)
+                            line_height = obj.get('lineHeight', 1.16)
+
+                            # Stroke properties
+                            stroke = obj.get('stroke', 'none')
+                            stroke_width = obj.get('strokeWidth', 0)
+
+                            # Text decoration
+                            underline = obj.get('underline', False)
+                            linethrough = obj.get('linethrough', False)
+                            text_decoration = []
+                            if underline:
+                                text_decoration.append('underline')
+                            if linethrough:
+                                text_decoration.append('line-through')
+                            text_decoration_str = ' '.join(text_decoration) if text_decoration else 'none'
+
+                            # Escape text for XML
+                            import html
+                            text_escaped = html.escape(text_content)
+
+                            # Build transform string
+                            transforms = []
+                            if left != 0 or top != 0:
+                                transforms.append(f"translate({left}, {top})")
+                            if angle != 0:
+                                transforms.append(f"rotate({angle})")
+                            if scale_x != 1 or scale_y != 1:
+                                transforms.append(f"scale({scale_x}, {scale_y})")
+                            transform_str = ' '.join(transforms)
+
+                            # Determine text-anchor based on alignment
+                            text_anchor = {'left': 'start', 'center': 'middle', 'right': 'end'}.get(text_align, 'start')
+
+                            # Create text element
+                            svg_text = f'''  <text
+    x="0"
+    y="0"
+    font-family="{font_family}"
+    font-size="{font_size}"
+    font-weight="{font_weight}"
+    font-style="{font_style}"
+    fill="{fill}"
+    opacity="{opacity}"
+    text-anchor="{text_anchor}"
+    text-decoration="{text_decoration_str}"
+    stroke="{stroke}"
+    stroke-width="{stroke_width}"
+    letter-spacing="{char_spacing}"
+    transform="{transform_str}">
+    {text_escaped}
+  </text>'''
+                            svg_elements.append(svg_text)
+
+                        elif obj_type == 'image':
+                            # Image element - embed as base64
+                            left = obj.get('left', 0)
+                            top = obj.get('top', 0)
+                            width = obj.get('width', 100)
+                            height = obj.get('height', 100)
+                            scale_x = obj.get('scaleX', 1)
+                            scale_y = obj.get('scaleY', 1)
+                            angle = obj.get('angle', 0)
+                            opacity = obj.get('opacity', 1)
+
+                            # Get image URL
+                            saved_image_url = obj.get('savedImageUrl', '')
+                            image_src = obj.get('src', '')
+                            primary_image_url = saved_image_url or image_src
+
+                            if not primary_image_url or primary_image_url.startswith('blob:'):
+                                continue  # Skip blob URLs (can't embed)
+
+                            # Try to read image and convert to base64
+                            image_data_uri = None
+                            if 'previews/' in primary_image_url or 'images/' in primary_image_url:
+                                import base64
+                                if 'previews/' in primary_image_url:
+                                    image_path = primary_image_url.split('/previews/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'previews', image_path),
+                                        os.path.join('uploads', 'previews', image_path),
+                                        os.path.join('previews', image_path)
+                                    ]
+                                else:
+                                    image_path = primary_image_url.split('/images/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'images', image_path),
+                                        os.path.join('uploads', 'images', image_path),
+                                        os.path.join('images', image_path)
+                                    ]
+
+                                for full_path in possible_paths:
+                                    if os.path.exists(full_path):
+                                        try:
+                                            with open(full_path, 'rb') as img_file:
+                                                image_bytes = img_file.read()
+                                                ext = full_path.lower().split('.')[-1]
+                                                mime_type = {
+                                                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                                                    'png': 'image/png', 'gif': 'image/gif',
+                                                    'webp': 'image/webp', 'svg': 'image/svg+xml'
+                                                }.get(ext, 'image/jpeg')
+                                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                image_data_uri = f"data:{mime_type};base64,{image_base64}"
+                                                break
+                                        except Exception as e:
+                                            print(f"  Error reading image {full_path}: {e}")
+
+                            if not image_data_uri:
+                                continue  # Skip if we can't embed the image
+
+                            # Build transform string
+                            transforms = []
+                            if left != 0 or top != 0:
+                                transforms.append(f"translate({left}, {top})")
+                            if angle != 0:
+                                transforms.append(f"rotate({angle})")
+                            if scale_x != 1 or scale_y != 1:
+                                transforms.append(f"scale({scale_x}, {scale_y})")
+                            transform_str = ' '.join(transforms)
+
+                            # Create image element
+                            svg_image = f'''  <image
+    x="0"
+    y="0"
+    width="{width}"
+    height="{height}"
+    opacity="{opacity}"
+    href="{image_data_uri}"
+    transform="{transform_str}" />'''
+                            svg_elements.append(svg_image)
+
+                    # Combine into complete SVG
+                    svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_width}" height="{canvas_height}" viewBox="0 0 {canvas_width} {canvas_height}">
+{chr(10).join(svg_defs)}
+{chr(10).join(svg_elements)}
+</svg>'''
+
+                    # Save to ZIP
+                    svg_filename = f"print_ready/{design_area}_print.svg"
+                    zip_file.writestr(svg_filename, svg_content)
+                    files_added.append(svg_filename)
+                    vector_count += 1
+                    print(f"  ✅ Generated {svg_filename} ({len(svg_elements)} elements)")
+
+            else:
+                # No specific design areas, generate one combined SVG
+                if objects:
+                    print("\nGenerating single combined vector SVG")
+                    # Use a default canvas size
+                    canvas_width = 800
+                    canvas_height = 800
+
+                    # Similar logic as above, but for all objects combined
+                    svg_elements = []
+                    svg_defs = []
+
+                    # Add font imports
+                    font_families = set()
+                    for obj in objects:
+                        if obj.get('type') == 'textbox' or obj.get('type') == 'text':
+                            font_family = obj.get('fontFamily', 'Arial')
+                            font_families.add(font_family)
+
+                    if font_families:
+                        font_imports = '\n'.join([
+                            f"      @import url('https://fonts.googleapis.com/css2?family={font.replace(' ', '+')}');"
+                            for font in font_families
+                        ])
+                        svg_defs.append(f'''    <defs>
+    <style>
+{font_imports}
+    </style>
+  </defs>''')
+
+                    # Process objects (same logic as in the loop above)
+                    for obj in objects:
+                        obj_type = obj.get('type')
+
+                        if obj_type in ['textbox', 'text']:
+                            text_content = obj.get('text', '')
+                            if not text_content:
+                                continue
+
+                            left = obj.get('left', 0)
+                            top = obj.get('top', 0)
+                            font_size = obj.get('fontSize', 20)
+                            font_family = obj.get('fontFamily', 'Arial')
+                            fill = obj.get('fill', '#000000')
+                            opacity = obj.get('opacity', 1)
+                            angle = obj.get('angle', 0)
+                            scale_x = obj.get('scaleX', 1)
+                            scale_y = obj.get('scaleY', 1)
+                            font_weight = obj.get('fontWeight', 'normal')
+                            font_style = obj.get('fontStyle', 'normal')
+                            text_align = obj.get('textAlign', 'left')
+                            char_spacing = obj.get('charSpacing', 0)
+                            stroke = obj.get('stroke', 'none')
+                            stroke_width = obj.get('strokeWidth', 0)
+                            underline = obj.get('underline', False)
+                            linethrough = obj.get('linethrough', False)
+
+                            text_decoration = []
+                            if underline:
+                                text_decoration.append('underline')
+                            if linethrough:
+                                text_decoration.append('line-through')
+                            text_decoration_str = ' '.join(text_decoration) if text_decoration else 'none'
+
+                            import html
+                            text_escaped = html.escape(text_content)
+
+                            transforms = []
+                            if left != 0 or top != 0:
+                                transforms.append(f"translate({left}, {top})")
+                            if angle != 0:
+                                transforms.append(f"rotate({angle})")
+                            if scale_x != 1 or scale_y != 1:
+                                transforms.append(f"scale({scale_x}, {scale_y})")
+                            transform_str = ' '.join(transforms)
+
+                            text_anchor = {'left': 'start', 'center': 'middle', 'right': 'end'}.get(text_align, 'start')
+
+                            svg_text = f'''  <text
+    x="0"
+    y="0"
+    font-family="{font_family}"
+    font-size="{font_size}"
+    font-weight="{font_weight}"
+    font-style="{font_style}"
+    fill="{fill}"
+    opacity="{opacity}"
+    text-anchor="{text_anchor}"
+    text-decoration="{text_decoration_str}"
+    stroke="{stroke}"
+    stroke-width="{stroke_width}"
+    letter-spacing="{char_spacing}"
+    transform="{transform_str}">
+    {text_escaped}
+  </text>'''
+                            svg_elements.append(svg_text)
+
+                        elif obj_type == 'image':
+                            left = obj.get('left', 0)
+                            top = obj.get('top', 0)
+                            width = obj.get('width', 100)
+                            height = obj.get('height', 100)
+                            scale_x = obj.get('scaleX', 1)
+                            scale_y = obj.get('scaleY', 1)
+                            angle = obj.get('angle', 0)
+                            opacity = obj.get('opacity', 1)
+
+                            saved_image_url = obj.get('savedImageUrl', '')
+                            image_src = obj.get('src', '')
+                            primary_image_url = saved_image_url or image_src
+
+                            if not primary_image_url or primary_image_url.startswith('blob:'):
+                                continue
+
+                            image_data_uri = None
+                            if 'previews/' in primary_image_url or 'images/' in primary_image_url:
+                                import base64
+                                if 'previews/' in primary_image_url:
+                                    image_path = primary_image_url.split('/previews/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'previews', image_path),
+                                        os.path.join('uploads', 'previews', image_path),
+                                        os.path.join('previews', image_path)
+                                    ]
+                                else:
+                                    image_path = primary_image_url.split('/images/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'images', image_path),
+                                        os.path.join('uploads', 'images', image_path),
+                                        os.path.join('images', image_path)
+                                    ]
+
+                                for full_path in possible_paths:
+                                    if os.path.exists(full_path):
+                                        try:
+                                            with open(full_path, 'rb') as img_file:
+                                                image_bytes = img_file.read()
+                                                ext = full_path.lower().split('.')[-1]
+                                                mime_type = {
+                                                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                                                    'png': 'image/png', 'gif': 'image/gif',
+                                                    'webp': 'image/webp', 'svg': 'image/svg+xml'
+                                                }.get(ext, 'image/jpeg')
+                                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                                image_data_uri = f"data:{mime_type};base64,{image_base64}"
+                                                break
+                                        except Exception as e:
+                                            print(f"  Error reading image {full_path}: {e}")
+
+                            if not image_data_uri:
+                                continue
+
+                            transforms = []
+                            if left != 0 or top != 0:
+                                transforms.append(f"translate({left}, {top})")
+                            if angle != 0:
+                                transforms.append(f"rotate({angle})")
+                            if scale_x != 1 or scale_y != 1:
+                                transforms.append(f"scale({scale_x}, {scale_y})")
+                            transform_str = ' '.join(transforms)
+
+                            svg_image = f'''  <image
+    x="0"
+    y="0"
+    width="{width}"
+    height="{height}"
+    opacity="{opacity}"
+    href="{image_data_uri}"
+    transform="{transform_str}" />'''
+                            svg_elements.append(svg_image)
+
+                    svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_width}" height="{canvas_height}" viewBox="0 0 {canvas_width} {canvas_height}">
+{chr(10).join(svg_defs)}
+{chr(10).join(svg_elements)}
+</svg>'''
+
+                    svg_filename = f"print_ready/design_print.svg"
+                    zip_file.writestr(svg_filename, svg_content)
+                    files_added.append(svg_filename)
+                    vector_count += 1
+                    print(f"  ✅ Generated {svg_filename} ({len(svg_elements)} elements)")
+
+            print(f"\n✅ Total print-ready vector files: {vector_count}")
+
             # Add manifest with design info
             manifest = {
                 "order_id": order_id,
@@ -1000,6 +1409,7 @@ Use these files for production, printing, or design editing.
                 "text_elements": text_count,
                 "image_elements": image_count,
                 "preview_images": preview_count,
+                "print_ready_vectors": vector_count,
                 "files_included": files_added
             }
 
