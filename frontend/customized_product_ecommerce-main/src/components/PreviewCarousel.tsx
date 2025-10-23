@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { ImageLightbox } from './common/ImageLightbox';
 
 interface PreviewCarouselProps {
   images: string | string[];
@@ -9,6 +10,7 @@ interface PreviewCarouselProps {
   className?: string;
   showThumbnails?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  enableLightbox?: boolean; // NEW: Enable lightbox on click
 }
 
 export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
@@ -16,9 +18,11 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
   alt,
   className = '',
   showThumbnails = true,
-  size = 'md'
+  size = 'md',
+  enableLightbox = true // NEW: Default enabled
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false); // NEW: Lightbox state
   
   // Convert to array for consistent handling
   const imageArray = Array.isArray(images) ? images : [images];
@@ -51,7 +55,7 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
 
   const formatImageUrl = (imageUrl: string) => {
     if (!imageUrl) return '';
-    
+
     // Convert relative paths to full URLs if needed
     if (!imageUrl.startsWith('http')) {
       if (imageUrl.startsWith('/images/')) {
@@ -63,40 +67,69 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
     return imageUrl;
   };
 
+  // NEW: Open lightbox handler
+  const openLightbox = () => {
+    if (enableLightbox) {
+      setLightboxOpen(true);
+    }
+  };
+
+  // NEW: Format all image URLs for lightbox
+  const formattedImageArray = imageArray.map(img => formatImageUrl(img));
+
   return (
-    <div className={`relative ${className}`}>
-      {/* Main Image */}
-      <div className={`relative ${sizeClasses[size]} bg-gray-100 rounded-lg overflow-hidden`}>
-        <img
-          src={formatImageUrl(imageArray[currentIndex]) || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
-          alt={`${alt} ${hasMultipleImages ? `- View ${currentIndex + 1}` : ''}`}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            if (target.src.includes('unsplash')) {
-              return; // Prevent infinite loop
-            }
-            target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
-          }}
-        />
-        
-        {/* Navigation Arrows - only show if multiple images */}
-        {hasMultipleImages && (
-          <>
-            <button
-              onClick={prevImage}
+    <>
+      <div className={`relative ${className}`}>
+        {/* Main Image */}
+        <div
+          className={`relative ${sizeClasses[size]} bg-gray-100 rounded-lg overflow-hidden group ${
+            enableLightbox ? 'cursor-pointer hover:scale-105 transition-transform' : ''
+          }`}
+          onClick={openLightbox} // NEW: Click to open lightbox
+        >
+          <img
+            src={formatImageUrl(imageArray[currentIndex]) || `https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop`}
+            alt={`${alt} ${hasMultipleImages ? `- View ${currentIndex + 1}` : ''}`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (target.src.includes('unsplash')) {
+                return; // Prevent infinite loop
+              }
+              target.src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop';
+            }}
+          />
+
+          {/* NEW: View icon overlay on hover */}
+          {enableLightbox && (
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center transition-all pointer-events-none">
+              <Eye className="w-1/3 h-1/3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          )}
+
+          {/* Navigation Arrows - only show if multiple images */}
+          {hasMultipleImages && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // NEW: Prevent lightbox from opening
+                  prevImage();
+                }}
               className="absolute left-1 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-75 transition-opacity"
               aria-label="Previous image"
             >
               <ChevronLeft className="w-3 h-3" />
             </button>
-            <button
-              onClick={nextImage}
-              className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-75 transition-opacity"
-              aria-label="Next image"
-            >
-              <ChevronRight className="w-3 h-3" />
-            </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // NEW: Prevent lightbox from opening
+                  nextImage();
+                }}
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-75 transition-opacity"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
           </>
         )}
         
@@ -139,24 +172,36 @@ export const PreviewCarousel: React.FC<PreviewCarouselProps> = ({
         </div>
       )}
       
-      {/* Dots indicator - for many images or when thumbnails are disabled */}
-      {hasMultipleImages && (!showThumbnails || imageArray.length > 6) && (
-        <div className="flex gap-1 mt-2 justify-center">
-          {imageArray.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => goToImage(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                index === currentIndex 
-                  ? 'bg-blue-500' 
-                  : 'bg-gray-300 hover:bg-gray-400'
-              }`}
-              aria-label={`Go to image ${index + 1}`}
-            />
-          ))}
-        </div>
+        {/* Dots indicator - for many images or when thumbnails are disabled */}
+        {hasMultipleImages && (!showThumbnails || imageArray.length > 6) && (
+          <div className="flex gap-1 mt-2 justify-center">
+            {imageArray.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => goToImage(index)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentIndex
+                    ? 'bg-blue-500'
+                    : 'bg-gray-300 hover:bg-gray-400'
+                }`}
+                aria-label={`Go to image ${index + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* NEW: ImageLightbox modal */}
+      {enableLightbox && (
+        <ImageLightbox
+          images={formattedImageArray}
+          initialIndex={currentIndex}
+          isOpen={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          altText={alt}
+        />
       )}
-    </div>
+    </>
   );
 };
 
