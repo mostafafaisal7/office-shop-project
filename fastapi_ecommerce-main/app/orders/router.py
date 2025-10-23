@@ -605,9 +605,23 @@ Use these files for production, printing, or design editing.
                     import html
                     text_escaped = html.escape(text_content)
 
-                    # Create production-ready SVG with all properties preserved
+                    # ✅ FIX: Calculate proper SVG bounds to prevent text cut-off
+                    # Estimate text width (approximate: fontSize * charCount * 0.6 for average chars)
+                    estimated_text_width = font_size * len(text_content) * 0.6 * scale_x
+                    estimated_text_height = font_size * line_height * scale_y
+
+                    # Calculate bounds with padding for rotation and positioning
+                    padding = 100  # Extra padding to ensure nothing is cut off
+                    max_x = max(left + estimated_text_width + padding, 1200)
+                    max_y = max(top + estimated_text_height + padding, 1200)
+
+                    # Ensure minimum size and round up to nearest 100
+                    svg_width = max(1200, int((max_x + 99) / 100) * 100)
+                    svg_height = max(1200, int((max_y + 99) / 100) * 100)
+
+                    # Create production-ready SVG with dynamic size to prevent cut-off
                     svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">
   <defs>
     <style>
       @import url('https://fonts.googleapis.com/css2?family={font_family.replace(' ', '+')}');
