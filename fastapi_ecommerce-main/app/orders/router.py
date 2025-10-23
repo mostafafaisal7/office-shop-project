@@ -783,12 +783,16 @@ Use these files for production, printing, or design editing.
                             transform_str = ' '.join(transforms)
 
                             # Calculate SVG bounds to fit transformed image
-                            # Account for rotation by using diagonal
+                            # Account for rotation by using diagonal with extra safety margin
                             import math
                             diagonal = math.sqrt((width * scale_x)**2 + (height * scale_y)**2)
-                            padding = 200  # Increased padding for rotation
-                            svg_width = max(1500, int((left + diagonal + padding + 99) / 100) * 100)
-                            svg_height = max(1500, int((top + diagonal + padding + 99) / 100) * 100)
+
+                            # Add significant padding for rotation and transformation safety
+                            padding = max(400, diagonal * 0.3)  # At least 400px or 30% of diagonal
+
+                            # Calculate required size with rotation considered
+                            svg_width = max(2000, int((left + diagonal + padding + 99) / 100) * 100)
+                            svg_height = max(2000, int((top + diagonal + padding + 99) / 100) * 100)
 
                             # Get the actual filename that was saved to ZIP
                             parsed_url = urlparse(primary_image_url)
