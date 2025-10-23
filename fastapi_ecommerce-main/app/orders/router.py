@@ -877,47 +877,64 @@ Use these files for production, printing, or design editing.
                             import traceback
                             traceback.print_exc()
 
-            # ✅ FIX: Include preview images for each design area
+            # ✅ FIX: Include preview images from order_item.customized_images
+            # These are the same preview images shown in the admin carousel
             preview_count = 0
-            if customization_options:
-                print(f"\n{'='*60}")
-                print("Adding preview images from customization options")
-                print(f"{'='*60}")
-                print(f"Found {len(customization_options)} customization options")
+            print(f"\n{'='*60}")
+            print("Adding preview images from order_item.customized_images")
+            print(f"{'='*60}")
 
-                for idx, option in enumerate(customization_options):
-                    print(f"\nOption {idx + 1}:")
-                    print(f"  Design area: {option.design_area}")
-                    print(f"  Has design_metadata: {option.design_metadata is not None}")
+            if order_item.customized_images:
+                print(f"Found customized_images: {type(order_item.customized_images)}")
 
-                    # ✅ FIX: preview_image_url is stored in design_metadata JSON field
-                    preview_url = None
-                    if option.design_metadata and isinstance(option.design_metadata, dict):
-                        preview_url = option.design_metadata.get('preview_image_url')
-                        print(f"  preview_image_url from design_metadata: {preview_url[:80] if preview_url else 'None'}...")
+                # Handle different formats (string, array, JSON string)
+                preview_urls = []
+                try:
+                    if isinstance(order_item.customized_images, str):
+                        # Try to parse as JSON
+                        try:
+                            parsed = json.loads(order_item.customized_images)
+                            if isinstance(parsed, list):
+                                preview_urls = parsed
+                            else:
+                                preview_urls = [order_item.customized_images]
+                        except json.JSONDecodeError:
+                            # Single URL string
+                            preview_urls = [order_item.customized_images]
+                    elif isinstance(order_item.customized_images, list):
+                        preview_urls = order_item.customized_images
                     else:
-                        print(f"  design_metadata type: {type(option.design_metadata)}")
-                        print(f"  design_metadata keys: {list(option.design_metadata.keys()) if hasattr(option.design_metadata, 'keys') else 'N/A'}")
+                        print(f"Unexpected customized_images type: {type(order_item.customized_images)}")
 
-                    if preview_url and not preview_url.startswith('data:'):
+                    print(f"Extracted {len(preview_urls)} preview URLs")
+
+                    for idx, preview_url in enumerate(preview_urls):
+                        if not preview_url or isinstance(preview_url, dict):
+                            # Handle object format
+                            if isinstance(preview_url, dict):
+                                preview_url = (
+                                    preview_url.get('url') or
+                                    preview_url.get('file_path') or
+                                    preview_url.get('image_url') or
+                                    preview_url.get('preview_url')
+                                )
+
+                        if not preview_url or preview_url.startswith('data:'):
+                            continue
+
                         preview_count += 1
-                        # ✅ FIX: design_area is an Enum, extract value
-                        design_area = option.design_area.value if hasattr(option.design_area, 'value') else str(option.design_area)
-                        if not design_area:
-                            design_area = 'unknown'
-
-                        print(f"\nProcessing preview for {design_area}:")
-                        print(f"  URL: {preview_url[:80]}...")
+                        print(f"\nProcessing preview image {preview_count}:")
+                        print(f"  URL: {preview_url[:100]}...")
 
                         try:
                             # Parse the URL to get the filename
                             parsed_url = urlparse(preview_url)
                             path_parts = parsed_url.path.split('/')
-                            original_filename = path_parts[-1] if path_parts else f'preview_{design_area}.png'
+                            original_filename = path_parts[-1] if path_parts else f'preview_{preview_count}.png'
 
-                            # If it's a local file path
-                            if 'previews/' in preview_url or 'images/' in preview_url:
-                                # Extract path - could be /previews/ or /images/
+                            # Check if it's a local file path
+                            if 'previews/' in preview_url or 'images/' in preview_url or 'static/' in preview_url:
+                                # Extract the relative path
                                 if 'previews/' in preview_url:
                                     image_path = preview_url.split('/previews/', 1)[1]
                                     possible_paths = [
@@ -925,20 +942,30 @@ Use these files for production, printing, or design editing.
                                         os.path.join('uploads', 'previews', image_path),
                                         os.path.join('previews', image_path)
                                     ]
-                                else:
+                                elif 'images/' in preview_url:
+                                    # Extract path after /images/
                                     image_path = preview_url.split('/images/', 1)[1]
                                     possible_paths = [
                                         os.path.join('app', 'static', 'images', image_path),
                                         os.path.join('uploads', 'images', image_path),
                                         os.path.join('images', image_path)
                                     ]
+                                elif 'static/' in preview_url:
+                                    image_path = preview_url.split('/static/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', image_path),
+                                        os.path.join('uploads', image_path),
+                                        os.path.join(image_path)
+                                    ]
+                                else:
+                                    possible_paths = []
 
                                 image_found = False
                                 for full_path in possible_paths:
-                                    print(f"  Looking for preview at: {full_path}")
+                                    print(f"  Checking: {full_path}")
                                     if os.path.exists(full_path):
                                         with open(full_path, 'rb') as img_file:
-                                            preview_filename = f"previews/{design_area}_preview_{original_filename}"
+                                            preview_filename = f"previews/final_preview_{preview_count}_{original_filename}"
                                             zip_file.writestr(preview_filename, img_file.read())
                                             files_added.append(preview_filename)
                                             print(f"  ✅ Added {preview_filename}")
@@ -947,12 +974,22 @@ Use these files for production, printing, or design editing.
 
                                 if not image_found:
                                     print(f"  ⚠️ WARNING: Preview image not found at any checked path")
-                                    print(f"      URL was: {preview_url}")
+                            else:
+                                print(f"  ⚠️ Unknown URL format: {preview_url}")
 
                         except Exception as e:
-                            print(f"  ❌ ERROR processing preview for {design_area}: {e}")
+                            print(f"  ❌ ERROR processing preview {preview_count}: {e}")
+                            import traceback
+                            traceback.print_exc()
 
-                print(f"\nTotal preview images added: {preview_count}")
+                except Exception as e:
+                    print(f"❌ Error parsing customized_images: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                print(f"\n✅ Total preview images added: {preview_count}")
+            else:
+                print("No customized_images found in order_item")
 
             # Add manifest with design info
             manifest = {
