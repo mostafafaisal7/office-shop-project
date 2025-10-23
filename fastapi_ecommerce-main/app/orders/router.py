@@ -462,6 +462,7 @@ async def download_order_item_design_package(
     # User might have designed on multiple areas (front, back, left, right)
     # Each area has separate canvas_data - we need to combine them all
     all_objects = []
+    customization_options = []  # ✅ Store for preview image extraction
 
     if order_item.customization_option_id:
         print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
@@ -486,6 +487,9 @@ async def download_order_item_design_package(
             all_options = result.scalars().all()
 
             print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
+
+            # ✅ Store all_options for later preview image extraction
+            customization_options = all_options
 
             # Combine objects from all design areas
             for option in all_options:
@@ -534,6 +538,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 Contents:
 - texts/ : Text elements as SVG files
 - images/ : Original uploaded images
+- previews/ : Preview images showing complete design composited on product
 - manifest.json : Design metadata
 - canvas_data.json : Complete Fabric.js canvas data
 
@@ -729,6 +734,66 @@ Use these files for production, printing, or design editing.
                         except Exception as e:
                             print(f"  ❌ ERROR processing {img_type} image {image_count}: {e}")
 
+            # ✅ FIX: Include preview images for each design area
+            preview_count = 0
+            if customization_options:
+                print(f"\n{'='*60}")
+                print("Adding preview images from customization options")
+                print(f"{'='*60}")
+
+                for option in customization_options:
+                    if option.preview_image_url and not option.preview_image_url.startswith('data:'):
+                        preview_count += 1
+                        design_area = option.design_area or 'unknown'
+
+                        print(f"\nProcessing preview for {design_area}:")
+                        print(f"  URL: {option.preview_image_url[:80]}...")
+
+                        try:
+                            # Parse the URL to get the filename
+                            parsed_url = urlparse(option.preview_image_url)
+                            path_parts = parsed_url.path.split('/')
+                            original_filename = path_parts[-1] if path_parts else f'preview_{design_area}.png'
+
+                            # If it's a local file path
+                            if 'previews/' in option.preview_image_url or 'images/' in option.preview_image_url:
+                                # Extract path - could be /previews/ or /images/
+                                if 'previews/' in option.preview_image_url:
+                                    image_path = option.preview_image_url.split('/previews/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'previews', image_path),
+                                        os.path.join('uploads', 'previews', image_path),
+                                        os.path.join('previews', image_path)
+                                    ]
+                                else:
+                                    image_path = option.preview_image_url.split('/images/', 1)[1]
+                                    possible_paths = [
+                                        os.path.join('app', 'static', 'images', image_path),
+                                        os.path.join('uploads', 'images', image_path),
+                                        os.path.join('images', image_path)
+                                    ]
+
+                                image_found = False
+                                for full_path in possible_paths:
+                                    print(f"  Looking for preview at: {full_path}")
+                                    if os.path.exists(full_path):
+                                        with open(full_path, 'rb') as img_file:
+                                            preview_filename = f"previews/{design_area}_preview_{original_filename}"
+                                            zip_file.writestr(preview_filename, img_file.read())
+                                            files_added.append(preview_filename)
+                                            print(f"  ✅ Added {preview_filename}")
+                                            image_found = True
+                                            break
+
+                                if not image_found:
+                                    print(f"  ⚠️ WARNING: Preview image not found at any checked path")
+                                    print(f"      URL was: {option.preview_image_url}")
+
+                        except Exception as e:
+                            print(f"  ❌ ERROR processing preview for {design_area}: {e}")
+
+                print(f"\nTotal preview images added: {preview_count}")
+
             # Add manifest with design info
             manifest = {
                 "order_id": order_id,
@@ -737,6 +802,7 @@ Use these files for production, printing, or design editing.
                 "product_name": order_item.product_name,
                 "text_elements": text_count,
                 "image_elements": image_count,
+                "preview_images": preview_count,
                 "files_included": files_added
             }
 
