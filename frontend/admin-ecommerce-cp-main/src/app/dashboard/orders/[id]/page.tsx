@@ -403,12 +403,12 @@ export default function OrderDetailsPage() {
       render: (_, record) => (
         <div>
           <div>
-            <Text strong>${record.unit_price.toFixed(2)}</Text>
+            <Text strong>${(record.unit_price || 0).toFixed(2)}</Text>
           </div>
-          {record.variation_details?.price && parseFloat(record.variation_details.price) !== record.unit_price && (
+          {record.variation_details?.price && parseFloat(record.variation_details.price) !== (record.unit_price || 0) && (
             <div>
               <Text type="secondary" style={{ fontSize: '11px', textDecoration: 'line-through' }}>
-                ${parseFloat(record.variation_details.price).toFixed(2)}
+                ${(parseFloat(record.variation_details.price) || 0).toFixed(2)}
               </Text>
             </div>
           )}
@@ -585,7 +585,7 @@ export default function OrderDetailsPage() {
       key: 'total',
       width: 120,
       render: (_, record) => (
-        <Text strong>${(record.quantity * record.unit_price).toFixed(2)}</Text>
+        <Text strong>${((record.quantity || 0) * (record.unit_price || 0)).toFixed(2)}</Text>
       ),
     },
   ];
@@ -755,7 +755,7 @@ export default function OrderDetailsPage() {
                       <Text strong>Subtotal</Text>
                     </Table.Summary.Cell>
                     <Table.Summary.Cell index={1}>
-                      <Text strong>${order.subtotal.toFixed(2)}</Text>
+                      <Text strong>${(order.subtotal || 0).toFixed(2)}</Text>
                     </Table.Summary.Cell>
                   </Table.Summary.Row>
                 );
@@ -767,10 +767,10 @@ export default function OrderDetailsPage() {
           <Card title="Order Breakdown" style={{ marginTop: 16 }}>
             <Descriptions column={1} size="small">
               <Descriptions.Item label="Subtotal">
-                <Text strong>${order.subtotal.toFixed(2)}</Text>
+                <Text strong>${(order.subtotal || 0).toFixed(2)}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Shipping Cost">
-                <Text strong>${order.shipping_cost.toFixed(2)}</Text>
+                <Text strong>${(order.shipping_cost || 0).toFixed(2)}</Text>
               </Descriptions.Item>
               {order.estimated_delivery_days && (
                 <Descriptions.Item label="Estimated Delivery">
@@ -779,7 +779,7 @@ export default function OrderDetailsPage() {
               )}
               <Descriptions.Item label="Total">
                 <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                  ${order.total_price.toFixed(2)}
+                  ${(order.total_price || 0).toFixed(2)}
                 </Text>
               </Descriptions.Item>
             </Descriptions>
@@ -790,13 +790,13 @@ export default function OrderDetailsPage() {
             <Card title="Shipping Cost Details" style={{ marginTop: 16 }}>
               <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
                 <Descriptions.Item label="Total Shipping Cost">
-                  <Text strong>${order.shipping_cost_breakdown.total_cost.toFixed(2)}</Text>
+                  <Text strong>${(order.shipping_cost_breakdown.total_cost || 0).toFixed(2)}</Text>
                 </Descriptions.Item>
                 <Descriptions.Item label="Delivery Days">
                   <Text>{order.shipping_cost_breakdown.delivery_days} days</Text>
                 </Descriptions.Item>
               </Descriptions>
-              
+
               {order.shipping_cost_breakdown.product_breakdown && order.shipping_cost_breakdown.product_breakdown.length > 0 && (
                 <div>
                   <Title level={5}>Product-specific Shipping Rules</Title>
@@ -810,26 +810,26 @@ export default function OrderDetailsPage() {
                           {breakdown.quantity}
                         </Descriptions.Item>
                         <Descriptions.Item label="Base Cost">
-                          ${breakdown.base_cost.toFixed(2)}
+                          ${(breakdown.base_cost || 0).toFixed(2)}
                         </Descriptions.Item>
                         <Descriptions.Item label="Final Cost">
-                          <Text strong>${breakdown.final_cost.toFixed(2)}</Text>
+                          <Text strong>${(breakdown.final_cost || 0).toFixed(2)}</Text>
                         </Descriptions.Item>
                         <Descriptions.Item label="Rule Source">
                           <Tag color="blue">{breakdown.rule_source}</Tag>
                         </Descriptions.Item>
                       </Descriptions>
-                      
+
                       {breakdown.applied_rules && breakdown.applied_rules.length > 0 && (
                         <div style={{ marginTop: 8 }}>
                           <Text strong style={{ fontSize: '12px' }}>Applied Rules:</Text>
                           {breakdown.applied_rules.map((rule, ruleIndex) => (
                             <div key={ruleIndex} style={{ marginLeft: 16, marginTop: 4 }}>
                               <Text style={{ fontSize: '11px' }}>
-                                Rule #{rule.rule_id}: {rule.min_quantity}-{rule.max_quantity} qty, 
-                                {rule.adjustment_type === 'per_item' ? ' per item' : ''} 
-                                adjustment: {rule.cost_adjustment > 0 ? '+' : ''}${rule.cost_adjustment.toFixed(2)}
-                                (Total: {rule.total_adjustment > 0 ? '+' : ''}${rule.total_adjustment.toFixed(2)})
+                                Rule #{rule.rule_id}: {rule.min_quantity}-{rule.max_quantity} qty,
+                                {rule.adjustment_type === 'per_item' ? ' per item' : ''}
+                                adjustment: {(rule.cost_adjustment || 0) > 0 ? '+' : ''}${(rule.cost_adjustment || 0).toFixed(2)}
+                                (Total: {(rule.total_adjustment || 0) > 0 ? '+' : ''}${(rule.total_adjustment || 0).toFixed(2)})
                               </Text>
                             </div>
                           ))}
