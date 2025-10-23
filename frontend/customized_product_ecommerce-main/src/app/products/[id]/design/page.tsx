@@ -757,66 +757,12 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     });
   };
 
-  const handleClearCanvas = async () => {
-    // ✅ FIX: Clear ALL design areas (front, back, left, right), not just current area
-    try {
-      // Clear current visible canvas
-      setDesignJson({
-        type: 'clear',
-        timestamp: Date.now()
-      });
-
-      // Clear preview images state
-      setPreviewImages({});
-
-      // Clear saved designs for ALL design areas (not just available views)
-      if (productId && selectedVariation?.variationId) {
-        const variationId = selectedVariation.variationId.toString();
-
-        console.log('🧹 Clearing ALL design areas for product:', productId, 'variation:', variationId);
-
-        // Import deleteDesignFromDatabase from designStore
-        const { deleteDesignFromDatabase } = useDesignStore.getState();
-
-        // ✅ FIX: Clear all possible design areas (front, back, left, right)
-        // Don't rely on availableViews which might not be populated
-        const allDesignAreas = ['front', 'back', 'left', 'right'];
-
-        for (const area of allDesignAreas) {
-          try {
-            console.log(`🧹 Clearing design for area: ${area}`);
-            await deleteDesignFromDatabase(productId, selectedVariation.variationId, area);
-          } catch (error) {
-            // Silently ignore errors for areas that don't exist
-            console.log(`  ℹ️ No design found for ${area} (this is OK)`);
-          }
-        }
-
-        // ✅ ALSO clear from localStorage as backup
-        try {
-          const localStorageKey = 'ecommerce_designs';
-          const saved = localStorage.getItem(localStorageKey);
-          if (saved) {
-            const designsMap = new Map(JSON.parse(saved));
-            // Remove all entries for this product+variation combination
-            for (const area of allDesignAreas) {
-              const key = `${productId}_${variationId}_${area}`;
-              if (designsMap.has(key)) {
-                designsMap.delete(key);
-                console.log(`  🧹 Removed from localStorage: ${key}`);
-              }
-            }
-            localStorage.setItem(localStorageKey, JSON.stringify(Array.from(designsMap.entries())));
-          }
-        } catch (error) {
-          console.error('Error clearing localStorage:', error);
-        }
-
-        console.log('✅ All design areas cleared from database and localStorage');
-      }
-    } catch (error) {
-      console.error('Error clearing all canvas areas:', error);
-    }
+  const handleClearCanvas = () => {
+    // Clear current visible canvas
+    setDesignJson({
+      type: 'clear',
+      timestamp: Date.now()
+    });
   };
 
   const handleTextColorChange = (color: string) => {
