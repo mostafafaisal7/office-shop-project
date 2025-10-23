@@ -823,31 +823,39 @@ Use these files for production, printing, or design editing.
                 print(f"{'='*60}")
 
                 for option in customization_options:
-                    if option.preview_image_url and not option.preview_image_url.startswith('data:'):
+                    # ✅ FIX: preview_image_url is stored in design_metadata JSON field
+                    preview_url = None
+                    if option.design_metadata and isinstance(option.design_metadata, dict):
+                        preview_url = option.design_metadata.get('preview_image_url')
+
+                    if preview_url and not preview_url.startswith('data:'):
                         preview_count += 1
-                        design_area = option.design_area or 'unknown'
+                        # ✅ FIX: design_area is an Enum, extract value
+                        design_area = option.design_area.value if hasattr(option.design_area, 'value') else str(option.design_area)
+                        if not design_area:
+                            design_area = 'unknown'
 
                         print(f"\nProcessing preview for {design_area}:")
-                        print(f"  URL: {option.preview_image_url[:80]}...")
+                        print(f"  URL: {preview_url[:80]}...")
 
                         try:
                             # Parse the URL to get the filename
-                            parsed_url = urlparse(option.preview_image_url)
+                            parsed_url = urlparse(preview_url)
                             path_parts = parsed_url.path.split('/')
                             original_filename = path_parts[-1] if path_parts else f'preview_{design_area}.png'
 
                             # If it's a local file path
-                            if 'previews/' in option.preview_image_url or 'images/' in option.preview_image_url:
+                            if 'previews/' in preview_url or 'images/' in preview_url:
                                 # Extract path - could be /previews/ or /images/
-                                if 'previews/' in option.preview_image_url:
-                                    image_path = option.preview_image_url.split('/previews/', 1)[1]
+                                if 'previews/' in preview_url:
+                                    image_path = preview_url.split('/previews/', 1)[1]
                                     possible_paths = [
                                         os.path.join('app', 'static', 'previews', image_path),
                                         os.path.join('uploads', 'previews', image_path),
                                         os.path.join('previews', image_path)
                                     ]
                                 else:
-                                    image_path = option.preview_image_url.split('/images/', 1)[1]
+                                    image_path = preview_url.split('/images/', 1)[1]
                                     possible_paths = [
                                         os.path.join('app', 'static', 'images', image_path),
                                         os.path.join('uploads', 'images', image_path),
@@ -868,7 +876,7 @@ Use these files for production, printing, or design editing.
 
                                 if not image_found:
                                     print(f"  ⚠️ WARNING: Preview image not found at any checked path")
-                                    print(f"      URL was: {option.preview_image_url}")
+                                    print(f"      URL was: {preview_url}")
 
                         except Exception as e:
                             print(f"  ❌ ERROR processing preview for {design_area}: {e}")
