@@ -596,7 +596,8 @@ useEffect(() => {
       break;
 
     case 'format':
-      if (!activeObject || activeObject.type !== 'text') return;
+      // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
+      if (!activeObject || !activeObject.type?.toLowerCase().includes('text')) return;
       const textObj = activeObject as FabricText;
       switch (designJson.format) {
         case 'bold': textObj.set('fontWeight', textObj.fontWeight === 'bold' ? 'normal' : 'bold'); break;
@@ -627,19 +628,22 @@ useEffect(() => {
       break;
 
     case 'textColor':
-      if (!activeObject || activeObject.type !== 'text' || !designJson.color) return;
+      // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
+      if (!activeObject || !activeObject.type?.toLowerCase().includes('text') || !designJson.color) return;
       (activeObject as FabricText).set('fill', designJson.color);
       renderCanvas();
       break;
 
     case 'fontFamily':
-      if (!activeObject || activeObject.type !== 'text' || !designJson.fontFamily) return;
+      // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
+      if (!activeObject || !activeObject.type?.toLowerCase().includes('text') || !designJson.fontFamily) return;
       (activeObject as FabricText).set('fontFamily', designJson.fontFamily);
       renderCanvas();
       break;
 
     case 'fontSize':
-      if (!activeObject || activeObject.type !== 'text' || !designJson.fontSize) return;
+      // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
+      if (!activeObject || !activeObject.type?.toLowerCase().includes('text') || !designJson.fontSize) return;
       (activeObject as FabricText).set('fontSize', designJson.fontSize);
       renderCanvas();
       break;

@@ -51,7 +51,14 @@ export class PreviewGenerator {
     const { canvas, element } = canvasInfo;
     try {
       if (canvas.backgroundImage) canvas.backgroundImage = undefined;
-      if (canvas.clear) canvas.clear();
+      // ✅ FIX: Add disposal check before calling clear() to prevent clearRect errors
+      if (canvas.clear && !canvas.disposed) {
+        try {
+          canvas.clear();
+        } catch (clearErr) {
+          console.error('Error clearing canvas during disposal:', clearErr);
+        }
+      }
       if (canvas.dispose) canvas.dispose();
     } catch (err) { console.error('Error disposing canvas:', err); }
 
@@ -94,10 +101,41 @@ export class PreviewGenerator {
   private async loadCanvasData(canvas: Canvas, canvasData: any): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        canvas.loadFromJSON(canvasData, () => {
+        // ✅ FIX: Clone canvas data and fix blob URLs before loading
+        const fixedCanvasData = { ...canvasData };
+
+        // Remove blob background
+        if (fixedCanvasData.backgroundImage?.src?.startsWith("blob:")) {
+          delete fixedCanvasData.backgroundImage;
+        }
+
+        // Fix object blob URLs - restore savedImageUrl
+        if (fixedCanvasData.objects) {
+          fixedCanvasData.objects = fixedCanvasData.objects.map((obj: any) => {
+            if (obj.type?.toLowerCase() === "image" && obj.src?.startsWith("blob:")) {
+              // Restore from savedImageUrl if available
+              obj.src = obj.savedImageUrl || obj.src;
+            }
+            return obj;
+          });
+        }
+
+        canvas.loadFromJSON(fixedCanvasData, () => {
           try {
-            canvas.getObjects().forEach((obj: any) => {
-              if (obj.type === 'image') obj.set({ crossOrigin: 'anonymous' });
+            // ✅ FIX: Restore custom properties after loadFromJSON
+            // loadFromJSON recreates objects and loses custom properties
+            canvas.getObjects().forEach((canvasObj: any, index: number) => {
+              const originalData = fixedCanvasData.objects[index];
+
+              if (canvasObj.type?.toLowerCase() === 'image' && originalData?.savedImageUrl) {
+                // Assign directly - Fabric.js v6 requirement
+                canvasObj.savedImageUrl = originalData.savedImageUrl;
+              }
+
+              // Set crossOrigin for all images
+              if (canvasObj.type?.toLowerCase() === 'image') {
+                canvasObj.set({ crossOrigin: 'anonymous' });
+              }
             });
             resolve();
           } catch (err) { reject(err); }
