@@ -364,26 +364,43 @@ async def get_customization_options_by_user(
     skip: int = 0,
     limit: int = 20
 ) -> List[models.CustomizationOption]:
-    # ✅ FIX: Only load media relationship - minimal eager loading
-    # Product and variation are not in response schema, loading them causes serialization errors
-    # This also prevents MySQL sort buffer overflow
-    query = select(models.CustomizationOption).options(
-        selectinload(models.CustomizationOption.media)
-    ).where(models.CustomizationOption.user_id == user_id)
+    # ✅ FIX: Defer loading large JSON columns to prevent MySQL sort buffer overflow
+    # canvas_data and design_elements can be HUGE (MBs), sorting them exhausts MySQL memory
+    # Load them AFTER sorting by using a two-step query approach
+
+    # Step 1: Get IDs only with sorting (minimal memory)
+    id_query = select(models.CustomizationOption.id).where(
+        models.CustomizationOption.user_id == user_id
+    )
 
     if product_id:
-        query = query.where(models.CustomizationOption.product_id == product_id)
+        id_query = id_query.where(models.CustomizationOption.product_id == product_id)
 
     if variation_id:
-        query = query.where(models.CustomizationOption.variation_id == variation_id)
+        id_query = id_query.where(models.CustomizationOption.variation_id == variation_id)
 
     if design_area:
-        query = query.where(models.CustomizationOption.design_area == design_area)
+        id_query = id_query.where(models.CustomizationOption.design_area == design_area)
 
-    query = query.offset(skip).limit(limit).order_by(models.CustomizationOption.created_at.desc())
+    id_query = id_query.offset(skip).limit(limit).order_by(models.CustomizationOption.created_at.desc())
+
+    id_result = await db.execute(id_query)
+    option_ids = [row[0] for row in id_result.all()]
+
+    if not option_ids:
+        return []
+
+    # Step 2: Load full data for those IDs (no sorting needed, just fetch by ID)
+    query = select(models.CustomizationOption).options(
+        selectinload(models.CustomizationOption.media)
+    ).where(models.CustomizationOption.id.in_(option_ids))
 
     result = await db.execute(query)
-    return list(result.scalars().all())
+    options = list(result.scalars().all())
+
+    # Step 3: Re-sort in Python to maintain original order (MySQL won't guarantee order with IN clause)
+    options_dict = {opt.id: opt for opt in options}
+    return [options_dict[opt_id] for opt_id in option_ids if opt_id in options_dict]
 
 
 async def create_customization_option(
