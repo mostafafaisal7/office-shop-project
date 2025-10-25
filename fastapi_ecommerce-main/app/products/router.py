@@ -215,11 +215,14 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
         variations_data.append({
             "id": v.id,
             "product_id": v.product_id,
-            "attributes": v.attributes,
+            "name": v.name,
             "sku": v.sku,
+            "price": v.price,
             "stock_quantity": v.stock_quantity,
-            "price_adjustment": v.price_adjustment,
+            "low_stock_threshold": v.low_stock_threshold,
+            "attributes": v.attributes,
             "is_active": v.is_active,
+            "sort_order": v.sort_order,
             "created_at": v.created_at,
             "media": []  # Empty in lightweight mode
         })
@@ -229,13 +232,15 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     for c in product.customization_options:
         customization_options_data.append({
             "id": c.id,
+            "client_reference_id": c.client_reference_id,
+            "user_id": c.user_id,
             "product_id": c.product_id,
             "variation_id": c.variation_id,
-            "user_id": c.user_id,
             "design_area": c.design_area,
             "canvas_data": c.canvas_data,
             "svg_data": c.svg_data,
-            "preview_image_path": c.preview_image_path,
+            "design_metadata": c.design_metadata,
+            "design_elements": c.design_elements,
             "created_at": c.created_at,
             "updated_at": c.updated_at,
             "media": []  # Empty in lightweight mode
