@@ -237,22 +237,36 @@ export function transformProductForGrid(product: ApiProduct): ProductGridItem {
 }
 
 export async function fetchProductById(id: string): Promise<ApiProduct> {
+  const startTime = performance.now();
+  console.log(`🚀 [API] fetchProductById - Starting request for product ${id}...`);
+
   try {
     // NOTE: Using cache: 'no-store' to bypass Next.js 2MB cache limit
     // Some products with many variations can exceed this limit
     // This ensures all your product data and features work correctly
+    const fetchStart = performance.now();
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
       cache: 'no-store', // Disable caching to avoid 2MB limit errors
     });
+    const fetchEnd = performance.now();
+    console.log(`⏱️  [API] Fetch: ${(fetchEnd - fetchStart).toFixed(2)}ms | Status: ${response.status}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch product: ${response.status}`);
     }
 
+    const parseStart = performance.now();
     const data = await response.json();
+    const parseEnd = performance.now();
+    console.log(`⏱️  [API] JSON parsing: ${(parseEnd - parseStart).toFixed(2)}ms`);
+
+    const totalTime = performance.now() - startTime;
+    console.log(`✅ [API] fetchProductById completed in ${totalTime.toFixed(2)}ms - Product: ${data.name}`);
+
     return data;
   } catch (error) {
-    console.error('Error fetching product:', error);
+    const totalTime = performance.now() - startTime;
+    console.error(`❌ [API] fetchProductById failed after ${totalTime.toFixed(2)}ms:`, error);
     throw error;
   }
 }
