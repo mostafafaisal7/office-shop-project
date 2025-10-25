@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Edit3, Trash2, Copy, Search, Filter, Grid, List, Eye } from 'lucide-react';
+import { Calendar, Edit3, Trash2, Copy, Search, Filter, Grid, List, Eye, ShoppingCart } from 'lucide-react';
 import { designApi, CustomizationOption } from '@/services/designApi';
 import { fetchProductById, ApiProduct } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { previewGenerator } from '@/utils/previewGenerator';
+import { useCartStore } from '@/store/cartStore';
 
 interface ProjectWithProduct extends CustomizationOption {
   product?: ApiProduct;
@@ -30,6 +31,7 @@ interface GroupedProject {
 export default function ProjectsPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { addItemFromProductPage } = useCartStore();
   const [projects, setProjects] = useState<ProjectWithProduct[]>([]);
   const [groupedProjects, setGroupedProjects] = useState<GroupedProject[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<GroupedProject[]>([]);
@@ -37,6 +39,7 @@ export default function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterBy, setFilterBy] = useState<'all' | 'recent' | 'completed'>('all');
+  const [reorderingProject, setReorderingProject] = useState<string | null>(null);
 
   useEffect(() => {
     loadProjects();
@@ -292,7 +295,7 @@ export default function ProjectsPage() {
 
   const handleDuplicateProject = async (project: GroupedProject, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     try {
       // Duplicate all customization options for this project
       await Promise.all(
@@ -317,12 +320,70 @@ export default function ProjectsPage() {
           return designApi.createCustomizationOption(project.product_id.toString(), newProject);
         })
       );
-      
+
       showToast('Project duplicated successfully', 'success');
       loadProjects(); // Reload projects
     } catch (error) {
       console.error('Error duplicating project:', error);
       showToast('Failed to duplicate project', 'error');
+    }
+  };
+
+  const handleReorderProject = async (project: GroupedProject, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!project.product || project.customization_options.length === 0) {
+      showToast('Product information not available', 'error');
+      return;
+    }
+
+    try {
+      setReorderingProject(project.client_reference_id);
+
+      // Get the first customization option to determine product details
+      const firstOption = project.customization_options[0];
+
+      // Get product price from variation or base price
+      let productPrice = project.product.base_price;
+      if (firstOption.variation_id && project.product.variations) {
+        const variation = project.product.variations.find((v: any) => v.id === firstOption.variation_id);
+        if (variation && variation.price) {
+          productPrice = variation.price;
+        }
+      }
+
+      // Get size and color from first option
+      const variationAttributes = project.product.variations?.find((v: any) =>
+        v.id === firstOption.variation_id
+      )?.attributes;
+
+      const size = variationAttributes?.size || variationAttributes?.Size || undefined;
+      const color = variationAttributes?.color || variationAttributes?.Color || undefined;
+
+      // Add to cart with the first customization option ID
+      await addItemFromProductPage(
+        project.product_id.toString(),
+        project.product.name,
+        1, // Default quantity
+        productPrice,
+        size,
+        color,
+        project.preview_image, // Use the preview image
+        firstOption.id // Use the customization ID
+      );
+
+      showToast('Added to cart successfully!', 'success');
+
+      // Optional: Navigate to cart after brief delay
+      setTimeout(() => {
+        router.push('/cart');
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error reordering project:', error);
+      showToast('Failed to add to cart', 'error');
+    } finally {
+      setReorderingProject(null);
     }
   };
 
@@ -468,7 +529,7 @@ export default function ProjectsPage() {
               {viewMode === 'grid' ? (
                 <>
                   {/* Project Image */}
-                  <div className="aspect-video bg-gray-100 relative">
+                  <div className="aspect-video bg-gray-100 relative group">
                     {project.preview_image ? (
                       <img
                         src={project.preview_image}
@@ -480,23 +541,53 @@ export default function ProjectsPage() {
                         <Eye className="h-8 w-8" />
                       </div>
                     )}
-                    
-                    {/* Action Buttons */}
+
+                    {/* Quick Action Buttons - Top Right */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => handleDuplicateProject(project, e)}
-                        className="p-1.5 bg-white rounded-full shadow-sm hover:bg-gray-50"
-                        title="Duplicate"
+                        className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors"
+                        title="Duplicate Project"
                       >
                         <Copy className="h-3 w-3 text-gray-600" />
                       </button>
                       <button
                         onClick={(e) => handleDeleteProject(project, e)}
-                        className="p-1.5 bg-white rounded-full shadow-sm hover:bg-red-50"
-                        title="Delete"
+                        className="p-1.5 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors"
+                        title="Delete Project"
                       >
                         <Trash2 className="h-3 w-3 text-red-600" />
                       </button>
+                    </div>
+
+                    {/* Action Buttons Overlay - Bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleProjectClick(project)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-white/90 hover:bg-white text-gray-900 px-3 py-2 rounded-lg font-medium text-sm transition-colors"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          Redesign
+                        </button>
+                        <button
+                          onClick={(e) => handleReorderProject(project, e)}
+                          disabled={reorderingProject === project.client_reference_id}
+                          className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {reorderingProject === project.client_reference_id ? (
+                            <>
+                              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Adding...
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingCart className="h-4 w-4" />
+                              Reorder
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -517,7 +608,7 @@ export default function ProjectsPage() {
               ) : (
                 <>
                   {/* List View */}
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 mr-4">
+                  <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 mr-4">
                     {project.preview_image ? (
                       <img
                         src={project.preview_image}
@@ -530,7 +621,7 @@ export default function ProjectsPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-gray-900 dark:text-white truncate">
                       {project.product?.name || 'Unknown Product'}
@@ -544,22 +635,48 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
+                  {/* Action Buttons */}
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleProjectClick(project)}
+                      className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-sm transition-colors"
+                      title="Redesign Project"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Redesign</span>
+                    </button>
+                    <button
+                      onClick={(e) => handleReorderProject(project, e)}
+                      disabled={reorderingProject === project.client_reference_id}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Add to Cart"
+                    >
+                      {reorderingProject === project.client_reference_id ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span className="hidden sm:inline">Adding...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-4 w-4" />
+                          <span className="hidden sm:inline">Reorder</span>
+                        </>
+                      )}
+                    </button>
+                    <button
                       onClick={(e) => handleDuplicateProject(project, e)}
-                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"
-                      title="Duplicate"
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                      title="Duplicate Project"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteProject(project, e)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Delete"
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete Project"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                    <Edit3 className="h-4 w-4 text-gray-400 ml-2" />
                   </div>
                 </>
               )}
