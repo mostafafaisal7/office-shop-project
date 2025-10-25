@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { useState, useCallback, memo } from "react";
+import LoadingLink from "@/components/ui/LoadingLink";
 
 interface ProductCardProps {
   id: number;
@@ -25,8 +25,8 @@ const ProductCard = ({ id, name, price, image, originalPrice }: ProductCardProps
   }, [imageError]);
 
   return (
-    <Link href={`/products/${id}`}>
-      <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group cursor-pointer border border-gray-200">
+    <LoadingLink href={`/products/${id}`} className="block">
+      <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer border border-gray-200 active:scale-95">
         <div className="aspect-square overflow-hidden bg-gray-50">
           {imageError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-100">
@@ -45,6 +45,8 @@ const ProductCard = ({ id, name, price, image, originalPrice }: ProductCardProps
               height={300}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={handleImageError}
+              loading="lazy"
+              quality={75}
             />
           )}
         </div>
@@ -66,7 +68,7 @@ const ProductCard = ({ id, name, price, image, originalPrice }: ProductCardProps
           </div>
         </div>
       </div>
-    </Link>
+    </LoadingLink>
   );
 };
 

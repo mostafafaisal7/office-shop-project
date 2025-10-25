@@ -2,6 +2,7 @@
 
 import { Search, User, ShoppingCart } from "lucide-react";
 import Link from "next/link";
+import LoadingLink from "@/components/ui/LoadingLink";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { ensureUserData } from "@/store/authStore";
@@ -110,10 +111,10 @@ export const Navigation = () => {
               </div>
               <div className="hidden md:block ml-10">
                 <div className="flex items-baseline space-x-8">
-                  <Link href="/categories" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase">Categories</Link>
-                  <Link href="/products" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase">Products</Link>
-                  <Link href="/about" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase">About</Link>
-                  <Link href="/contact" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase">Contact</Link>
+                  <LoadingLink href="/categories" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase transition-colors">Categories</LoadingLink>
+                  <LoadingLink href="/products" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase transition-colors">Products</LoadingLink>
+                  <LoadingLink href="/about" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase transition-colors">About</LoadingLink>
+                  <LoadingLink href="/contact" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium uppercase transition-colors">Contact</LoadingLink>
                 </div>
               </div>
             </div>
@@ -171,15 +172,15 @@ export const Navigation = () => {
                 </>
               )}
               
-              <div className="flex items-center bg-blue-600 text-white px-2 sm:px-4 py-2 rounded-full">
-                <Link href="/cart" className="flex items-center">
+              <div className="flex items-center bg-blue-600 text-white px-2 sm:px-4 py-2 rounded-full hover:bg-blue-700 transition-all active:scale-95">
+                <LoadingLink href="/cart" className="flex items-center" showSpinner={false}>
                   <span className="text-xs sm:text-sm font-bold mr-1 whitespace-nowrap">
                     <span className="hidden sm:inline">Items: </span>
                     <span className="sm:hidden">{mounted ? cartCount : 0}</span>
                     <span className="hidden sm:inline">{mounted ? cartCount : 0}</span>
                   </span>
                   <ShoppingCart className="h-4 w-4" />
-                </Link>
+                </LoadingLink>
               </div>
             </div>
           </div>
