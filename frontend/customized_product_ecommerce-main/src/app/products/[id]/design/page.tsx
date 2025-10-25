@@ -1059,10 +1059,39 @@ const handlePreview = async () => {
 const handleNext = async () => {
   if (!fabricCanvas) return;
 
+  // ✅ NEW BEHAVIOR: Check if we're on the last view
+  // If NOT on last view → Switch to next view
+  // If on last view → Save and show review modal
+  const currentViewIndex = availableViews.findIndex(v => v.area === activeView);
+  const isLastView = currentViewIndex === availableViews.length - 1;
+
+  if (!isLastView && currentViewIndex !== -1) {
+    // Not on last view - just switch to next view
+    const nextView = availableViews[currentViewIndex + 1];
+    console.log(`🔹 Next clicked - switching from ${activeView} to ${nextView.area}`);
+
+    // Save current view's design before switching
+    try {
+      const canvasData = fabricCanvas.toJSON();
+      if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
+        const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
+        await saveDesign(canvasData, currentViewImage);
+        console.log(`✅ Saved ${activeView} design before switching`);
+      }
+    } catch (error) {
+      console.error('Error saving design before view switch:', error);
+    }
+
+    // Switch to next view
+    await handleViewChange(nextView.area);
+    return;
+  }
+
+  // On last view - proceed with save and review modal
   setIsGeneratingReviewPreviews(true);
 
   try {
-    console.log('🔹 Next clicked, saving as new version and generating review previews...');
+    console.log('🔹 Next clicked on last view, saving as new version and generating review previews...');
 
     const canvasData = fabricCanvas.toJSON();
     const variationId = selectedVariation?.variationId?.toString();
