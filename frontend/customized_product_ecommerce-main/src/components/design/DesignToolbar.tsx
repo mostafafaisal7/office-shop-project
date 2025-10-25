@@ -21,6 +21,7 @@ const DesignToolbar = ({
 }: DesignToolbarProps) => {
   const [textInput, setTextInput] = useState('');
   const [filterValue, setFilterValue] = useState(0);
+  const [colorValue, setColorValue] = useState('#000000'); // ✅ FIX: Add state for color input
 
   const handleTextChange = (e: ChangeEvent<HTMLInputElement>) => {
     setTextInput(e.target.value);
@@ -34,6 +35,7 @@ const DesignToolbar = ({
   };
 
   const handleColorChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setColorValue(e.target.value); // ✅ FIX: Update state
     onColorChange(e.target.value);
   };
 
@@ -58,6 +60,7 @@ const DesignToolbar = ({
         <input
           id="colorPicker"
           type="color"
+          value={colorValue}
           onChange={handleColorChange}
           className="w-full h-8 cursor-pointer"
         />

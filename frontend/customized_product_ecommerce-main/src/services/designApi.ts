@@ -769,10 +769,11 @@ class DesignApiService {
       // Import the admin's upload utility
       const { uploadDesignPreview } = await import('@/utils/upload');
 
-      // Get auth token
-      const token = localStorage.getItem('customer_access_token');
+      // ✅ FIX: Use getValidToken() utility instead of direct localStorage access
+      const { getValidToken } = await import('@/store/authStore');
+      const token = await getValidToken();
       if (!token) {
-        console.error('❌ No authentication token found');
+        console.error('❌ No authentication token found - user may not be logged in');
         return null;
       }
 

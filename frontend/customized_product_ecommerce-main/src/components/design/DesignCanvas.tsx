@@ -335,8 +335,11 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("❌ Error loading saved design:", error);
-      canvas.clear();
-      await loadBackgroundImage(productImage);
+      // ✅ FIX: Check if canvas is still valid before calling clear()
+      if (canvas && canvas.getContext && canvas.getContext()) {
+        canvas.clear();
+        await loadBackgroundImage(productImage);
+      }
     }
   };
 
