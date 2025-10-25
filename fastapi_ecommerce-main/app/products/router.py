@@ -199,6 +199,12 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # DEBUG: Check data sizes BEFORE conversion
+    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} media items")
+    total_variation_media = sum(len(v.media) for v in product.variations)
+    total_customization_media = sum(len(c.media) for c in product.customization_options)
+    print(f"🔍 [DEBUG] Total media: {total_variation_media} variation media, {total_customization_media} customization media")
+
     # Convert product ORM to dict and add category_ids
     convert_start = time.time()
     product_data = schemas.ProductWithReviewsResponse.model_validate(product)
@@ -208,6 +214,24 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     product_data = convert_product_media_urls(product_data)
     convert_time = time.time() - convert_start
     print(f"⚡ [BACKEND] Product {product_id} conversion: {convert_time*1000:.2f}ms")
+
+    # DEBUG: Check serialized size
+    import json
+    import sys
+    try:
+        json_str = json.dumps(product_data.model_dump(), default=str)
+        json_size = sys.getsizeof(json_str)
+        print(f"🔍 [DEBUG] Product {product_id} JSON size: {json_size / 1024:.2f} KB ({json_size / 1024 / 1024:.2f} MB)")
+
+        if json_size > 2 * 1024 * 1024:  # Over 2MB
+            print(f"⚠️  [WARNING] Product {product_id} response is {json_size / 1024 / 1024:.2f} MB - exceeds Next.js 2MB cache limit!")
+
+            # Sample first file_path to check if it's base64 or URL
+            if product_data.media and len(product_data.media) > 0:
+                sample_path = product_data.media[0].file_path[:100]
+                print(f"🔍 [DEBUG] Sample media path: {sample_path}...")
+    except Exception as e:
+        print(f"⚠️  [DEBUG] Failed to calculate JSON size: {e}")
 
     # Fetch review data using the reviews client
     from app.products.reviews_client import get_product_review_summary, get_most_helpful_reviews
