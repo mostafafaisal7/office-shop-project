@@ -98,9 +98,12 @@ async def get_product_with_template_customizations(db: AsyncSession, product_id:
 
     This loads:
     - Product info, variations, media
-    - Up to 10 customization options (any 10, for multi-view templates)
-    - NO ORDER BY to avoid "Out of sort memory" error with 200+ huge JSON rows
+    - First 10 customization options (by ID, for multi-view templates)
+    - ORDER BY id (PRIMARY KEY) for consistent results - no memory issues
     - Excludes majority of user-saved designs (200+ designs = 72MB)
+
+    IMPORTANT: ORDER BY id ensures consistent results between queries.
+    Without it, MySQL returns random rows which breaks cart previews!
 
     For full customization options, use separate /products/{id}/options endpoint
 
@@ -124,14 +127,15 @@ async def get_product_with_template_customizations(db: AsyncSession, product_id:
     )
 
     # Load LIMITED customization options (up to 10 for multi-view templates)
-    # NO ORDER BY - sorting 200+ rows with massive JSON causes "Out of sort memory" error
-    # We just need ANY templates for multi-view, doesn't matter which ones
-    # This provides multi-view functionality without 72MB payload or memory errors
+    # ORDER BY id (PRIMARY KEY) - very fast, indexed, no memory issues
+    # This ensures CONSISTENT results between queries (same 10 templates every time)
+    # Without ORDER BY, MySQL returns random rows which causes wrong previews in cart!
     customization_result = await db.execute(
         select(models.CustomizationOption)
         .options(selectinload(models.CustomizationOption.media))
         .where(models.CustomizationOption.product_id == product_id)
-        .limit(10)  # Get any 10 templates efficiently
+        .order_by(models.CustomizationOption.id.asc())  # ORDER BY indexed PRIMARY KEY
+        .limit(10)  # Get first 10 by ID
     )
 
     product = product_result.scalars().first()
