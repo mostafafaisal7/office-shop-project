@@ -267,30 +267,39 @@ class DesignApiService {
       }
 
       const designElements = this.convertCanvasDataToDesignElements(canvasData);
-      
-      // Check if we have an existing design for this area
+
+      // ✅ FIX: Always INSERT when we have a new client_reference_id (new version)
+      // If existingClientReferenceId is provided, check if it matches an existing design
+      // If it doesn't match, this is a NEW version and should be INSERTed
       let clientReferenceId = existingClientReferenceId;
       let isUpdate = false;
       let existingDesign = null;
-      
+
       if (!clientReferenceId) {
-        // Try to find existing design for this user, product, variation, and area
+        // No client reference ID provided - try to find existing design for this area
         existingDesign = await this.findExistingDesign(userId, parseInt(productId), variationId, designArea);
         if (existingDesign) {
           clientReferenceId = existingDesign.client_reference_id;
-          // Only set isUpdate to true if we have a valid ID for this specific area
           isUpdate = existingDesign.id !== undefined;
         } else {
-          // Generate new shared client reference ID for new design based on product+variation
+          // Generate new client reference ID for completely new design
           clientReferenceId = this.generateSharedClientReferenceId(productId, variationId);
         }
       } else {
-        // We have existing client reference ID, need to find the design to get the database ID
+        // Client reference ID was explicitly provided
+        // Check if this SPECIFIC client_reference_id exists in database
         existingDesign = await this.findExistingDesign(userId, parseInt(productId), variationId, designArea);
-        if (existingDesign && existingDesign.id !== undefined) {
+
+        // Only UPDATE if the existing design has the SAME client_reference_id
+        // If different, this is a NEW version -> INSERT
+        if (existingDesign && existingDesign.client_reference_id === clientReferenceId) {
           isUpdate = true;
         } else {
+          // Different client_reference_id = new version = INSERT
           isUpdate = false;
+          console.log('🆕 New version detected - will INSERT instead of UPDATE');
+          console.log('  Provided client_reference_id:', clientReferenceId);
+          console.log('  Existing client_reference_id:', existingDesign?.client_reference_id);
         }
       }
       
