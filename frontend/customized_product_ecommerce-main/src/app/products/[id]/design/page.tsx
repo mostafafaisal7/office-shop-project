@@ -68,13 +68,14 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     // Return the relative URL as is (will be served by Next.js from public directory)
     return imageUrl;
   };
-  const { 
-    setDesignJson, 
-    selectedObject, 
-    selectedVariation, 
-    setProductId, 
+  const {
+    setDesignJson,
+    selectedObject,
+    selectedVariation,
+    setProductId,
     setCurrentDesignArea,
     saveDesign,
+    saveAsNewVersion,
     loadDesign,
     syncStatus,
     setSelectedVariation,
@@ -706,9 +707,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         const canvasData = fabricCanvas.toJSON();
         if (canvasData.objects && canvasData.objects.length > 0) {
           const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-          
-          console.log('💾 SAVE: Saving custom design with preview image...');
-          
+
+          console.log('💾 SAVE: Saving custom design as new version...');
+
           // Generate and save preview image for current view only when there's custom content
           let previewImageUrl: string | undefined;
           if (isAuthenticated && selectedVariation?.variationId) {
@@ -725,19 +726,22 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
               // Continue without preview image
             }
           }
-          
-          await saveDesign(canvasData, currentViewImage, previewImageUrl);
-          console.log('💾 Custom design saved manually via Save button', previewImageUrl ? 'with preview image' : 'without preview image');
-          
+
+          // ✅ FIX: Save as new version instead of updating existing design
+          // This creates a new project entry in "My Projects" for each save
+          await saveAsNewVersion(canvasData, currentViewImage, previewImageUrl);
+          console.log('💾 Custom design saved as new version', previewImageUrl ? 'with preview image' : 'without preview image');
+
           // Show success feedback
-          // You could add a toast notification here if needed
+          alert('Design saved as new version! Check "My Projects" to see all your versions.');
         } else {
           console.log('💾 No design elements to save');
+          alert('Please add some design elements before saving.');
         }
       }
     } catch (error) {
       console.error('Error saving design manually:', error);
-      // You could add error feedback here if needed
+      alert('Failed to save design. Please try again.');
     }
   };
 

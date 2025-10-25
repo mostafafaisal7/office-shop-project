@@ -417,6 +417,42 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 }
 ,
 
+  // ✅ NEW: Save as a new version instead of updating existing design
+  // This creates a new customization option with a new client_reference_id
+  saveAsNewVersion: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
+    const state = get();
+
+    if (!state.productId || !state.selectedVariation?.variationId) {
+      throw new Error('Product and variation must be selected to save as new version');
+    }
+
+    // Generate a new client_reference_id to force creation of new version
+    const variationId = state.selectedVariation.variationId.toString();
+    const sharedKey = generateSharedClientReferenceKey(state.productId, variationId);
+    const newClientReferenceId = generateSharedClientReferenceId(state.productId, variationId);
+
+    // Update the stored client_reference_id to the new one
+    const updatedClientReferenceIds = new Map(state.clientReferenceIds);
+    updatedClientReferenceIds.set(sharedKey, newClientReferenceId);
+    set({ clientReferenceIds: updatedClientReferenceIds });
+
+    // Save to localStorage
+    get().saveDesignToStorage(canvasData, productImageUrl);
+
+    // Save to database with new client_reference_id
+    const { useAuthStore } = await import('@/store/authStore');
+    const { isAuthenticated } = useAuthStore.getState();
+    if (isAuthenticated) {
+      try {
+        await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
+        console.log('✅ Saved as new version with client_reference_id:', newClientReferenceId);
+      } catch (error) {
+        console.error('Failed to save new version:', error);
+        throw error;
+      }
+    }
+  },
+
   loadDesign: async (productId: string, variationId: string, area: string) => {
   // Always try localStorage first
   const localDesign = get().loadDesignFromStorage(productId, variationId, area);

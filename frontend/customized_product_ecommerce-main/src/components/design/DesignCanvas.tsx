@@ -638,6 +638,9 @@ useEffect(() => {
       // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
       if (!activeObject || !activeObject.type?.toLowerCase().includes('text') || !designJson.fontFamily) return;
       (activeObject as FabricText).set('fontFamily', designJson.fontFamily);
+      // ✅ FIX: Force object coordinate update after font change
+      activeObject.setCoords();
+      canvas.setActiveObject(activeObject);
       renderCanvas();
       break;
 
@@ -645,6 +648,9 @@ useEffect(() => {
       // ✅ FIX: Check for all text types (text, textbox, i-text, etc.)
       if (!activeObject || !activeObject.type?.toLowerCase().includes('text') || !designJson.fontSize) return;
       (activeObject as FabricText).set('fontSize', designJson.fontSize);
+      // ✅ FIX: Force object coordinate update after font size change
+      activeObject.setCoords();
+      canvas.setActiveObject(activeObject);
       renderCanvas();
       break;
 

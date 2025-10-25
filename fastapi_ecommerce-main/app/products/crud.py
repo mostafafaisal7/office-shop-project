@@ -364,8 +364,11 @@ async def get_customization_options_by_user(
     skip: int = 0,
     limit: int = 20
 ) -> List[models.CustomizationOption]:
+    # ✅ FIX: Add eager loading for product and variation relationships to prevent 500 errors
     query = select(models.CustomizationOption).options(
-        selectinload(models.CustomizationOption.media)
+        selectinload(models.CustomizationOption.media),
+        selectinload(models.CustomizationOption.product).selectinload(models.Product.media),
+        selectinload(models.CustomizationOption.variation)
     ).where(models.CustomizationOption.user_id == user_id)
 
     if product_id:
