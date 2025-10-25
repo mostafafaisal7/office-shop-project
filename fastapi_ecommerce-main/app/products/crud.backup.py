@@ -72,15 +72,19 @@ async def get_product_by_slug(db: AsyncSession, slug: str) -> Optional[models.Pr
 
 
 async def get_products(db: AsyncSession, skip: int = 0, limit: int = 20) -> List[models.Product]:
-    """
-    OPTIMIZED: Get products for listing view (only load primary media, no variations/customizations)
-    This is MUCH faster for product listings (5-10x improvement)
-    """
     result = await db.execute(
         select(models.Product)
         .offset(skip)
         .limit(limit)
-        .options(selectinload(models.Product.media))  # Only load product images, not variations
+        .options(
+            selectinload(models.Product.variations)
+            .selectinload(models.ProductVariation.media)
+        )
+        .options(
+            selectinload(models.Product.customization_options)
+            .selectinload(models.CustomizationOption.media)
+        )
+        .options(selectinload(models.Product.media))
     )
     return list(result.scalars().all())
 
@@ -99,17 +103,17 @@ async def get_products_with_filters(
     sort_by: str = "created_at",
     sort_order: str = "desc"
 ) -> tuple[List[models.Product], int]:
-    """
-    OPTIMIZED: Get products with search, filtering, and sorting
-    Only loads product media, NOT variations or customization options
-    This makes listing pages MUCH faster (5-10x faster)
-    """
+    """Get products with search, filtering, and sorting capabilities"""
     from sqlalchemy import func, and_, or_
-
-    # Base query - OPTIMIZED: Only load media for product listings
+    
+    # Base query
     query = select(models.Product).options(
-        selectinload(models.Product.media)  # Only product images
-    )
+        selectinload(models.Product.variations)
+        .selectinload(models.ProductVariation.media)
+    ).options(
+        selectinload(models.Product.customization_options)
+        .selectinload(models.CustomizationOption.media)
+    ).options(selectinload(models.Product.media))
     
     # Count query for pagination
     count_query = select(func.count(models.Product.id))

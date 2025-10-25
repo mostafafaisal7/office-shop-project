@@ -38,6 +38,9 @@ async def create_product(db: AsyncSession, product: models.Product) -> models.Pr
 
 
 async def get_product(db: AsyncSession, product_id: int) -> models.Product:
+    """
+    Get single product with ALL relationships (for detail view)
+    """
     result = await db.execute(
         select(models.Product)
         .options(
@@ -74,7 +77,7 @@ async def get_product_by_slug(db: AsyncSession, slug: str) -> Optional[models.Pr
 async def get_products(db: AsyncSession, skip: int = 0, limit: int = 20) -> List[models.Product]:
     """
     OPTIMIZED: Get products for listing view (only load primary media, no variations/customizations)
-    This is MUCH faster for product listings (5-10x improvement)
+    This is MUCH faster for product listings
     """
     result = await db.execute(
         select(models.Product)
@@ -106,17 +109,17 @@ async def get_products_with_filters(
     """
     from sqlalchemy import func, and_, or_
 
-    # Base query - OPTIMIZED: Only load media for product listings
+    # OPTIMIZATION: Only load media for product listings, not variations or customizations
     query = select(models.Product).options(
         selectinload(models.Product.media)  # Only product images
     )
-    
+
     # Count query for pagination
     count_query = select(func.count(models.Product.id))
-    
+
     # Apply filters
     filters = []
-    
+
     # Search functionality
     if search:
         search_term = f"%{search.lower()}%"
@@ -127,7 +130,7 @@ async def get_products_with_filters(
             func.lower(models.Product.sku).like(search_term)
         )
         filters.append(search_filter)
-    
+
     # Category filter
     if category_id:
         # Join with ProductCategory table for category filtering
@@ -135,57 +138,57 @@ async def get_products_with_filters(
             models.ProductCategory,
             models.Product.id == models.ProductCategory.product_id
         ).where(models.ProductCategory.category_id == category_id)
-        
+
         count_query = count_query.select_from(
             models.Product.__table__.join(
                 models.ProductCategory.__table__,
                 models.Product.id == models.ProductCategory.product_id
             )
         ).where(models.ProductCategory.category_id == category_id)
-    
+
     # Status filter
     if status:
         filters.append(models.Product.status == status)
-    
+
     # Customizable filter
     if is_customizable is not None:
         filters.append(models.Product.is_customizable == is_customizable)
-    
+
     # Price range filters
     if min_price is not None:
         filters.append(models.Product.base_price >= min_price)
-    
+
     if max_price is not None:
         filters.append(models.Product.base_price <= max_price)
-    
+
     # Tags filter
     if tags:
         for tag in tags:
             filters.append(func.json_contains(models.Product.tags, f'"{tag}"'))
-    
+
     # Apply all filters
     if filters:
         filter_condition = and_(*filters)
         query = query.where(filter_condition)
         count_query = count_query.where(filter_condition)
-    
+
     # Apply sorting
     sort_column = getattr(models.Product, sort_by, models.Product.created_at)
     if sort_order.lower() == "desc":
         query = query.order_by(sort_column.desc())
     else:
         query = query.order_by(sort_column.asc())
-    
+
     # Apply pagination
     query = query.offset(skip).limit(limit)
-    
+
     # Execute queries
     result = await db.execute(query)
     products = list(result.scalars().all())
-    
+
     count_result = await db.execute(count_query)
     total_count = count_result.scalar() or 0
-    
+
     return products, total_count
 
 
@@ -222,7 +225,7 @@ async def create_variation(
     db.add(variation)
     await db.commit()
     await db.refresh(variation)
-    
+
     # Re-fetch with relationships loaded to avoid greenlet issues
     result = await db.execute(
         select(models.ProductVariation)
@@ -388,7 +391,7 @@ async def create_customization_option(
     db.add(option)
     await db.commit()
     await db.refresh(option)
-    
+
     # Re-fetch with media relationship loaded
     result = await db.execute(
         select(models.CustomizationOption)
