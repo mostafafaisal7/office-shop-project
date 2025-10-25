@@ -85,7 +85,7 @@ export interface ProductFilters {
 export async function fetchProducts(): Promise<ApiProduct[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/products/`, {
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      cache: 'no-store', // Ensure fresh data for SSR
     });
     
     if (!response.ok) {
@@ -131,9 +131,9 @@ export async function fetchProductsWithFilters(filters: ProductFilters = {}): Pr
     if (filters.per_page) params.append('per_page', filters.per_page.toString());
     
     const url = `${API_BASE_URL}/products/${params.toString() ? `?${params.toString()}` : ''}`;
-
+    
     const response = await fetch(url, {
-      next: { revalidate: 120 }, // Cache for 2 minutes (shorter for dynamic filters)
+      cache: 'no-store', // Ensure fresh data for SSR
     });
     
     if (!response.ok) {
@@ -159,7 +159,7 @@ export async function fetchProductsWithFilters(filters: ProductFilters = {}): Pr
 export async function fetchCategories(): Promise<ApiCategory[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/categories/`, {
-      next: { revalidate: 600 }, // Cache for 10 minutes (categories change infrequently)
+      cache: 'no-store', // Ensure fresh data for SSR
     });
     
     if (!response.ok) {
@@ -177,7 +177,7 @@ export async function fetchCategories(): Promise<ApiCategory[]> {
 export async function fetchCategoryBySlug(slug: string): Promise<ApiCategory> {
   try {
     const response = await fetch(`${API_BASE_URL}/categories/slug/${slug}`, {
-      next: { revalidate: 600 }, // Cache for 10 minutes
+      cache: 'no-store', // Ensure fresh data for SSR
     });
     
     if (!response.ok) {
@@ -206,7 +206,7 @@ export function transformProductForGrid(product: ApiProduct): ProductGridItem {
 export async function fetchProductById(id: string): Promise<ApiProduct> {
   try {
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
-      next: { revalidate: 180 }, // Cache for 3 minutes
+      cache: 'no-store', // Ensure fresh data for SSR
     });
     
     if (!response.ok) {
@@ -242,7 +242,7 @@ export interface ReviewsResponse {
 export async function fetchProductReviews(productId: string): Promise<ReviewsResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      cache: 'no-store',
     });
     
     if (!response.ok) {
@@ -285,7 +285,7 @@ export async function fetchProductReviews(productId: string): Promise<ReviewsRes
 export async function fetchMoreReviews(productId: string, page: number = 1, limit: number = 10): Promise<{ reviews: ApiReview[]; hasMore: boolean }> {
   try {
     const response = await fetch(`${API_BASE_URL}/reviews/products/${productId}/reviews?page=${page}&limit=${limit}`, {
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      cache: 'no-store',
     });
     
     if (!response.ok) {
@@ -338,39 +338,10 @@ export async function calculateDiscount(productId: number, quantity: number): Pr
   }
 }
 
-/**
- * NEW FUNCTION: Fetch related products efficiently
- * Only fetches products from same category, limits results
- * MUCH FASTER than fetching all products
- */
-export async function fetchRelatedProducts(productId: number, categoryIds: number[], limit: number = 4): Promise<ProductGridItem[]> {
-  try {
-    if (!categoryIds || categoryIds.length === 0) {
-      return [];
-    }
-
-    // Fetch products from the same category with pagination
-    const response = await fetchProductsWithFilters({
-      category_id: categoryIds[0],
-      per_page: limit + 1, // +1 to account for excluding current product
-      status: 'active'
-    });
-
-    // Transform and filter out current product
-    return response.products
-      .filter(p => p.id !== productId)
-      .slice(0, limit)
-      .map(transformProductForGrid);
-  } catch (error) {
-    console.error('Error fetching related products:', error);
-    return [];
-  }
-}
-
 export function groupProductsByCategory(products: ApiProduct[], categories: ApiCategory[]) {
   const categoryMap = new Map(categories.map(cat => [cat.id, cat]));
   const grouped = new Map<number, { category: ApiCategory; products: ApiProduct[] }>();
-
+  
   products.forEach(product => {
     product.category_ids.forEach(categoryId => {
       const category = categoryMap.get(categoryId);
@@ -382,6 +353,6 @@ export function groupProductsByCategory(products: ApiProduct[], categories: ApiC
       }
     });
   });
-
+  
   return Array.from(grouped.values());
 }
