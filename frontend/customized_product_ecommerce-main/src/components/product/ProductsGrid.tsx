@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from 'react';
 import { ProductCard } from "./ProductCard";
 
 interface Product {
@@ -15,7 +16,7 @@ interface ProductsGridProps {
   loading?: boolean;
 }
 
-export const ProductsGrid = ({ products, loading = false }: ProductsGridProps) => {
+const ProductsGrid = ({ products, loading = false }: ProductsGridProps) => {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
@@ -63,3 +64,15 @@ export const ProductsGrid = ({ products, loading = false }: ProductsGridProps) =
     </div>
   );
 };
+
+// Memoize ProductsGrid to prevent re-renders when products haven't changed
+export default memo(ProductsGrid, (prevProps, nextProps) => {
+  return (
+    prevProps.loading === nextProps.loading &&
+    prevProps.products.length === nextProps.length &&
+    prevProps.products === nextProps.products
+  );
+});
+
+// Named export for backward compatibility
+export { ProductsGrid };

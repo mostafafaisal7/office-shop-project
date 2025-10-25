@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from 'react';
 import Link from "next/link";
 import Image from "next/image";
 
@@ -14,7 +15,11 @@ interface ProductsListProps {
   products: ProductListItem[];
 }
 
-export const ProductsList = ({ products }: ProductsListProps) => {
+const ProductsList = ({ products }: ProductsListProps) => {
+  const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    target.src = '/placeholder-image.jpg';
+  }, []);
   return (
     <div className="bg-white">
       <div className="space-y-4 p-6">
@@ -32,10 +37,7 @@ export const ProductsList = ({ products }: ProductsListProps) => {
                   width={96}
                   height={96}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/placeholder-image.jpg';
-                  }}
+                  onError={handleImageError}
                 />
               </div>
             </div>
@@ -77,3 +79,11 @@ export const ProductsList = ({ products }: ProductsListProps) => {
     </div>
   );
 };
+
+// Memoize ProductsList to prevent re-renders when products haven't changed
+export default memo(ProductsList, (prevProps, nextProps) => {
+  return prevProps.products === nextProps.products;
+});
+
+// Named export for backward compatibility
+export { ProductsList };

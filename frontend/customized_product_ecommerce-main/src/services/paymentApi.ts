@@ -1,6 +1,12 @@
-const API_BASE_URL = typeof window === 'undefined' 
-  ? 'http://localhost:8000' // Server-side
-  : '/api'; // Client-side (uses proxy)
+/**
+ * Payment API Service
+ *
+ * Refactored to use BaseApiClient for consistency.
+ * Maintains 100% backward compatibility.
+ */
+
+import { BaseApiClient } from './apiClient';
+import { API_ENDPOINTS } from '@/config/api';
 
 export interface PaymentMethod {
   id: number;
@@ -17,30 +23,19 @@ export interface PaymentMethodsResponse {
   message?: string;
 }
 
-class PaymentApiService {
-  private getHeaders(): HeadersInit {
-    return {
-      'Content-Type': 'application/json',
-    };
-  }
-
+class PaymentApiService extends BaseApiClient {
   async getPaymentMethods(): Promise<PaymentMethodsResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/payment/methods`, {
-        method: 'GET',
-        headers: this.getHeaders(),
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch payment methods');
-      }
+      const response = await this.get(
+        API_ENDPOINTS.PAYMENT.METHODS,
+        undefined,
+        { requiresAuth: false }
+      );
 
       return {
-        success: true,
-        data: data.data || data,
-        message: data.message || 'Payment methods retrieved successfully',
+        success: response.success,
+        data: response.data || [],
+        message: response.message || 'Payment methods retrieved successfully',
       };
     } catch (error: any) {
       console.error('Error fetching payment methods:', error);
