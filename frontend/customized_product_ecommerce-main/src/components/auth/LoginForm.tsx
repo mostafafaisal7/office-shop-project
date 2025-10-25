@@ -30,7 +30,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [errors, setErrors] = useState<Partial<LoginCredentials>>({});
   const [otpRequired, setOtpRequired] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -68,24 +69,25 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-  
+
+    setIsSubmitting(true);
     try {
       if (!otpRequired) {
         // Detect if input is phone number or email
         const isPhoneNumber = /^(\+?88)?01[3-9]\d{8}$/.test(formData.email.trim());
-        
+
         const loginCredentials: LoginCredentials = {
           password: formData.password,
         };
-        
+
         if (isPhoneNumber) {
           loginCredentials.phone = formData.email.trim();
         } else {
           loginCredentials.email = formData.email.trim();
         }
-        
+
         const response = await login(loginCredentials);
-  
+
         if (response?.otpRequired) {
           if (!response.userId) throw new Error("User ID missing for OTP verification");
           setOtpRequired(true);
@@ -93,9 +95,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           showToast(response.message || "OTP sent", "info");
           return; // stop redirect
         }
-  
+
         showToast(response?.message || "Login successful", "success");
-        
+
         // Handle redirect after successful login
         const redirectPath = searchParams?.get('redirect');
         if (redirectPath) {
@@ -104,10 +106,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         onClose?.();
       } else {
         if (!userId) throw new Error("User ID missing for OTP verification");
-  
+
         await verifyOtp({ userId, otp: formData.otp });
         showToast("Login successful!", "success");
-        
+
         // Handle redirect after successful OTP verification
         const redirectPath = searchParams?.get('redirect');
         if (redirectPath) {
@@ -117,9 +119,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Login failed", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
+
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -202,7 +206,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           </div>
         )}
 
-        <Button type="submit" className="w-full">
+        <Button
+          type="submit"
+          className="w-full"
+          isLoading={isSubmitting}
+          loadingText={otpRequired ? "Verifying..." : "Signing in..."}
+        >
           {otpRequired ? "Verify OTP" : "Sign in"}
         </Button>
       </form>
