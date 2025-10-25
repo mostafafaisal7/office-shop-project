@@ -205,10 +205,70 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} product-level media items")
     print(f"🔍 [DEBUG] Lightweight mode: variation/customization media NOT loaded for performance")
 
-    # Convert product ORM to dict and add category_ids
+    # Convert product ORM to dict BEFORE Pydantic validation to avoid lazy load triggers
+    # In lightweight mode, variation/customization media are NOT loaded, so we set them to empty lists
     convert_start = time.time()
-    product_data = schemas.ProductWithReviewsResponse.model_validate(product)
-    product_data.category_ids = category_ids
+
+    # Build variations list (WITHOUT media to avoid lazy load)
+    variations_data = []
+    for v in product.variations:
+        variations_data.append({
+            "id": v.id,
+            "product_id": v.product_id,
+            "attributes": v.attributes,
+            "sku": v.sku,
+            "stock_quantity": v.stock_quantity,
+            "price_adjustment": v.price_adjustment,
+            "is_active": v.is_active,
+            "created_at": v.created_at,
+            "media": []  # Empty in lightweight mode
+        })
+
+    # Build customization_options list (WITHOUT media to avoid lazy load)
+    customization_options_data = []
+    for c in product.customization_options:
+        customization_options_data.append({
+            "id": c.id,
+            "product_id": c.product_id,
+            "variation_id": c.variation_id,
+            "user_id": c.user_id,
+            "design_area": c.design_area,
+            "canvas_data": c.canvas_data,
+            "svg_data": c.svg_data,
+            "preview_image_path": c.preview_image_path,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at,
+            "media": []  # Empty in lightweight mode
+        })
+
+    # Build product dict with all fields
+    product_dict = {
+        "id": product.id,
+        "name": product.name,
+        "short_description": product.short_description,
+        "description": product.description,
+        "features": product.features,
+        "base_price": product.base_price,
+        "category_ids": category_ids,
+        "tags": product.tags,
+        "sku": product.sku,
+        "is_customizable": product.is_customizable,
+        "weight": product.weight,
+        "dimensions": product.dimensions,
+        "seo_title": product.seo_title,
+        "seo_description": product.seo_description,
+        "status": product.status,
+        "created_at": product.created_at,
+        "updated_at": product.updated_at,
+        "variations": variations_data,
+        "customization_options": customization_options_data,
+        "media": product.media,  # Product-level media IS loaded
+        "review_summary": None,  # Will be populated later
+        "helpful_reviews": []  # Will be populated later
+    }
+
+    # Now safely create Pydantic model from dict
+    product_data = schemas.ProductWithReviewsResponse(**product_dict)
 
     # Convert media URLs for the product and all nested relationships
     product_data = convert_product_media_urls(product_data)
