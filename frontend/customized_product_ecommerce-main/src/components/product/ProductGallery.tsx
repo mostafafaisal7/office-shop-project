@@ -16,8 +16,17 @@ interface ProductGalleryProps {
  * 3. Lazy loading for thumbnails
  * 4. Reduced quality for faster loading
  * 5. Proper sizing to avoid layout shift
+ * 6. Safety checks for empty/invalid images
  */
 const ProductGallery = ({ images }: ProductGalleryProps) => {
+  // Filter out empty or invalid image paths
+  const validImages = images.filter(img => img && img.trim() !== '');
+
+  // Fallback to placeholder if no valid images
+  const displayImages = validImages.length > 0
+    ? validImages
+    : ['/placeholder-image.jpg'];
+
   const [selectedImage, setSelectedImage] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
 
@@ -37,20 +46,22 @@ const ProductGallery = ({ images }: ProductGalleryProps) => {
     <div className="space-y-4">
       {/* Main Product Image - Priority loaded for LCP */}
       <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
-        <Image
-          src={images[selectedImage]}
-          alt="Product"
-          fill
-          className="object-cover"
-          priority={selectedImage === 0} // Priority load first image
-          quality={75} // Reduced quality for faster loading
-          sizes="(max-width: 768px) 100vw, 50vw"
-        />
+        {displayImages[selectedImage] && (
+          <Image
+            src={displayImages[selectedImage]}
+            alt="Product"
+            fill
+            className="object-cover"
+            priority={selectedImage === 0} // Priority load first image
+            quality={75} // Reduced quality for faster loading
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+        )}
       </div>
 
       {/* Thumbnail Slider */}
       <div className="relative">
-        {images.length > 5 && (
+        {displayImages.length > 5 && (
           <>
             <button
               onClick={scrollLeft}
@@ -73,25 +84,27 @@ const ProductGallery = ({ images }: ProductGalleryProps) => {
           className="flex space-x-2 overflow-x-auto scrollbar-hide"
           style={{ scrollSnapType: 'x mandatory' }}
         >
-          {images.map((image, index) => (
-            <button
-              key={index}
-              onClick={() => setSelectedImage(index)}
-              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative ${
-                selectedImage === index ? 'border-blue-500' : 'border-gray-200'
-              }`}
-              style={{ scrollSnapAlign: 'start' }}
-            >
-              <Image
-                src={image}
-                alt={`Product ${index + 1}`}
-                fill
-                className="object-cover"
-                loading="lazy" // Lazy load thumbnails
-                quality={60} // Lower quality for thumbnails
-                sizes="80px"
-              />
-            </button>
+          {displayImages.map((image, index) => (
+            image && (
+              <button
+                key={index}
+                onClick={() => setSelectedImage(index)}
+                className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative ${
+                  selectedImage === index ? 'border-blue-500' : 'border-gray-200'
+                }`}
+                style={{ scrollSnapAlign: 'start' }}
+              >
+                <Image
+                  src={image}
+                  alt={`Product ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  loading="lazy" // Lazy load thumbnails
+                  quality={60} // Lower quality for thumbnails
+                  sizes="80px"
+                />
+              </button>
+            )
           ))}
         </div>
       </div>

@@ -238,14 +238,17 @@ export function transformProductForGrid(product: ApiProduct): ProductGridItem {
 
 export async function fetchProductById(id: string): Promise<ApiProduct> {
   try {
+    // NOTE: Using cache: 'no-store' to bypass Next.js 2MB cache limit
+    // Some products with many variations can exceed this limit
+    // This ensures all your product data and features work correctly
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
-      next: { revalidate: 180 }, // Cache for 3 minutes
+      cache: 'no-store', // Disable caching to avoid 2MB limit errors
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch product: ${response.status}`);
     }
-    
+
     const data = await response.json();
     return data;
   } catch (error) {
