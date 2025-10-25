@@ -106,10 +106,9 @@ async def get_product_lightweight_with_categories(db: AsyncSession, product_id: 
 
     Returns: (product, category_ids)
     """
-    import asyncio
-
     # Load product with variations (NO media selectinload)
-    product_task = db.execute(
+    # NOTE: Sequential execution - SQLAlchemy async sessions don't support concurrent queries
+    product_result = await db.execute(
         select(models.Product)
         .options(
             selectinload(models.Product.variations)  # Load variations WITHOUT media
@@ -120,13 +119,10 @@ async def get_product_lightweight_with_categories(db: AsyncSession, product_id: 
         .where(models.Product.id == product_id)
     )
 
-    categories_task = db.execute(
+    categories_result = await db.execute(
         select(models.ProductCategory.category_id)
         .where(models.ProductCategory.product_id == product_id)
     )
-
-    # Wait for both queries to complete
-    product_result, categories_result = await asyncio.gather(product_task, categories_task)
 
     product = product_result.scalars().first()
     category_ids = [row[0] for row in categories_result.all()]
