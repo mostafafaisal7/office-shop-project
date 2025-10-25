@@ -301,14 +301,29 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         print(f"⚠️  [DEBUG] Failed to calculate JSON size: {e}")
 
-    # Fetch review data using the reviews client
+    # Fetch review data using the reviews client (with timeout and parallel calls)
     from app.products.reviews_client import get_product_review_summary, get_most_helpful_reviews
+    import asyncio
 
     reviews_start = time.time()
     try:
-        # Get review summary
-        review_summary = await get_product_review_summary(product_id)
-        if review_summary and review_summary.product_id:
+        # OPTIMIZATION: Fetch both review calls in PARALLEL with 500ms timeout
+        # This prevents slow reviews service from blocking the entire product page
+        async def fetch_reviews_with_timeout():
+            return await asyncio.gather(
+                get_product_review_summary(product_id),
+                get_most_helpful_reviews(product_id, limit=5),
+                return_exceptions=True  # Don't fail if one call fails
+            )
+
+        # Set timeout to 500ms - reviews shouldn't block the page
+        review_summary, helpful_reviews = await asyncio.wait_for(
+            fetch_reviews_with_timeout(),
+            timeout=0.5  # 500ms timeout
+        )
+
+        # Process review summary if successful
+        if review_summary and not isinstance(review_summary, Exception) and review_summary.product_id:
             product_data.review_summary = schemas.ReviewSummaryResponse(
                 product_id=review_summary.product_id,
                 total_reviews=review_summary.total_reviews,
@@ -320,32 +335,38 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
                 rating_5_count=review_summary.rating_5_count,
             )
 
-        # Get most helpful reviews (3-5 reviews)
-        helpful_reviews = await get_most_helpful_reviews(product_id, limit=5)
-        product_data.helpful_reviews = [
-            schemas.HelpfulReviewResponse(
-                id=review.id or 0,
-                user_id=review.user_id or 0,
-                user_name=review.user_name or "Anonymous",
-                rating=review.rating or 0,
-                title=review.title,
-                comment=review.comment,
-                helpful_count=review.helpful_count or 0,
-                created_at=review.created_at or "",
-                is_verified_purchase=review.is_verified_purchase or False,
-                media=[
-                    schemas.ReviewMediaResponse(
-                        id=media.get("id", 0),
-                        file_path=media.get("file_path", ""),
-                        file_name=media.get("file_name", ""),
-                        media_type=media.get("media_type", ""),
-                        alt_text=media.get("alt_text")
-                    ) for media in review.media if media.get("id") and media.get("file_path")
-                ]
-            ) for review in helpful_reviews if review.id and review.user_id and review.rating
-        ]
+        # Process helpful reviews if successful
+        if helpful_reviews and not isinstance(helpful_reviews, Exception):
+            product_data.helpful_reviews = [
+                schemas.HelpfulReviewResponse(
+                    id=review.id or 0,
+                    user_id=review.user_id or 0,
+                    user_name=review.user_name or "Anonymous",
+                    rating=review.rating or 0,
+                    title=review.title,
+                    comment=review.comment,
+                    helpful_count=review.helpful_count or 0,
+                    created_at=review.created_at or "",
+                    is_verified_purchase=review.is_verified_purchase or False,
+                    media=[
+                        schemas.ReviewMediaResponse(
+                            id=media.get("id", 0),
+                            file_path=media.get("file_path", ""),
+                            file_name=media.get("file_name", ""),
+                            media_type=media.get("media_type", ""),
+                            alt_text=media.get("alt_text")
+                        ) for media in review.media if media.get("id") and media.get("file_path")
+                    ]
+                ) for review in helpful_reviews if review.id and review.user_id and review.rating
+            ]
+
         reviews_time = time.time() - reviews_start
-        print(f"⚡ [BACKEND] Product {product_id} reviews fetch: {reviews_time*1000:.2f}ms")
+        print(f"⚡ [BACKEND] Product {product_id} reviews fetch: {reviews_time*1000:.2f}ms (parallel with 500ms timeout)")
+    except asyncio.TimeoutError:
+        # Reviews took too long - skip them and don't block the page
+        reviews_time = time.time() - reviews_start
+        print(f"⏱️  [BACKEND] Product {product_id} reviews fetch TIMEOUT after {reviews_time*1000:.2f}ms - skipping reviews to not block page")
+        # Review data will remain None/empty
     except Exception as e:
         # Log the error but don't fail the request
         reviews_time = time.time() - reviews_start
