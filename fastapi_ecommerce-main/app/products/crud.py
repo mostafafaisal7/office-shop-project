@@ -114,9 +114,8 @@ async def get_product_lightweight_with_categories(db: AsyncSession, product_id: 
         .options(
             selectinload(models.Product.variations)  # Load variations WITHOUT media
         )
-        .options(
-            selectinload(models.Product.customization_options)  # Load customization options WITHOUT media
-        )
+        # NOTE: Customization options NOT loaded - they contain massive JSON data (canvas_data, svg_data)
+        # With 200+ saved designs, this is 60-70MB! Load separately when needed.
         .options(selectinload(models.Product.media))  # Load product-level media only
         .where(models.Product.id == product_id)
     )

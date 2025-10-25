@@ -201,9 +201,9 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # DEBUG: Check data sizes BEFORE conversion (lightweight mode - media not loaded)
-    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} product-level media items")
-    print(f"🔍 [DEBUG] Lightweight mode: variation/customization media NOT loaded for performance")
+    # DEBUG: Check data sizes BEFORE conversion (ultra-lightweight mode)
+    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.media)} product-level media items")
+    print(f"🔍 [DEBUG] Ultra-lightweight mode: variation media NOT loaded, customization_options SKIPPED (they contain massive JSON data)")
 
     # Convert product ORM to dict BEFORE Pydantic validation to avoid lazy load triggers
     # In lightweight mode, variation/customization media are NOT loaded, so we set them to empty lists
@@ -227,23 +227,26 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
             "media": []  # Empty in lightweight mode
         })
 
-    # Build customization_options list (WITHOUT media to avoid lazy load)
+    # SKIP customization_options entirely - they contain HUGE JSON data (canvas_data, svg_data)
+    # With 200+ saved designs, this adds 60-70MB to the response!
+    # Load them separately via /products/{id}/options endpoint when user needs to view/edit designs
     customization_options_data = []
-    for c in product.customization_options:
-        customization_options_data.append({
-            "id": c.id,
-            "client_reference_id": c.client_reference_id,
-            "user_id": c.user_id,
-            "product_id": c.product_id,
-            "variation_id": c.variation_id,
-            "design_area": c.design_area,
-            "canvas_data": c.canvas_data,
-            "svg_data": c.svg_data,
-            "design_metadata": c.design_metadata,
-            "design_elements": c.design_elements,
-            "created_at": c.created_at,
-            "updated_at": c.updated_at,
-            "media": []  # Empty in lightweight mode
+
+    # Build product media list (convert ORM to dicts)
+    media_data = []
+    for m in product.media:
+        media_data.append({
+            "id": m.id,
+            "product_id": m.product_id,
+            "file_path": m.file_path,
+            "file_name": m.file_name,
+            "file_size": m.file_size,
+            "media_type": m.media_type,
+            "mime_type": m.mime_type,
+            "alt_text": m.alt_text,
+            "is_primary": m.is_primary,
+            "sort_order": m.sort_order,
+            "uploaded_at": m.uploaded_at
         })
 
     # Build product dict with all fields
@@ -266,8 +269,8 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
         "created_at": product.created_at,
         "updated_at": product.updated_at,
         "variations": variations_data,
-        "customization_options": customization_options_data,
-        "media": product.media,  # Product-level media IS loaded
+        "customization_options": customization_options_data,  # Empty - massive JSON data skipped
+        "media": media_data,  # Product-level media (converted to dicts)
         "review_summary": None,  # Will be populated later
         "helpful_reviews": []  # Will be populated later
     }
