@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+import time
+import logging
 from app.reviews import schemas, service, crud, models
 from app.core.database import get_db
 from app.common.dependencies import get_current_user, require_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -95,7 +99,11 @@ async def get_product_review_summary(
     db: AsyncSession = Depends(get_db)
 ):
     """Get review summary for a specific product"""
-    return await service.get_product_review_summary(db, product_id)
+    start_time = time.perf_counter()
+    result = await service.get_product_review_summary(db, product_id)
+    elapsed_ms = (time.perf_counter() - start_time) * 1000
+    logger.info(f"⚡ [REVIEWS] Product {product_id} summary fetch: {elapsed_ms:.2f}ms")
+    return result
 
 
 @router.get("/products/{product_id}/stats", response_model=schemas.ReviewStatsResponse)
@@ -114,7 +122,11 @@ async def get_most_helpful_reviews(
     db: AsyncSession = Depends(get_db)
 ):
     """Get most helpful reviews for a product"""
-    return await service.get_most_helpful_reviews_for_product(db, product_id, limit)
+    start_time = time.perf_counter()
+    result = await service.get_most_helpful_reviews_for_product(db, product_id, limit)
+    elapsed_ms = (time.perf_counter() - start_time) * 1000
+    logger.info(f"⚡ [REVIEWS] Product {product_id} helpful reviews fetch: {elapsed_ms:.2f}ms")
+    return result
 
 
 # ==== User Reviews ====

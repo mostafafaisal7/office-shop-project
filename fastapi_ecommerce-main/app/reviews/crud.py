@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy import func, and_, desc, asc, case
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
@@ -26,86 +26,112 @@ async def get_review(db: AsyncSession, review_id: int) -> Optional[models.Review
 
 
 async def get_reviews(
-    db: AsyncSession, 
-    skip: int = 0, 
+    db: AsyncSession,
+    skip: int = 0,
     limit: int = 20,
     filters: Optional[schemas.ReviewFilters] = None
 ) -> Tuple[List[models.Review], int]:
-    query = select(models.Review).options(
-        selectinload(models.Review.media),
-        selectinload(models.Review.helpful_votes)
-    )
-    
-    # Apply filters
+    """Get reviews with optional filters and pagination
+
+    OPTIMIZED:
+    - Uses joinedload instead of selectinload to reduce from 3 queries to 1 query with JOINs
+    - Uses direct count query instead of subquery for better performance
+    """
+    # Build WHERE conditions
+    where_conditions = []
     if filters:
         if filters.product_id:
-            query = query.where(models.Review.product_id == filters.product_id)
+            where_conditions.append(models.Review.product_id == filters.product_id)
         if filters.user_id:
-            query = query.where(models.Review.user_id == filters.user_id)
+            where_conditions.append(models.Review.user_id == filters.user_id)
         if filters.rating:
-            query = query.where(models.Review.rating == filters.rating)
+            where_conditions.append(models.Review.rating == filters.rating)
         if filters.status:
-            query = query.where(models.Review.status == filters.status)
+            where_conditions.append(models.Review.status == filters.status)
         if filters.is_verified_purchase is not None:
-            query = query.where(models.Review.is_verified_purchase == filters.is_verified_purchase)
+            where_conditions.append(models.Review.is_verified_purchase == filters.is_verified_purchase)
         if filters.search:
             search_term = f"%{filters.search}%"
-            query = query.where(
+            where_conditions.append(
                 models.Review.title.ilike(search_term) |
                 models.Review.comment.ilike(search_term)
             )
-    
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+
+    # Get total count with optimized query (no subquery)
+    count_query = select(func.count(models.Review.id))
+    if where_conditions:
+        count_query = count_query.where(and_(*where_conditions))
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
-    
-    # Get paginated results
+
+    # Get paginated results with joinedload
+    query = select(models.Review).options(
+        joinedload(models.Review.media),
+        joinedload(models.Review.helpful_votes)
+    )
+    if where_conditions:
+        query = query.where(and_(*where_conditions))
+
     query = query.order_by(desc(models.Review.created_at)).offset(skip).limit(limit)
     result = await db.execute(query)
-    reviews = list(result.scalars().all())
-    
+    reviews = list(result.unique().scalars().all())
+
     return reviews, total
 
 
 async def get_reviews_by_product(
-    db: AsyncSession, 
-    product_id: int, 
-    skip: int = 0, 
+    db: AsyncSession,
+    product_id: int,
+    skip: int = 0,
     limit: int = 20,
     status: Optional[schemas.ReviewStatus] = None
 ) -> Tuple[List[models.Review], int]:
-    query = select(models.Review).options(
-        selectinload(models.Review.media),
-        selectinload(models.Review.helpful_votes)
-    ).where(models.Review.product_id == product_id)
-    
+    """Get reviews for a product with pagination
+
+    OPTIMIZED:
+    - Uses joinedload instead of selectinload to reduce from 3 queries to 1 query with JOINs
+    - Uses direct count query instead of subquery for better performance
+    """
+    # Build base WHERE conditions
+    where_conditions = [models.Review.product_id == product_id]
     if status:
-        query = query.where(models.Review.status == status)
-    
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+        where_conditions.append(models.Review.status == status)
+
+    # Get total count with optimized query (no subquery)
+    count_query = select(func.count(models.Review.id)).where(and_(*where_conditions))
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
-    
-    # Get paginated results
-    query = query.order_by(desc(models.Review.created_at)).offset(skip).limit(limit)
+
+    # Get paginated results with joinedload
+    query = select(models.Review).options(
+        joinedload(models.Review.media),
+        joinedload(models.Review.helpful_votes)
+    ).where(
+        and_(*where_conditions)
+    ).order_by(
+        desc(models.Review.created_at)
+    ).offset(skip).limit(limit)
+
     result = await db.execute(query)
-    reviews = list(result.scalars().all())
-    
+    reviews = list(result.unique().scalars().all())
+
     return reviews, total
 
 
 async def get_most_helpful_reviews_by_product(
-    db: AsyncSession, 
-    product_id: int, 
+    db: AsyncSession,
+    product_id: int,
     limit: int = 5,
     status: Optional[schemas.ReviewStatus] = schemas.ReviewStatus.APPROVED
 ) -> List[models.Review]:
-    """Get most helpful reviews for a product, sorted by helpful_count"""
+    """Get most helpful reviews for a product, sorted by helpful_count
+
+    OPTIMIZED: Uses joinedload instead of selectinload to reduce from 3 queries to 1 query with JOINs.
+    This significantly improves performance for the product page.
+    """
     query = select(models.Review).options(
-        selectinload(models.Review.media),
-        selectinload(models.Review.helpful_votes)
+        joinedload(models.Review.media),
+        joinedload(models.Review.helpful_votes)
     ).where(
         and_(
             models.Review.product_id == product_id,
@@ -116,32 +142,41 @@ async def get_most_helpful_reviews_by_product(
         desc(models.Review.helpful_count),
         desc(models.Review.created_at)  # Secondary sort by creation date
     ).limit(limit)
-    
+
     result = await db.execute(query)
-    return list(result.scalars().all())
+    return list(result.unique().scalars().all())
 
 
 async def get_reviews_by_user(
-    db: AsyncSession, 
-    user_id: int, 
-    skip: int = 0, 
+    db: AsyncSession,
+    user_id: int,
+    skip: int = 0,
     limit: int = 20
 ) -> Tuple[List[models.Review], int]:
-    query = select(models.Review).options(
-        selectinload(models.Review.media),
-        selectinload(models.Review.helpful_votes)
-    ).where(models.Review.user_id == user_id)
-    
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+    """Get reviews by a specific user with pagination
+
+    OPTIMIZED:
+    - Uses joinedload instead of selectinload to reduce from 3 queries to 1 query with JOINs
+    - Uses direct count query instead of subquery for better performance
+    """
+    # Get total count with optimized query (no subquery)
+    count_query = select(func.count(models.Review.id)).where(models.Review.user_id == user_id)
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
-    
-    # Get paginated results
-    query = query.order_by(desc(models.Review.created_at)).offset(skip).limit(limit)
+
+    # Get paginated results with joinedload
+    query = select(models.Review).options(
+        joinedload(models.Review.media),
+        joinedload(models.Review.helpful_votes)
+    ).where(
+        models.Review.user_id == user_id
+    ).order_by(
+        desc(models.Review.created_at)
+    ).offset(skip).limit(limit)
+
     result = await db.execute(query)
-    reviews = list(result.scalars().all())
-    
+    reviews = list(result.unique().scalars().all())
+
     return reviews, total
 
 
