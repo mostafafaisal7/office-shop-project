@@ -219,6 +219,39 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
               console.log(`🔄 Loading existing project with client_reference_id: ${clientReferenceId}`);
               console.log(`📦 Found ${customizationOptions.length} customization options`);
 
+              // ✅ CRITICAL FIX: Pre-load ALL areas' designs into localStorage when continuing project
+              // This ensures each view has its own design data when switching between views
+              const variationIdStr = firstOption.variation_id?.toString();
+              if (variationIdStr) {
+                for (const option of customizationOptions) {
+                  const area = option.design_area || option.option_data?.design_area;
+                  if (area && option.canvas_data) {
+                    console.log(`💾 Pre-loading area=${area}, objects=${option.canvas_data.objects?.length || 0}`);
+
+                    // Save to localStorage using the correct key format
+                    const designKey = `${productId}_${variationIdStr}_${area}`;
+                    const designData = {
+                      design_id: option.id?.toString() || '',
+                      user_id: option.user_id,
+                      product_id: parseInt(productId),
+                      variation_id: parseInt(variationIdStr),
+                      design_area: area,
+                      canvas_data: option.canvas_data,
+                      design_metadata: option.design_metadata || {},
+                      design_elements: option.design_elements || []
+                    };
+
+                    // Get current saved designs and add this one
+                    const savedDesignsStr = localStorage.getItem('ecommerce_designs');
+                    const savedDesignsMap = savedDesignsStr ? new Map(JSON.parse(savedDesignsStr)) : new Map();
+                    savedDesignsMap.set(designKey, designData);
+                    localStorage.setItem('ecommerce_designs', JSON.stringify(Array.from(savedDesignsMap.entries())));
+
+                    console.log(`✅ Saved to localStorage key: ${designKey}`);
+                  }
+                }
+              }
+
               // Set the variation from the first customization option if available
               if (firstOption.variation_id) {
                 // Find the variation in the current product
