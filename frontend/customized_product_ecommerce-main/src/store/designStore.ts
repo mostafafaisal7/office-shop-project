@@ -306,21 +306,10 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       }
 
 
-      // First upload the preview image to get the backend URL
-      let backendPreviewUrl = previewImageUrl;
-      if (previewImageUrl && variationId) {
-        try {
-          backendPreviewUrl = await designApi.savePreviewImageToBackend(
-            previewImageUrl,
-            state.productId,
-            variationId,
-            state.currentDesignArea
-          );
-        } catch (uploadError) {
-          console.error('❌ Preview upload failed, continuing with data URL:', uploadError);
-          // Continue with original preview URL if upload fails
-        }
-      }
+      // ✅ FIX: Don't upload preview images to product media gallery
+      // Preview images should be stored in design_metadata, not product_media
+      // Uploading to product media pollutes the product gallery with customer previews
+      const backendPreviewUrl = previewImageUrl; // Keep as data URL or temp URL
 
       const result = await designApi.saveDesignWithNewFormat(
         state.productId,
@@ -329,7 +318,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         canvasData,
         productImageUrl,
         existingClientReferenceId,
-        backendPreviewUrl || previewImageUrl,
+        backendPreviewUrl,  // Save data URL directly in metadata
         svgData  // Pass SVG data for print-ready designs
       );
       
@@ -422,7 +411,15 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   saveAsNewVersion: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
     const state = get();
 
+    console.log('🔷 saveAsNewVersion called');
+    console.log('  - productId:', state.productId);
+    console.log('  - variationId:', state.selectedVariation?.variationId);
+    console.log('  - currentDesignArea:', state.currentDesignArea);
+    console.log('  - has canvasData:', !!canvasData);
+    console.log('  - has previewImageUrl:', !!previewImageUrl);
+
     if (!state.productId || !state.selectedVariation?.variationId) {
+      console.error('❌ Missing required fields for saveAsNewVersion');
       throw new Error('Product and variation must be selected to save as new version');
     }
 
@@ -431,6 +428,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const sharedKey = generateSharedClientReferenceKey(state.productId, variationId);
     const newClientReferenceId = generateSharedClientReferenceId(state.productId, variationId);
 
+    console.log('🔷 Generated new client_reference_id:', newClientReferenceId);
+
     // Update the stored client_reference_id to the new one
     const updatedClientReferenceIds = new Map(state.clientReferenceIds);
     updatedClientReferenceIds.set(sharedKey, newClientReferenceId);
@@ -438,18 +437,24 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
     // Save to localStorage
     get().saveDesignToStorage(canvasData, productImageUrl);
+    console.log('✅ Saved to localStorage');
 
     // Save to database with new client_reference_id
     const { useAuthStore } = await import('@/store/authStore');
     const { isAuthenticated } = useAuthStore.getState();
+    console.log('🔷 isAuthenticated:', isAuthenticated);
+
     if (isAuthenticated) {
       try {
+        console.log('🔷 Calling saveDesignToDatabase...');
         await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
         console.log('✅ Saved as new version with client_reference_id:', newClientReferenceId);
       } catch (error) {
-        console.error('Failed to save new version:', error);
+        console.error('❌ Failed to save new version:', error);
         throw error;
       }
+    } else {
+      console.warn('⚠️ User not authenticated, only saved to localStorage');
     }
   },
 
