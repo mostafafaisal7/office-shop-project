@@ -54,6 +54,44 @@ async def get_product(db: AsyncSession, product_id: int) -> models.Product:
     return result.scalars().first()
 
 
+async def get_product_with_categories(db: AsyncSession, product_id: int):
+    """
+    OPTIMIZED: Get product with all nested relationships AND categories in parallel queries
+    This is faster than calling get_product() and get_categories_for_product() sequentially
+
+    Returns: (product, category_ids)
+    """
+    import asyncio
+
+    # Run both queries in parallel using asyncio.gather
+    product_task = db.execute(
+        select(models.Product)
+        .options(
+            selectinload(models.Product.variations)
+            .selectinload(models.ProductVariation.media)
+        )
+        .options(
+            selectinload(models.Product.customization_options)
+            .selectinload(models.CustomizationOption.media)
+        )
+        .options(selectinload(models.Product.media))
+        .where(models.Product.id == product_id)
+    )
+
+    categories_task = db.execute(
+        select(models.ProductCategory.category_id)
+        .where(models.ProductCategory.product_id == product_id)
+    )
+
+    # Wait for both queries to complete
+    product_result, categories_result = await asyncio.gather(product_task, categories_task)
+
+    product = product_result.scalars().first()
+    category_ids = [row[0] for row in categories_result.all()]
+
+    return product, category_ids
+
+
 async def get_product_by_slug(db: AsyncSession, slug: str) -> Optional[models.Product]:
     result = await db.execute(
         select(models.Product)

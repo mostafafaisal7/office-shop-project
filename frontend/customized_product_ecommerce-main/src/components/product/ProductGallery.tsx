@@ -1,11 +1,22 @@
 'use client';
 import { useState, useRef } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 
 interface ProductGalleryProps {
   images: string[];
 }
 
+/**
+ * OPTIMIZED ProductGallery Component
+ *
+ * Performance improvements:
+ * 1. Uses Next.js Image component for automatic optimization
+ * 2. Priority loading for main image (LCP optimization)
+ * 3. Lazy loading for thumbnails
+ * 4. Reduced quality for faster loading
+ * 5. Proper sizing to avoid layout shift
+ */
 const ProductGallery = ({ images }: ProductGalleryProps) => {
   const [selectedImage, setSelectedImage] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -24,13 +35,20 @@ const ProductGallery = ({ images }: ProductGalleryProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-        <img 
-          src={images[selectedImage]} 
-          alt="Product" 
-          className="w-full h-full object-cover"
+      {/* Main Product Image - Priority loaded for LCP */}
+      <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
+        <Image
+          src={images[selectedImage]}
+          alt="Product"
+          fill
+          className="object-cover"
+          priority={selectedImage === 0} // Priority load first image
+          quality={75} // Reduced quality for faster loading
+          sizes="(max-width: 768px) 100vw, 50vw"
         />
       </div>
+
+      {/* Thumbnail Slider */}
       <div className="relative">
         {images.length > 5 && (
           <>
@@ -59,12 +77,20 @@ const ProductGallery = ({ images }: ProductGalleryProps) => {
             <button
               key={index}
               onClick={() => setSelectedImage(index)}
-              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
+              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative ${
                 selectedImage === index ? 'border-blue-500' : 'border-gray-200'
               }`}
               style={{ scrollSnapAlign: 'start' }}
             >
-              <img src={image} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+              <Image
+                src={image}
+                alt={`Product ${index + 1}`}
+                fill
+                className="object-cover"
+                loading="lazy" // Lazy load thumbnails
+                quality={60} // Lower quality for thumbnails
+                sizes="80px"
+              />
             </button>
           ))}
         </div>

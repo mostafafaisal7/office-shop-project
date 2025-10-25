@@ -188,22 +188,31 @@ async def list_products(
 
 @router.get("/{product_id}", response_model=schemas.ProductWithReviewsResponse)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
-    product = await crud.get_product(db, product_id)
+    import time
+    start_time = time.time()
+
+    # OPTIMIZED: Fetch product and categories in parallel
+    product, category_ids = await crud.get_product_with_categories(db, product_id)
+    db_time = time.time() - start_time
+    print(f"⚡ [BACKEND] Product {product_id} DB query: {db_time*1000:.2f}ms")
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    category_ids = await crud.get_categories_for_product(db, product_id)
-
     # Convert product ORM to dict and add category_ids
+    convert_start = time.time()
     product_data = schemas.ProductWithReviewsResponse.model_validate(product)
     product_data.category_ids = category_ids
 
     # Convert media URLs for the product and all nested relationships
     product_data = convert_product_media_urls(product_data)
+    convert_time = time.time() - convert_start
+    print(f"⚡ [BACKEND] Product {product_id} conversion: {convert_time*1000:.2f}ms")
 
     # Fetch review data using the reviews client
     from app.products.reviews_client import get_product_review_summary, get_most_helpful_reviews
-    
+
+    reviews_start = time.time()
     try:
         # Get review summary
         review_summary = await get_product_review_summary(product_id)
@@ -218,7 +227,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
                 rating_4_count=review_summary.rating_4_count,
                 rating_5_count=review_summary.rating_5_count,
             )
-        
+
         # Get most helpful reviews (3-5 reviews)
         helpful_reviews = await get_most_helpful_reviews(product_id, limit=5)
         product_data.helpful_reviews = [
@@ -243,11 +252,16 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
                 ]
             ) for review in helpful_reviews if review.id and review.user_id and review.rating
         ]
+        reviews_time = time.time() - reviews_start
+        print(f"⚡ [BACKEND] Product {product_id} reviews fetch: {reviews_time*1000:.2f}ms")
     except Exception as e:
         # Log the error but don't fail the request
-        print(f"Warning: Failed to fetch review data for product {product_id}: {str(e)}")
+        reviews_time = time.time() - reviews_start
+        print(f"⚠️  [BACKEND] Product {product_id} reviews fetch failed ({reviews_time*1000:.2f}ms): {str(e)}")
         # Review data will remain None/empty
 
+    total_time = time.time() - start_time
+    print(f"✅ [BACKEND] Product {product_id} TOTAL time: {total_time*1000:.2f}ms")
     return product_data
 
 
