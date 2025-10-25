@@ -1059,39 +1059,10 @@ const handlePreview = async () => {
 const handleNext = async () => {
   if (!fabricCanvas) return;
 
-  // ✅ NEW BEHAVIOR: Check if we're on the last view
-  // If NOT on last view → Switch to next view
-  // If on last view → Save and show review modal
-  const currentViewIndex = availableViews.findIndex(v => v.area === activeView);
-  const isLastView = currentViewIndex === availableViews.length - 1;
-
-  if (!isLastView && currentViewIndex !== -1) {
-    // Not on last view - just switch to next view
-    const nextView = availableViews[currentViewIndex + 1];
-    console.log(`🔹 Next clicked - switching from ${activeView} to ${nextView.area}`);
-
-    // Save current view's design before switching
-    try {
-      const canvasData = fabricCanvas.toJSON();
-      if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
-        const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-        await saveDesign(canvasData, currentViewImage);
-        console.log(`✅ Saved ${activeView} design before switching`);
-      }
-    } catch (error) {
-      console.error('Error saving design before view switch:', error);
-    }
-
-    // Switch to next view
-    await handleViewChange(nextView.area);
-    return;
-  }
-
-  // On last view - proceed with save and review modal
   setIsGeneratingReviewPreviews(true);
 
   try {
-    console.log('🔹 Next clicked on last view, saving as new version and generating review previews...');
+    console.log('🔹 Next clicked, saving as new version and generating review previews...');
 
     const canvasData = fabricCanvas.toJSON();
     const variationId = selectedVariation?.variationId?.toString();
@@ -1117,36 +1088,35 @@ const handleNext = async () => {
     // This creates a new project entry in "My Projects" for each Next click
     await saveAsNewVersion(canvasData, currentViewImage, currentPreviewUrl);
 
-    console.log('✅ Current design saved as new version');
+    console.log('✅ Current design saved as new version, generating all review previews...');
 
-    // ✅ FIX: For new version, only show preview for CURRENT view
-    // Other views should show empty canvas (just product image) since they haven't been edited in this version yet
-    const allReviewPreviews: { [key: string]: string } = {};
+    // Generate preview images for all views for the review modal
+    const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
+      productId,
+      variationId,
+      availableViews,
+      loadDesign
+    );
 
-    // Add preview for current view
-    if (currentPreviewUrl) {
-      allReviewPreviews[activeView] = currentPreviewUrl;
-    }
-
-    // For other views, generate blank previews (just the product image without any design)
-    for (const view of availableViews) {
-      if (view.area !== activeView) {
-        try {
-          // Generate blank preview (no canvas data, just product image)
-          const blankPreview = await previewGenerator.generatePreview(
-            null, // No canvas data = blank canvas
-            view.image,
-            { quality: 1, multiplier: 2 }
-          );
-          allReviewPreviews[view.area] = blankPreview;
-          console.log(`✅ Generated blank preview for area: ${view.area}`);
-        } catch (error) {
-          console.error(`Error generating blank preview for area ${view.area}:`, error);
+    // Save preview images for other areas to the same version
+    if (isAuthenticated) {
+      for (const [area, previewUrl] of Object.entries(allReviewPreviews)) {
+        if (area !== activeView) {
+          try {
+            const designData = await loadDesign(productId, variationId, area);
+            if (designData) {
+              const areaImage = availableViews.find(v => v.area === area)?.image || '';
+              await saveDesign(designData.canvas_data, areaImage, previewUrl);
+              console.log(`✅ Saved preview for area: ${area}`);
+            }
+          } catch (error) {
+            console.error(`Error saving preview for area ${area}:`, error);
+          }
         }
       }
     }
 
-    console.log('✅ Review previews generated for new version');
+    console.log('✅ Review previews generated:', allReviewPreviews);
 
     setReviewImages(allReviewPreviews);
     setReviewImageUrl(allReviewPreviews[activeView] || '');
