@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 
 interface ProductCardProps {
   id: number;
@@ -12,17 +12,17 @@ interface ProductCardProps {
   originalPrice?: string;
 }
 
-export const ProductCard = ({ id, name, price, image, originalPrice }: ProductCardProps) => {
+const ProductCard = ({ id, name, price, image, originalPrice }: ProductCardProps) => {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(image);
 
-  const handleImageError = () => {
+  const handleImageError = useCallback(() => {
     if (!imageError) {
       setImageError(true);
       // Try a fallback Unsplash image first
       setImageSrc('https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&h=300&fit=crop');
     }
-  };
+  }, [imageError]);
 
   return (
     <Link href={`/products/${id}`}>
@@ -69,3 +69,18 @@ export const ProductCard = ({ id, name, price, image, originalPrice }: ProductCa
     </Link>
   );
 };
+
+// Memoize ProductCard to prevent unnecessary re-renders in grids/lists
+// Only re-render if product data actually changes
+export default memo(ProductCard, (prevProps, nextProps) => {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.name === nextProps.name &&
+    prevProps.price === nextProps.price &&
+    prevProps.image === nextProps.image &&
+    prevProps.originalPrice === nextProps.originalPrice
+  );
+});
+
+// Named export for backward compatibility
+export { ProductCard };

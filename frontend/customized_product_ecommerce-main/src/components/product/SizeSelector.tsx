@@ -1,5 +1,7 @@
 'use client';
 
+import { memo, useCallback } from 'react';
+
 interface SizeSelectorProps {
   sizes: string[];
   selectedSize: string;
@@ -7,14 +9,14 @@ interface SizeSelectorProps {
 }
 
 const SizeSelector = ({ sizes, selectedSize, setSelectedSize }: SizeSelectorProps) => {
-  const handleSizeClick = (size: string) => {
+  const handleSizeClick = useCallback((size: string) => {
     // If the same size is clicked, unselect it
     if (selectedSize === size) {
       setSelectedSize('');
     } else {
       setSelectedSize(size);
     }
-  };
+  }, [selectedSize, setSelectedSize]);
 
   return (
     <div>
@@ -39,4 +41,12 @@ const SizeSelector = ({ sizes, selectedSize, setSelectedSize }: SizeSelectorProp
   );
 };
 
-export default SizeSelector;
+// Memoize component to prevent unnecessary re-renders
+// Only re-render if sizes, selectedSize, or setSelectedSize changes
+export default memo(SizeSelector, (prevProps, nextProps) => {
+  return (
+    prevProps.selectedSize === nextProps.selectedSize &&
+    prevProps.sizes === nextProps.sizes &&
+    prevProps.setSelectedSize === nextProps.setSelectedSize
+  );
+});

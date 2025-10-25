@@ -1,5 +1,7 @@
 'use client';
 
+import { memo, useCallback } from 'react';
+
 interface ColorSelectorProps {
   colors: { name: string; color: string }[];
   selectedColor: string;
@@ -7,14 +9,14 @@ interface ColorSelectorProps {
 }
 
 const ColorSelector = ({ colors, selectedColor, setSelectedColor }: ColorSelectorProps) => {
-  const handleColorClick = (colorName: string) => {
+  const handleColorClick = useCallback((colorName: string) => {
     // If the same color is clicked, unselect it
     if (selectedColor === colorName) {
       setSelectedColor('');
     } else {
       setSelectedColor(colorName);
     }
-  };
+  }, [selectedColor, setSelectedColor]);
 
   return (
     <div>
@@ -35,4 +37,12 @@ const ColorSelector = ({ colors, selectedColor, setSelectedColor }: ColorSelecto
   );
 };
 
-export default ColorSelector;
+// Memoize component to prevent unnecessary re-renders
+// Only re-render if colors, selectedColor, or setSelectedColor changes
+export default memo(ColorSelector, (prevProps, nextProps) => {
+  return (
+    prevProps.selectedColor === nextProps.selectedColor &&
+    prevProps.colors === nextProps.colors &&
+    prevProps.setSelectedColor === nextProps.setSelectedColor
+  );
+});
