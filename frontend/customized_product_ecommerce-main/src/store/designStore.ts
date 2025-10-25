@@ -61,6 +61,8 @@ interface DesignState {
   getCustomizationOptionId: (productId: string, variationId: number, designArea: string) => Promise<number | null>;
   deleteDesignFromDatabase: (productId: string, variationId: number, designArea: string) => Promise<void>;
   generateAndSaveAllPreviews: (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => Promise<{[area: string]: string}>;
+  initializeNewVersion: () => void;
+  saveAsNewVersion: (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => Promise<void>;
 }
 
 const STORAGE_KEY = 'ecommerce_designs';
@@ -405,6 +407,28 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   }
 }
 ,
+
+  // ✅ NEW: Initialize a new version when entering customization page
+  // Generates a unique client_reference_id for this customization session
+  initializeNewVersion: () => {
+    const state = get();
+
+    if (!state.productId || !state.selectedVariation?.variationId) {
+      console.warn('⚠️ Cannot initialize version: missing productId or variationId');
+      return;
+    }
+
+    const variationId = state.selectedVariation.variationId.toString();
+    const sharedKey = generateSharedClientReferenceKey(state.productId, variationId);
+    const newClientReferenceId = generateSharedClientReferenceId(state.productId, variationId);
+
+    console.log('🆕 Initialized new version:', newClientReferenceId);
+
+    // Store the new client_reference_id
+    const updatedClientReferenceIds = new Map(state.clientReferenceIds);
+    updatedClientReferenceIds.set(sharedKey, newClientReferenceId);
+    set({ clientReferenceIds: updatedClientReferenceIds });
+  },
 
   // ✅ NEW: Save as a new version instead of updating existing design
   // This creates a new customization option with a new client_reference_id

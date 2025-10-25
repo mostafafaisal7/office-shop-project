@@ -80,7 +80,8 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     loadDesign,
     syncStatus,
     setSelectedVariation,
-    getCustomizationOptionId
+    getCustomizationOptionId,
+    initializeNewVersion
   } = useDesignStore();
   const { addItemFromProductPage } = useCartStore();
   const { isAuthenticated } = useAuthStore();
@@ -650,6 +651,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     })();
   }, [params, searchParams]);
 
+  // ✅ NEW: Initialize a new version when entering customization page
+  // This creates a unique version for this customization session
+  useEffect(() => {
+    if (productId && selectedVariation?.variationId && !isWaitingForOptionData) {
+      console.log('🆕 Initializing new version for customization session');
+      initializeNewVersion();
+    }
+  }, [productId, selectedVariation?.variationId, isWaitingForOptionData]);
+
   const handleAddText = (text: string) => {
     setDesignJson({
       type: 'text',
@@ -710,7 +720,7 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         if (canvasData.objects && canvasData.objects.length > 0) {
           const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
 
-          console.log('💾 SAVE: Saving custom design as new version...');
+          console.log('💾 SAVE: Saving custom design to current version...');
 
           // Generate and save preview image for current view only when there's custom content
           let previewImageUrl: string | undefined;
@@ -729,10 +739,10 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             }
           }
 
-          // ✅ FIX: Save as new version instead of updating existing design
-          // This creates a new project entry in "My Projects" for each save
-          await saveAsNewVersion(canvasData, currentViewImage, previewImageUrl);
-          console.log('💾 Custom design saved as new version', previewImageUrl ? 'with preview image' : 'without preview image');
+          // ✅ FIX: Save to current version (don't create new version)
+          // This updates the same version created when entering customization
+          await saveDesign(canvasData, currentViewImage, previewImageUrl);
+          console.log('💾 Custom design saved to current version', previewImageUrl ? 'with preview image' : 'without preview image');
 
           // Show success feedback
           showToast('Saved successfully! You can check in projects.', 'success', 3000);
@@ -1059,15 +1069,58 @@ const handlePreview = async () => {
 const handleNext = async () => {
   if (!fabricCanvas) return;
 
+  // ✅ NEW: Check if we're on the last view
+  // If NOT on last view → Save and switch to next view
+  // If on last view → Save and show review modal
+  const currentViewIndex = availableViews.findIndex(v => v.area === activeView);
+  const isLastView = currentViewIndex === availableViews.length - 1;
+  const variationId = selectedVariation?.variationId?.toString();
+  if (!variationId) throw new Error('Variation not selected');
+
+  if (!isLastView && currentViewIndex !== -1) {
+    // Not on last view - save current design and switch to next view
+    const nextView = availableViews[currentViewIndex + 1];
+    console.log(`🔹 Next clicked - saving ${activeView} and switching to ${nextView.area}`);
+
+    try {
+      const canvasData = fabricCanvas.toJSON();
+      if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
+        const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
+
+        // Generate preview for current view
+        let previewImageUrl: string | undefined;
+        if (isAuthenticated) {
+          try {
+            previewImageUrl = await previewGenerator.generatePreview(
+              canvasData,
+              currentViewImage,
+              { quality: 1, multiplier: 2 }
+            );
+          } catch (error) {
+            console.error('Error generating preview:', error);
+          }
+        }
+
+        // Save to current version
+        await saveDesign(canvasData, currentViewImage, previewImageUrl);
+        console.log(`✅ Saved ${activeView} design`);
+      }
+    } catch (error) {
+      console.error('Error saving design before view switch:', error);
+    }
+
+    // Switch to next view
+    await handleViewChange(nextView.area);
+    return;
+  }
+
+  // On last view - save and show review modal
   setIsGeneratingReviewPreviews(true);
 
   try {
-    console.log('🔹 Next clicked, saving as new version and generating review previews...');
+    console.log('🔹 Next clicked on last view, saving and showing review...');
 
     const canvasData = fabricCanvas.toJSON();
-    const variationId = selectedVariation?.variationId?.toString();
-    if (!variationId) throw new Error('Variation not selected');
-
     const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
 
     // Generate preview image for current view FIRST
@@ -1084,11 +1137,9 @@ const handleNext = async () => {
       }
     }
 
-    // ✅ FIX: Save as new version with preview image
-    // This creates a new project entry in "My Projects" for each Next click
-    await saveAsNewVersion(canvasData, currentViewImage, currentPreviewUrl);
-
-    console.log('✅ Current design saved as new version, generating all review previews...');
+    // Save to current version
+    await saveDesign(canvasData, currentViewImage, currentPreviewUrl);
+    console.log('✅ Current design saved to version');
 
     // Generate preview images for all views for the review modal
     const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
