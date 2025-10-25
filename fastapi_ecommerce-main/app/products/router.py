@@ -449,13 +449,14 @@ async def get_my_customization_options(
     design_area: Optional[schemas.AreaType] = None,
     skip: int = 0,
     limit: int = 20,
+    include_canvas_data: bool = False,  # ✅ NEW: Allow loading full canvas data when editing
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     try:
         # ✅ FIX: Add error handling to catch serialization errors
         options = await service.get_user_customization_options(
-            db, current_user.id, product_id, variation_id, design_area, skip, limit
+            db, current_user.id, product_id, variation_id, design_area, skip, limit, include_canvas_data
         )
 
         # Convert media paths to full URLs

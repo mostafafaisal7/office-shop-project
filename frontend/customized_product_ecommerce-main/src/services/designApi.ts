@@ -462,8 +462,9 @@ class DesignApiService {
 
       const headers = await this.getAuthHeaders();
       // ✅ FIX: Use /users/me/options endpoint to filter by current user only
+      // ✅ CRITICAL: include_canvas_data=true to load full canvas data (not deferred)
       const response = await fetch(
-        `${API_BASE_URL}/products/users/me/options?product_id=${productId}&variation_id=${variationId}&design_area=${designArea}`,
+        `${API_BASE_URL}/products/users/me/options?product_id=${productId}&variation_id=${variationId}&design_area=${designArea}&include_canvas_data=true`,
         {
           headers,
           cache: 'no-store',

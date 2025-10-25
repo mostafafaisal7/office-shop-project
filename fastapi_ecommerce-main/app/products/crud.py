@@ -362,7 +362,8 @@ async def get_customization_options_by_user(
     variation_id: Optional[int] = None,
     design_area: Optional[str] = None,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    include_canvas_data: bool = False  # ✅ NEW: Allow loading full data when editing
 ) -> List[models.CustomizationOption]:
     # ✅ FIX: Defer loading large JSON columns to prevent MySQL sort buffer overflow
     # canvas_data and design_elements can be HUGE (MBs), sorting them exhausts MySQL memory
@@ -391,15 +392,23 @@ async def get_customization_options_by_user(
         return []
 
     # Step 2: Load full data for those IDs (no sorting needed, just fetch by ID)
-    # ✅ OPTIMIZATION: Use defer() to skip loading canvas_data and design_elements JSON columns
-    # These are HUGE and not needed for projects list - only load on demand when editing
     from sqlalchemy.orm import defer
 
-    query = select(models.CustomizationOption).options(
-        defer(models.CustomizationOption.canvas_data),  # Skip loading - can be MBs
-        defer(models.CustomizationOption.design_elements),  # Skip loading - can be MBs
-        selectinload(models.CustomizationOption.media)
-    ).where(models.CustomizationOption.id.in_(option_ids))
+    # ✅ OPTIMIZATION: Conditionally defer canvas_data based on use case
+    # - Projects list (include_canvas_data=False): defer to load 10x faster
+    # - Editing design (include_canvas_data=True): load full data
+    if include_canvas_data:
+        # Load everything including canvas data for editing
+        query = select(models.CustomizationOption).options(
+            selectinload(models.CustomizationOption.media)
+        ).where(models.CustomizationOption.id.in_(option_ids))
+    else:
+        # Defer canvas data for projects list (huge performance gain)
+        query = select(models.CustomizationOption).options(
+            defer(models.CustomizationOption.canvas_data),  # Skip loading - can be MBs
+            defer(models.CustomizationOption.design_elements),  # Skip loading - can be MBs
+            selectinload(models.CustomizationOption.media)
+        ).where(models.CustomizationOption.id.in_(option_ids))
 
     result = await db.execute(query)
     options = list(result.scalars().all())

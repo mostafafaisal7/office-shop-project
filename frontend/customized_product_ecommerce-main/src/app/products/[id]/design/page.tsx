@@ -212,10 +212,13 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           
           try {
             const customizationOptions = await designApi.getCustomizationOptionsByClientReferenceId(clientReferenceId);
-            
+
             if (customizationOptions.length > 0) {
               const firstOption = customizationOptions[0];
-              
+
+              console.log(`🔄 Loading existing project with client_reference_id: ${clientReferenceId}`);
+              console.log(`📦 Found ${customizationOptions.length} customization options`);
+
               // Set the variation from the first customization option if available
               if (firstOption.variation_id) {
                 // Find the variation in the current product

@@ -397,8 +397,9 @@ async def get_user_customization_options(
     variation_id: Optional[int] = None,
     design_area: Optional[str] = None,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    include_canvas_data: bool = False
 ) -> List[models.CustomizationOption]:
     return await crud.get_customization_options_by_user(
-        db, user_id, product_id, variation_id, design_area, skip, limit
+        db, user_id, product_id, variation_id, design_area, skip, limit, include_canvas_data
     )
