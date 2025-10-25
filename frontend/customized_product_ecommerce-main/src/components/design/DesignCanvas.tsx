@@ -233,11 +233,16 @@ useEffect(() => {
       });
 
       canvas.backgroundImage = img;
-      canvas.renderAll();
+      // ✅ FIX: Safe renderAll with disposal check
+      if (!canvas.disposed) {
+        canvas.renderAll();
+      }
     } catch (error) {
       console.error("❌ Failed to load background image:", error);
-      canvas.backgroundColor = "#f3f4f6";
-      canvas.renderAll();
+      if (!canvas.disposed) {
+        canvas.backgroundColor = "#f3f4f6";
+        canvas.renderAll();
+      }
     }
   };
 
@@ -254,7 +259,10 @@ useEffect(() => {
     canvas.getObjects().forEach((obj: any) => {
       if (obj !== canvas.backgroundImage) canvas.remove(obj);
     });
-    canvas.renderAll();
+    // ✅ FIX: Safe renderAll with disposal check
+    if (!canvas.disposed) {
+      canvas.renderAll();
+    }
   }
 
   // Update last loaded product reference
@@ -328,7 +336,10 @@ useEffect(() => {
           });
 
           await loadBackgroundImage(productImage);
-          canvas.renderAll();
+          // ✅ FIX: Safe renderAll with disposal check
+          if (!canvas.disposed) {
+            canvas.renderAll();
+          }
         });
       } else {
         await loadBackgroundImage(productImage);
@@ -488,7 +499,17 @@ useEffect(() => {
 
   const canvas = fabricCanvasRef.current;
 
-  const renderCanvas = () => canvas.renderAll();
+  // ✅ FIX: Safe renderCanvas function that checks canvas state before rendering
+  // Prevents "Cannot read properties of undefined (reading 'clearRect')" errors
+  const renderCanvas = () => {
+    try {
+      if (canvas && !canvas.disposed && canvas.getWidth && canvas.getWidth() > 0) {
+        canvas.renderAll();
+      }
+    } catch (error) {
+      console.error('❌ Error rendering canvas:', error);
+    }
+  };
 
   const activeObject = canvas.getActiveObject();
 
@@ -560,6 +581,18 @@ useEffect(() => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
       renderCanvas();
+
+      // ✅ FIX: Immediately save the cleared state to prevent old design from reappearing
+      // when switching areas. Without this, the debounced auto-save (2 seconds) might not
+      // fire before area switch, causing the old design to reload.
+      if (productId && productImage) {
+        const clearedCanvasData = canvas.toJSON(['savedImageUrl']);
+        if (clearedCanvasData.backgroundImage?.src?.startsWith("blob:")) {
+          delete clearedCanvasData.backgroundImage;
+        }
+        autoSaveDesign(clearedCanvasData, productImage);
+        setLastCanvasState(JSON.stringify(clearedCanvasData));
+      }
       break;
 
     case 'format':
@@ -821,7 +854,10 @@ useImperativeHandle(ref, () => ({
       }
 
       // Ensure canvas renders latest changes
-      canvas.renderAll();
+      // ✅ FIX: Safe renderAll with disposal check
+      if (!canvas.disposed) {
+        canvas.renderAll();
+      }
 
       // Give a small delay to ensure rendering completes
       await new Promise((res) => setTimeout(res, 50));

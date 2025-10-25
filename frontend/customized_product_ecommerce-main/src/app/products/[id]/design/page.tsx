@@ -857,102 +857,19 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         }
       }
       
-      // Update active view
+      // Update active view and product image
       setActiveView(area);
       setCurrentDesignArea(area);
-      
-      // Update product image
+
+      // Update product image for the new view
       const selectedView = availableViews.find(view => view.area === area);
       if (selectedView) {
         setProductImage(selectedView.image);
       }
-      
-      // Load design for the new view
-      if (productId && selectedVariation) {
-        setTimeout(async () => {
-          try {
-            // Use the actual variation ID if available, otherwise fall back to string-based ID
-            const variationId = selectedVariation?.variationId 
-              ? selectedVariation.variationId.toString()
-              : selectedVariation?.size || selectedVariation?.color || 'default';
-            
-            const designData = await loadDesign(productId, variationId, area);
-            
-            if (designData && designData.canvas_data && fabricCanvas) {
-              try {
-                // Add comprehensive safety checks before calling loadFromJSON
-                try {
-                  // Test if canvas is ready for loadFromJSON operations
-                  const canvasObjects = fabricCanvas.getObjects();
-                  const canvasWidth = fabricCanvas.getWidth();
-                  const canvasHeight = fabricCanvas.getHeight();
-                  
-                  // Use direct fabric.js loadFromJSON for view change
-                  try {
-                    fabricCanvas.loadFromJSON(designData.canvas_data, () => {
-                      try {
-                        fabricCanvas.renderAll();
-                      } catch (renderError) {
-                        console.error('Error rendering after view change load:', renderError);
-                      }
-                    });
-                  } catch (loadError) {
-                    console.error('Error loading design for view change:', loadError);
-                    // Clear canvas if loading failed
-                    try {
-                      fabricCanvas.clear();
-                      fabricCanvas.renderAll();
-                    } catch (clearError) {
-                      console.error('Error clearing canvas after failed load:', clearError);
-                    }
-                  }
-                } catch (canvasTestError) {
-                  console.error('Canvas test failed in view change:', canvasTestError);
-                  // Try to clear canvas safely
-                  try {
-                    const testWidth = fabricCanvas.getWidth();
-                    const testHeight = fabricCanvas.getHeight();
-                    if (testWidth > 0 && testHeight > 0) {
-                      fabricCanvas.clear();
-                      fabricCanvas.renderAll();
-                    }
-                  } catch (clearError) {
-                  }
-                }
-              } catch (loadError) {
-                console.error('Error calling loadFromJSON for view change:', loadError);
-                // Clear canvas on error
-                try {
-                  const testWidth = fabricCanvas.getWidth();
-                  const testHeight = fabricCanvas.getHeight();
-                  if (testWidth > 0 && testHeight > 0) {
-                    fabricCanvas.clear();
-                    fabricCanvas.renderAll();
-                  }
-                } catch (clearError) {
-                  console.error('Error clearing canvas after view change load failure:', clearError);
-                }
-              }
-            } else {
-              // Clear canvas when switching to a view with no saved design
-              if (fabricCanvas) {
-                try {
-                  // Test if canvas methods are available before calling them
-                  const testWidth = fabricCanvas.getWidth();
-                  const testHeight = fabricCanvas.getHeight();
-                  if (testWidth > 0 && testHeight > 0) {
-                    fabricCanvas.clear();
-                    fabricCanvas.renderAll();
-                  }
-                } catch (clearError) {
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error loading design for new view:', error);
-          }
-        }, 100);
-      }
+
+      // ✅ FIX: Removed manual design loading - DesignCanvas useEffect handles this automatically
+      // when currentDesignArea changes. The previous setTimeout was creating a race condition
+      // with the DesignCanvas useEffect, causing blank canvas issues.
       
     } catch (error) {
       console.error('Error in view change:', error);
