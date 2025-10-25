@@ -335,10 +335,20 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("❌ Error loading saved design:", error);
-      // ✅ FIX: Check if canvas is still valid before calling clear()
-      if (canvas && canvas.getContext && canvas.getContext()) {
-        canvas.clear();
-        await loadBackgroundImage(productImage);
+      // ✅ FIX: Wrap canvas.clear() in try-catch to prevent clearRect errors
+      try {
+        if (canvas && !canvas.disposed) {
+          canvas.clear();
+          await loadBackgroundImage(productImage);
+        }
+      } catch (clearError) {
+        console.error("❌ Error clearing canvas:", clearError);
+        // Canvas already disposed, just reload background
+        try {
+          await loadBackgroundImage(productImage);
+        } catch (bgError) {
+          console.error("❌ Error loading background:", bgError);
+        }
       }
     }
   };

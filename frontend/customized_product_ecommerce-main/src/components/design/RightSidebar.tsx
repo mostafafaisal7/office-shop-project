@@ -111,7 +111,8 @@ const RightSidebar = ({
   // State for current font and font size
   const [currentFont, setCurrentFont] = useState('Inter');
   const [currentFontSize, setCurrentFontSize] = useState(40);
-  
+  const [textColor, setTextColor] = useState('#000000'); // ✅ FIX: Add state for text color input
+
   // State for image adjustment values
   const [imageAdjustments, setImageAdjustments] = useState({
     hue: 0,
@@ -557,7 +558,11 @@ const RightSidebar = ({
               <div className="flex items-center space-x-3">
                 <input
                   type="color"
-                  onChange={(e) => onTextColorChange(e.target.value)}
+                  value={textColor}
+                  onChange={(e) => {
+                    setTextColor(e.target.value); // ✅ FIX: Update state
+                    onTextColorChange(e.target.value);
+                  }}
                   className="w-10 h-10 border-2 border-gray-300 rounded-lg cursor-pointer shadow-sm hover:shadow-md transition-all duration-200"
                   title="Choose custom color"
                 />
