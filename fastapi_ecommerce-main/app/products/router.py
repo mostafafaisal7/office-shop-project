@@ -452,14 +452,25 @@ async def get_my_customization_options(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    options = await service.get_user_customization_options(
-        db, current_user.id, product_id, variation_id, design_area, skip, limit
-    )
-    
-    # Convert media paths to full URLs
-    options = convert_customization_option_media(options)
-    
-    return options
+    try:
+        # ✅ FIX: Add error handling to catch serialization errors
+        options = await service.get_user_customization_options(
+            db, current_user.id, product_id, variation_id, design_area, skip, limit
+        )
+
+        # Convert media paths to full URLs
+        options = convert_customization_option_media(options)
+
+        return options
+    except Exception as e:
+        # Log the actual error for debugging
+        import traceback
+        print(f"❌ Error in get_my_customization_options: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch customization options: {str(e)}"
+        )
 
 
 @router.post("/users/me/options", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED)

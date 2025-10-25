@@ -364,12 +364,11 @@ async def get_customization_options_by_user(
     skip: int = 0,
     limit: int = 20
 ) -> List[models.CustomizationOption]:
-    # ✅ FIX: Optimized eager loading to prevent MySQL sort buffer overflow
-    # Removed nested Product.media loading which creates too large result sets
+    # ✅ FIX: Only load media relationship - minimal eager loading
+    # Product and variation are not in response schema, loading them causes serialization errors
+    # This also prevents MySQL sort buffer overflow
     query = select(models.CustomizationOption).options(
-        selectinload(models.CustomizationOption.media),
-        selectinload(models.CustomizationOption.product),
-        selectinload(models.CustomizationOption.variation)
+        selectinload(models.CustomizationOption.media)
     ).where(models.CustomizationOption.user_id == user_id)
 
     if product_id:
