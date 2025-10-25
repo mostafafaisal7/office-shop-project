@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CreditCard, Lock, Truck, MapPin, User, Mail, Phone, CheckCircle, AlertCircle, Wallet, DollarSign } from 'lucide-react';
+import { ArrowLeft, CreditCard, Lock, Truck, MapPin, User, Mail, Phone, CheckCircle, AlertCircle, Wallet, DollarSign, Loader2 } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore, getCurrentUserId } from '@/store/authStore';
 import { useShippingStore } from '@/store/shippingStore';
@@ -944,11 +944,11 @@ useEffect(() => {
                   <button
                     type="submit"
                     disabled={isProcessing}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
                   >
                     {isProcessing ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Saving Address...
                       </>
                     ) : (
@@ -1444,11 +1444,11 @@ useEffect(() => {
                     <button
                       type="submit"
                       disabled={isProcessing}
-                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
                     >
                       {isProcessing ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           Placing Order...
                         </>
                       ) : (

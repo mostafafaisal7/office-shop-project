@@ -303,9 +303,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         <Button
           type="submit"
           className="w-full"
-          disabled={isLoading}
+          isLoading={isLoading}
+          loadingText="Creating account..."
         >
-          {isLoading ? 'Creating account...' : 'Create account'}
+          Create account
         </Button>
       </form>
 

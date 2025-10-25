@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, ArrowRight, X } from 'lucide-react';
+import { Eye, ArrowRight, X, Loader2 } from 'lucide-react';
 import DesignCanvas from '@/components/design/DesignCanvas';
 import LeftSidebar from '@/components/design/LeftSidebar';
 import RightSidebar from '@/components/design/RightSidebar';
@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDesignSync } from '@/hooks/useDesignSync';
 import { previewGenerator } from '@/utils/previewGenerator';
 import { designApi } from '@/services/designApi';
+import DesignLoadingSkeleton from '@/components/ui/DesignLoadingSkeleton';
 
 interface DesignPageProps {
   params: Promise<{
@@ -1180,6 +1181,11 @@ const handleReviewViewChange = async (area: string) => {
     setShowReviewModal(false);
   };
 
+  // Show full-page loading skeleton when initially loading
+  if (isLoading && !currentProduct) {
+    return <DesignLoadingSkeleton />;
+  }
+
   const handleContinue = async () => {
     if (isReviewApproved) {
       const unwrappedParams = await params;
@@ -1393,17 +1399,31 @@ const handleReviewViewChange = async (area: string) => {
               <button
                 onClick={handlePreview}
                 disabled={isGeneratingPreviews}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
-                <Eye className="w-4 h-4" />
+                {isGeneratingPreviews ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
                 {isGeneratingPreviews ? 'Generating...' : 'Preview'}
               </button>
               <button
                 onClick={handleNext}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium text-sm shadow-md hover:shadow-lg"
+                disabled={isGeneratingReviewPreviews}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 font-medium text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
-                Next
-                <ArrowRight className="w-4 h-4" />
+                {isGeneratingReviewPreviews ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           </div>
