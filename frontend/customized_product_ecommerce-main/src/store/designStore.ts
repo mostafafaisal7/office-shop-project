@@ -483,9 +483,16 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesign: async (productId: string, variationId: string, area: string) => {
+  console.log(`🔍 loadDesign called: product=${productId}, variation=${variationId}, area=${area}`);
+
   // Always try localStorage first
   const localDesign = get().loadDesignFromStorage(productId, variationId, area);
-  if (localDesign) return localDesign;
+  if (localDesign) {
+    console.log(`✅ loadDesign: Found in localStorage for area=${area}`);
+    return localDesign;
+  }
+
+  console.log(`🔍 loadDesign: Not in localStorage, checking database for area=${area}`);
 
   // Fallback for logged-in users: database
   const { useAuthStore } = await import('@/store/authStore');

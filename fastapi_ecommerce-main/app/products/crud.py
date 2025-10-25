@@ -391,7 +391,13 @@ async def get_customization_options_by_user(
         return []
 
     # Step 2: Load full data for those IDs (no sorting needed, just fetch by ID)
+    # ✅ OPTIMIZATION: Use defer() to skip loading canvas_data and design_elements JSON columns
+    # These are HUGE and not needed for projects list - only load on demand when editing
+    from sqlalchemy.orm import defer
+
     query = select(models.CustomizationOption).options(
+        defer(models.CustomizationOption.canvas_data),  # Skip loading - can be MBs
+        defer(models.CustomizationOption.design_elements),  # Skip loading - can be MBs
         selectinload(models.CustomizationOption.media)
     ).where(models.CustomizationOption.id.in_(option_ids))
 

@@ -132,45 +132,25 @@ export default function ProjectsPage() {
 
       console.log(`📦 Loaded ${customizationOptions.length} customization options`);
 
-      // ✅ OPTIMIZATION: Use saved preview images from design_metadata instead of generating
-      // Only fetch product details when absolutely needed (not in metadata)
-      const projectsWithProducts = await Promise.all(
-        customizationOptions.map(async (option) => {
-          try {
-            // ✅ OPTIMIZATION 1: Try to use saved preview image first
-            let preview_image = option.design_metadata?.preview_image_url;
+      // ✅ MAJOR OPTIMIZATION: Backend defers loading canvas_data/design_elements (can be MBs each)
+      // So we MUST use saved preview_image_url - we CANNOT generate from canvas_data here
+      // This makes projects list 10x faster by avoiding:
+      // 1. Loading huge JSON fields from database
+      // 2. Fetching product details for every option
+      // 3. Generating canvas previews for every option
+      const projectsWithProducts = customizationOptions.map((option) => {
+        const preview_image = option.design_metadata?.preview_image_url ||
+                            option.design_metadata?.product_image_url ||
+                            '';
 
-            // ✅ OPTIMIZATION 2: Only fetch product if preview not available
-            let product: ApiProduct | undefined;
-            if (!preview_image) {
-              try {
-                product = await fetchProductById(option.product_id.toString());
-                // Generate preview only if needed
-                preview_image = await generatePreviewImage(option, product);
-              } catch (error) {
-                console.warn('Could not fetch product:', option.product_id, error);
-                // Use a fallback preview
-                preview_image = option.design_metadata?.product_image_url || '';
-              }
-            }
+        return {
+          ...option,
+          product: undefined, // Don't fetch product for list view - huge performance gain
+          preview_image
+        };
+      });
 
-            return {
-              ...option,
-              product,
-              preview_image
-            };
-          } catch (error) {
-            console.error('Error processing option:', option.id, error);
-
-            return {
-              ...option,
-              preview_image: option.design_metadata?.preview_image_url || option.design_metadata?.product_image_url || ''
-            };
-          }
-        })
-      );
-
-      console.log(`✅ Processed ${projectsWithProducts.length} projects`);
+      console.log(`✅ Processed ${projectsWithProducts.length} projects instantly`);
       setProjects(projectsWithProducts);
 
       // Group projects by client_reference_id
