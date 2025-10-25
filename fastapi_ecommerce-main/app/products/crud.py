@@ -98,8 +98,9 @@ async def get_product_with_template_customizations(db: AsyncSession, product_id:
 
     This loads:
     - Product info, variations, media
-    - First 10 customization options (templates for multi-view)
-    - Excludes user-saved designs (200+ designs = 72MB)
+    - Up to 10 customization options (any 10, for multi-view templates)
+    - NO ORDER BY to avoid "Out of sort memory" error with 200+ huge JSON rows
+    - Excludes majority of user-saved designs (200+ designs = 72MB)
 
     For full customization options, use separate /products/{id}/options endpoint
 
@@ -122,14 +123,15 @@ async def get_product_with_template_customizations(db: AsyncSession, product_id:
         .where(models.ProductCategory.product_id == product_id)
     )
 
-    # Load LIMITED customization options (first 10 as templates)
-    # This provides multi-view functionality without 72MB payload
+    # Load LIMITED customization options (up to 10 for multi-view templates)
+    # NO ORDER BY - sorting 200+ rows with massive JSON causes "Out of sort memory" error
+    # We just need ANY templates for multi-view, doesn't matter which ones
+    # This provides multi-view functionality without 72MB payload or memory errors
     customization_result = await db.execute(
         select(models.CustomizationOption)
         .options(selectinload(models.CustomizationOption.media))
         .where(models.CustomizationOption.product_id == product_id)
-        .order_by(models.CustomizationOption.created_at.asc())
-        .limit(10)
+        .limit(10)  # Get any 10 templates efficiently
     )
 
     product = product_result.scalars().first()
