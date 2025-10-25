@@ -158,6 +158,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const variationIdKey = state.selectedVariation.variationId.toString();
   const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
 
+  console.log(`💾 saveDesignToStorage: Saving to key=${designKey}, area=${state.currentDesignArea}, objects=${canvasData?.objects?.length || 0}`);
+
   // --- sanitize blobs before saving ---
   const sanitizeCanvasData = (data: any) => {
     if (!data) return data;
@@ -232,6 +234,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const state = get();
   const designKey = generateDesignKey(productId, variationId, area);
   const design = state.savedDesigns.get(designKey);
+
+  console.log(`🔍 loadDesignFromStorage: key=${designKey}, area=${area}, found=${!!design}, objects=${design?.canvas_data?.objects?.length || 0}`);
 
   if (design) {
     return design;
