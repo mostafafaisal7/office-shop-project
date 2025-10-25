@@ -158,7 +158,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const variationIdKey = state.selectedVariation.variationId.toString();
   const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
 
-  console.log(`💾 saveDesignToStorage: Saving to key=${designKey}, area=${state.currentDesignArea}, objects=${canvasData?.objects?.length || 0}`);
 
   // --- sanitize blobs before saving ---
   const sanitizeCanvasData = (data: any) => {
@@ -235,7 +234,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const designKey = generateDesignKey(productId, variationId, area);
   const design = state.savedDesigns.get(designKey);
 
-  console.log(`🔍 loadDesignFromStorage: key=${designKey}, area=${area}, found=${!!design}, objects=${design?.canvas_data?.objects?.length || 0}`);
 
   if (design) {
     return design;
@@ -487,16 +485,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesign: async (productId: string, variationId: string, area: string) => {
-  console.log(`🔍 loadDesign called: product=${productId}, variation=${variationId}, area=${area}`);
-
   // Always try localStorage first
   const localDesign = get().loadDesignFromStorage(productId, variationId, area);
   if (localDesign) {
-    console.log(`✅ loadDesign: Found in localStorage for area=${area}`);
     return localDesign;
   }
-
-  console.log(`🔍 loadDesign: Not in localStorage, checking database for area=${area}`);
 
   // Fallback for logged-in users: database
   const { useAuthStore } = await import('@/store/authStore');

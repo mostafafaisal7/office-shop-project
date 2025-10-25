@@ -216,9 +216,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
             if (customizationOptions.length > 0) {
               const firstOption = customizationOptions[0];
 
-              console.log(`🔄 Loading existing project with client_reference_id: ${clientReferenceId}`);
-              console.log(`📦 Found ${customizationOptions.length} customization options`);
-
               // ✅ CRITICAL FIX: Pre-load ALL areas' designs into localStorage when continuing project
               // This ensures each view has its own design data when switching between views
               const variationIdStr = firstOption.variation_id?.toString();
@@ -226,8 +223,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                 for (const option of customizationOptions) {
                   const area = option.design_area || option.option_data?.design_area;
                   if (area && option.canvas_data) {
-                    console.log(`💾 Pre-loading area=${area}, objects=${option.canvas_data.objects?.length || 0}`);
-
                     // Save to localStorage using the correct key format
                     const designKey = `${productId}_${variationIdStr}_${area}`;
                     const designData = {
@@ -246,8 +241,6 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
                     const savedDesignsMap = savedDesignsStr ? new Map(JSON.parse(savedDesignsStr)) : new Map();
                     savedDesignsMap.set(designKey, designData);
                     localStorage.setItem('ecommerce_designs', JSON.stringify(Array.from(savedDesignsMap.entries())));
-
-                    console.log(`✅ Saved to localStorage key: ${designKey}`);
                   }
                 }
               }
