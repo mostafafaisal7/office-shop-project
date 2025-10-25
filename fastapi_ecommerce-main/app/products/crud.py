@@ -92,42 +92,51 @@ async def get_product_with_categories(db: AsyncSession, product_id: int):
     return product, category_ids
 
 
-async def get_product_lightweight_with_categories(db: AsyncSession, product_id: int):
+async def get_product_with_template_customizations(db: AsyncSession, product_id: int):
     """
-    LIGHTWEIGHT VERSION: Get product with variations BUT WITHOUT media for initial page load
+    OPTIMIZED VERSION: Get product with variations and LIMITED customization options
 
-    This is optimized for customizable products with many variations:
-    - Loads variation metadata (attributes, stock, price)
-    - Loads only PRIMARY thumbnail for each variation
-    - Skips loading all media files (reduces 72MB to ~50KB)
-    - Frontend can lazy-load full media when user selects variations
+    This loads:
+    - Product info, variations, media
+    - First 10 customization options (templates for multi-view)
+    - Excludes user-saved designs (200+ designs = 72MB)
 
-    Perfect for products with 100+ variations where initial load is slow
+    For full customization options, use separate /products/{id}/options endpoint
 
-    Returns: (product, category_ids)
+    Returns: (product, category_ids, template_customizations)
     """
-    # Load product with variations (NO media selectinload)
-    # NOTE: Sequential execution - SQLAlchemy async sessions don't support concurrent queries
+    # Load product with variations and media
     product_result = await db.execute(
         select(models.Product)
         .options(
-            selectinload(models.Product.variations)  # Load variations WITHOUT media
+            selectinload(models.Product.variations)
+            .selectinload(models.ProductVariation.media)
         )
-        # NOTE: Customization options NOT loaded - they contain massive JSON data (canvas_data, svg_data)
-        # With 200+ saved designs, this is 60-70MB! Load separately when needed.
-        .options(selectinload(models.Product.media))  # Load product-level media only
+        .options(selectinload(models.Product.media))
         .where(models.Product.id == product_id)
     )
 
+    # Load categories
     categories_result = await db.execute(
         select(models.ProductCategory.category_id)
         .where(models.ProductCategory.product_id == product_id)
     )
 
+    # Load LIMITED customization options (first 10 as templates)
+    # This provides multi-view functionality without 72MB payload
+    customization_result = await db.execute(
+        select(models.CustomizationOption)
+        .options(selectinload(models.CustomizationOption.media))
+        .where(models.CustomizationOption.product_id == product_id)
+        .order_by(models.CustomizationOption.created_at.asc())
+        .limit(10)
+    )
+
     product = product_result.scalars().first()
     category_ids = [row[0] for row in categories_result.all()]
+    template_customizations = list(customization_result.scalars().all())
 
-    return product, category_ids
+    return product, category_ids, template_customizations
 
 
 async def get_product_by_slug(db: AsyncSession, slug: str) -> Optional[models.Product]:

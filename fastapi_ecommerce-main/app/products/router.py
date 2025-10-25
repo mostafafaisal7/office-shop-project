@@ -191,27 +191,42 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     import time
     start_time = time.time()
 
-    # LIGHTWEIGHT VERSION: Fetch product WITHOUT variation/customization media
-    # This reduces initial payload from 72MB to ~50KB for products with many variations
-    # Variations still loaded (for color/size filtering) but without heavy media files
-    product, category_ids = await crud.get_product_lightweight_with_categories(db, product_id)
+    # OPTIMIZED VERSION: Fetch product with variations, media, and TEMPLATE customizations
+    # Template customizations (first 10) enable multi-view and preview features
+    # Full user-saved designs (200+) excluded to prevent 72MB payload
+    product, category_ids, template_customizations = await crud.get_product_with_template_customizations(db, product_id)
     db_time = time.time() - start_time
     print(f"⚡ [BACKEND] Product {product_id} DB query (lightweight): {db_time*1000:.2f}ms")
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # DEBUG: Check data sizes BEFORE conversion (ultra-lightweight mode)
-    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.media)} product-level media items")
-    print(f"🔍 [DEBUG] Ultra-lightweight mode: variation media NOT loaded, customization_options SKIPPED (they contain massive JSON data)")
+    # DEBUG: Check data sizes BEFORE conversion
+    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.media)} media items, {len(template_customizations)} template customizations")
 
     # Convert product ORM to dict BEFORE Pydantic validation to avoid lazy load triggers
-    # In lightweight mode, variation/customization media are NOT loaded, so we set them to empty lists
     convert_start = time.time()
 
-    # Build variations list (WITHOUT media to avoid lazy load)
+    # Build variations list (WITH media for full product display)
     variations_data = []
     for v in product.variations:
+        # Build media list for this variation
+        variation_media_data = []
+        for m in v.media:
+            variation_media_data.append({
+                "id": m.id,
+                "variation_id": m.variation_id,
+                "file_path": m.file_path,
+                "file_name": m.file_name,
+                "media_type": m.media_type,
+                "mime_type": m.mime_type,
+                "alt_text": m.alt_text,
+                "design": m.design,
+                "area": m.area,
+                "sort_order": m.sort_order,
+                "uploaded_at": m.uploaded_at
+            })
+
         variations_data.append({
             "id": v.id,
             "product_id": v.product_id,
@@ -224,13 +239,45 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
             "is_active": v.is_active,
             "sort_order": v.sort_order,
             "created_at": v.created_at,
-            "media": []  # Empty in lightweight mode
+            "media": variation_media_data
         })
 
-    # SKIP customization_options entirely - they contain HUGE JSON data (canvas_data, svg_data)
-    # With 200+ saved designs, this adds 60-70MB to the response!
-    # Load them separately via /products/{id}/options endpoint when user needs to view/edit designs
+    # Build customization options (limited to first 10 templates for multi-view)
+    # Full user-saved designs can be loaded via /products/{id}/options endpoint
     customization_options_data = []
+    for opt in template_customizations:
+        # Build media list for this customization option
+        opt_media_data = []
+        for m in opt.media:
+            opt_media_data.append({
+                "id": m.id,
+                "customization_option_id": m.customization_option_id,
+                "file_path": m.file_path,
+                "file_name": m.file_name,
+                "file_size": m.file_size,
+                "media_type": m.media_type,
+                "mime_type": m.mime_type,
+                "alt_text": m.alt_text,
+                "canvas_object_id": m.canvas_object_id,
+                "layer_order": m.layer_order,
+                "uploaded_at": m.uploaded_at
+            })
+
+        customization_options_data.append({
+            "id": opt.id,
+            "client_reference_id": opt.client_reference_id,
+            "user_id": opt.user_id,
+            "product_id": opt.product_id,
+            "variation_id": opt.variation_id,
+            "design_area": opt.design_area,
+            "canvas_data": opt.canvas_data,
+            "svg_data": opt.svg_data,
+            "design_metadata": opt.design_metadata,
+            "design_elements": opt.design_elements,
+            "created_at": opt.created_at,
+            "updated_at": opt.updated_at,
+            "media": opt_media_data
+        })
 
     # Build product media list (convert ORM to dicts)
     media_data = []
@@ -269,7 +316,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
         "created_at": product.created_at,
         "updated_at": product.updated_at,
         "variations": variations_data,
-        "customization_options": customization_options_data,  # Empty - massive JSON data skipped
+        "customization_options": customization_options_data,  # First 10 templates for multi-view
         "media": media_data,  # Product-level media (converted to dicts)
         "review_summary": None,  # Will be populated later
         "helpful_reviews": []  # Will be populated later
