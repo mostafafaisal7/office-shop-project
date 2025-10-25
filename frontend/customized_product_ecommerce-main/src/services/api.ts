@@ -83,38 +83,59 @@ export interface ProductFilters {
 }
 
 export async function fetchProducts(): Promise<ApiProduct[]> {
+  const startTime = performance.now();
+  console.log('🚀 [API] fetchProducts - Starting request...');
+  console.log(`📡 [API] URL: ${API_BASE_URL}/products/`);
+
   try {
+    const fetchStart = performance.now();
     const response = await fetch(`${API_BASE_URL}/products/`, {
       next: { revalidate: 300 }, // Cache for 5 minutes
     });
-    
+    const fetchEnd = performance.now();
+    console.log(`⏱️  [API] Fetch completed in ${(fetchEnd - fetchStart).toFixed(2)}ms`);
+    console.log(`📊 [API] Response status: ${response.status}`);
+
     if (!response.ok) {
+      console.error(`❌ [API] Request failed with status: ${response.status}`);
       throw new Error(`Failed to fetch products: ${response.status}`);
     }
-    
+
+    const parseStart = performance.now();
     const data = await response.json();
-    
+    const parseEnd = performance.now();
+    console.log(`⏱️  [API] JSON parsing: ${(parseEnd - parseStart).toFixed(2)}ms`);
+    console.log(`📦 [API] Data received:`, Array.isArray(data) ? `${data.length} products` : typeof data);
+
     // Handle new API response format with pagination
     if (data.products && Array.isArray(data.products)) {
+      const totalTime = performance.now() - startTime;
+      console.log(`✅ [API] fetchProducts completed in ${totalTime.toFixed(2)}ms - ${data.products.length} products`);
       return data.products;
     }
-    
+
     // Fallback for old format (direct array)
     if (Array.isArray(data)) {
+      const totalTime = performance.now() - startTime;
+      console.log(`✅ [API] fetchProducts completed in ${totalTime.toFixed(2)}ms - ${data.length} products`);
       return data;
     }
-    
+
     throw new Error('Invalid API response format');
   } catch (error) {
-    console.error('Error fetching products:', error);
+    const totalTime = performance.now() - startTime;
+    console.error(`❌ [API] fetchProducts failed after ${totalTime.toFixed(2)}ms:`, error);
     throw error;
   }
 }
 
 export async function fetchProductsWithFilters(filters: ProductFilters = {}): Promise<ProductsResponse> {
+  const startTime = performance.now();
+  console.log('🚀 [API] fetchProductsWithFilters - Starting request...', filters);
+
   try {
     const params = new URLSearchParams();
-    
+
     // Add search and filter parameters
     if (filters.q) params.append('q', filters.q);
     if (filters.category_id) params.append('category_id', filters.category_id.toString());
@@ -129,29 +150,41 @@ export async function fetchProductsWithFilters(filters: ProductFilters = {}): Pr
     if (filters.sort_order) params.append('sort_order', filters.sort_order);
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.per_page) params.append('per_page', filters.per_page.toString());
-    
-    const url = `${API_BASE_URL}/products/${params.toString() ? `?${params.toString()}` : ''}`;
 
+    const url = `${API_BASE_URL}/products/${params.toString() ? `?${params.toString()}` : ''}`;
+    console.log(`📡 [API] URL: ${url}`);
+
+    const fetchStart = performance.now();
     const response = await fetch(url, {
       next: { revalidate: 120 }, // Cache for 2 minutes (shorter for dynamic filters)
     });
-    
+    const fetchEnd = performance.now();
+    console.log(`⏱️  [API] Fetch: ${(fetchEnd - fetchStart).toFixed(2)}ms | Status: ${response.status}`);
+
     if (!response.ok) {
+      console.error(`❌ [API] Request failed: ${response.status}`);
       throw new Error(`Failed to fetch products: ${response.status}`);
     }
-    
+
+    const parseStart = performance.now();
     const data = await response.json();
-    
-    // Ensure we return the expected format
-    return {
+    const parseEnd = performance.now();
+    console.log(`⏱️  [API] JSON parsing: ${(parseEnd - parseStart).toFixed(2)}ms`);
+
+    const result = {
       products: data.products || [],
       total: data.total || 0,
       page: data.page || 1,
       per_page: data.per_page || 20,
       pages: data.pages || 1
     };
+
+    const totalTime = performance.now() - startTime;
+    console.log(`✅ [API] fetchProductsWithFilters completed in ${totalTime.toFixed(2)}ms - ${result.products.length}/${result.total} products`);
+    return result;
   } catch (error) {
-    console.error('Error fetching products with filters:', error);
+    const totalTime = performance.now() - startTime;
+    console.error(`❌ [API] fetchProductsWithFilters failed after ${totalTime.toFixed(2)}ms:`, error);
     throw error;
   }
 }
