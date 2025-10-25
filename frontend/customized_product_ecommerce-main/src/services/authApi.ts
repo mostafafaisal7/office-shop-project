@@ -41,10 +41,15 @@ class AuthApiService extends BaseApiClient {
         throw new Error(response.message || 'Registration failed');
       }
 
+      // Handle nested backend response structure
+      const backendResponse = response.data;
+      const actualData = backendResponse?.data || backendResponse;
+      const actualMessage = backendResponse?.message || response.message;
+
       return {
         success: true,
-        message: response.message || 'Registration successful',
-        data: response.data,
+        message: actualMessage || 'Registration successful',
+        data: actualData,
       };
     } catch (error) {
       console.error('Registration error:', error);
@@ -68,45 +73,58 @@ class AuthApiService extends BaseApiClient {
         throw new Error(response.message || 'Login failed');
       }
 
-      console.log("Raw login response:", response.data);
+      console.log("Raw login response from BaseApiClient:", response);
 
-      const { data } = response;
+      // BaseApiClient wraps the backend response in { success, data, message }
+      // The backend also returns { success, data, message }
+      // So we need to check if response.data has its own 'data' property (nested)
+      const backendResponse = response.data;
+
+      // Handle nested response structure from backend
+      const actualData = backendResponse.data || backendResponse;
+      const actualMessage = backendResponse.message || response.message;
+
+      console.log("Actual data:", actualData);
 
       // OTP required case
-      if (data.otpRequired) {
+      if (actualData.otpRequired) {
         return {
           success: true,
-          message: response.message || 'OTP sent successfully',
-          detail: response.message || 'OTP sent successfully',
+          message: actualMessage || 'OTP sent successfully',
+          detail: actualMessage || 'OTP sent successfully',
           otpRequired: true,
-          user: data.user,
+          user: actualData.user,
           data: {
             otpRequired: true,
-            userId: data.userId,
-            user: data.user
+            userId: actualData.userId,
+            user: actualData.user
           }
         };
       }
 
       // Fully logged in case
-      if (data.user && data.tokens) {
+      if (actualData.user && actualData.tokens) {
         return {
           success: true,
-          message: response.message || 'Login successful',
-          detail: response.message || 'Login successful',
-          user: data.user,
-          tokens: data.tokens,
+          message: actualMessage || 'Login successful',
+          detail: actualMessage || 'Login successful',
+          user: actualData.user,
+          tokens: actualData.tokens,
           otpRequired: false,
           data: {
-            user: data.user,
-            tokens: data.tokens,
+            user: actualData.user,
+            tokens: actualData.tokens,
             otpRequired: false
           }
         };
       }
 
       // Fallback for unexpected response structure
-      console.error("Login successful but unexpected response:", response);
+      console.error("Login successful but unexpected response structure:", {
+        response,
+        backendResponse,
+        actualData
+      });
       throw new Error("Login failed - unexpected response structure");
 
     } catch (error) {
@@ -130,18 +148,23 @@ class AuthApiService extends BaseApiClient {
         throw new Error(response.message || "OTP verification failed");
       }
 
-      console.log("Raw OTP verification response:", response.data);
+      console.log("Raw OTP verification response:", response);
+
+      // Handle nested backend response structure
+      const backendResponse = response.data;
+      const actualData = backendResponse.data || backendResponse;
+      const actualMessage = backendResponse.message || response.message;
 
       // Handle the backend response structure
       return {
         success: true,
-        message: response.message || "OTP verified successfully",
-        detail: response.message || "OTP verified successfully",
-        user: response.data.user,
-        tokens: response.data.tokens,
+        message: actualMessage || "OTP verified successfully",
+        detail: actualMessage || "OTP verified successfully",
+        user: actualData.user,
+        tokens: actualData.tokens,
         data: {
-          user: response.data.user,
-          tokens: response.data.tokens
+          user: actualData.user,
+          tokens: actualData.tokens
         }
       };
     } catch (error) {
