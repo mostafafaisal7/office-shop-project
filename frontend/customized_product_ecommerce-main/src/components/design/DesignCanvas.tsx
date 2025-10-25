@@ -193,7 +193,7 @@ useEffect(() => {
     canvas.off("object:modified", handleCanvasChange);
     canvas.off("text:changed", handleCanvasChange);
   };
-}, [isCanvasReady, productId, autoSaveDesign, productImage]);
+}, [isCanvasReady, productId, autoSaveDesign, productImage, currentDesignArea]);
 
 // ----------------------------
 // Effect B: Load saved design + restore product background
