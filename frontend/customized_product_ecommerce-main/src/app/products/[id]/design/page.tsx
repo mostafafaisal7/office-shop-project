@@ -1060,16 +1060,19 @@ const handleNext = async () => {
   setIsGeneratingReviewPreviews(true);
 
   try {
-    console.log('🔹 Next clicked, generating review previews...');
+    console.log('🔹 Next clicked, saving as new version and generating review previews...');
 
     const canvasData = fabricCanvas.toJSON();
     const variationId = selectedVariation?.variationId?.toString();
     if (!variationId) throw new Error('Variation not selected');
 
     const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-    await saveDesign(canvasData, currentViewImage);
 
-    console.log('✅ Current design saved, generating review previews...');
+    // ✅ FIX: Save as new version instead of updating existing design
+    // This creates a new project entry in "My Projects" for each Next click
+    await saveAsNewVersion(canvasData, currentViewImage);
+
+    console.log('✅ Current design saved as new version, generating review previews...');
 
     const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
       productId,
