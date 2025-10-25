@@ -37,6 +37,7 @@ const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProp
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const [textInput, setTextInput] = useState<string>('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [fileInputKey, setFileInputKey] = useState<number>(0); // ✅ FIX: Key to reset file input
 
   // Fetch token if user is logged in
   useEffect(() => {
@@ -138,6 +139,9 @@ useEffect(() => {
         // Pass the server URL to canvas, not the file
         console.log('✅ Passing SERVER URL to canvas:', data.image_url);
         onImageUpload(data.image_url);
+
+        // ✅ FIX: Reset file input after successful upload to prevent controlled/uncontrolled error
+        setFileInputKey(prev => prev + 1);
       } else {
         console.error('❌ Upload failed - no image_url in response');
         alert('Upload failed. Please try again.');
@@ -187,6 +191,7 @@ useEffect(() => {
               </div>
 
               <input
+                key={fileInputKey}
                 type="file"
                 accept="image/*"
                 onChange={handleImageUpload}
