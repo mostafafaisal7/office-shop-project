@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDesignSync } from '@/hooks/useDesignSync';
 import { previewGenerator } from '@/utils/previewGenerator';
 import { designApi } from '@/services/designApi';
+import { useToast } from '@/contexts/ToastContext';
 
 interface DesignPageProps {
   params: Promise<{
@@ -85,6 +86,7 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const { isAuthenticated } = useAuthStore();
   const { migrateLocalStorageToDatabase, clearLocalStorageDesigns } = useDesignStore();
   const { isAuthenticated: syncIsAuthenticated, pendingSyncsCount, manualSync } = useDesignSync();
+  const { showToast } = useToast();
   const [productImage, setProductImage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState('front');
@@ -677,7 +679,7 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     if (!isServerUrl) {
       console.error('❌ ERROR: File object passed instead of server URL! This should not happen.');
       console.error('❌ LeftSidebar should upload first and pass server URL');
-      alert('Error: Image must be uploaded first. Please try again.');
+      showToast('Error: Image must be uploaded first. Please try again.', 'error', 4000);
       return;
     }
 
@@ -733,15 +735,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           console.log('💾 Custom design saved as new version', previewImageUrl ? 'with preview image' : 'without preview image');
 
           // Show success feedback
-          alert('Design saved as new version! Check "My Projects" to see all your versions.');
+          showToast('Saved successfully! You can check in projects.', 'success', 3000);
         } else {
           console.log('💾 No design elements to save');
-          alert('Please add some design elements before saving.');
+          showToast('Please add some design elements before saving.', 'info', 3000);
         }
       }
     } catch (error) {
       console.error('Error saving design manually:', error);
-      alert('Failed to save design. Please try again.');
+      showToast('Failed to save design. Please try again.', 'error', 4000);
     }
   };
 
@@ -1068,18 +1070,51 @@ const handleNext = async () => {
 
     const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
 
-    // ✅ FIX: Save as new version instead of updating existing design
+    // Generate preview image for current view FIRST
+    let currentPreviewUrl: string | undefined;
+    if (isAuthenticated) {
+      try {
+        currentPreviewUrl = await previewGenerator.generatePreview(
+          canvasData,
+          currentViewImage,
+          { quality: 1, multiplier: 2 }
+        );
+      } catch (error) {
+        console.error('Error generating preview for Next:', error);
+      }
+    }
+
+    // ✅ FIX: Save as new version with preview image
     // This creates a new project entry in "My Projects" for each Next click
-    await saveAsNewVersion(canvasData, currentViewImage);
+    await saveAsNewVersion(canvasData, currentViewImage, currentPreviewUrl);
 
-    console.log('✅ Current design saved as new version, generating review previews...');
+    console.log('✅ Current design saved as new version, generating all review previews...');
 
+    // Generate preview images for all views for the review modal
     const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
       productId,
       variationId,
       availableViews,
       loadDesign
     );
+
+    // Save preview images for other areas to the same version
+    if (isAuthenticated) {
+      for (const [area, previewUrl] of Object.entries(allReviewPreviews)) {
+        if (area !== activeView) {
+          try {
+            const designData = await loadDesign(productId, variationId, area);
+            if (designData) {
+              const areaImage = availableViews.find(v => v.area === area)?.image || '';
+              await saveDesign(designData.canvas_data, areaImage, previewUrl);
+              console.log(`✅ Saved preview for area: ${area}`);
+            }
+          } catch (error) {
+            console.error(`Error saving preview for area ${area}:`, error);
+          }
+        }
+      }
+    }
 
     console.log('✅ Review previews generated:', allReviewPreviews);
 
@@ -1089,7 +1124,7 @@ const handleNext = async () => {
     setShowReviewModal(true);
 
   } catch (error) {
-    console.error('❌ Error generating review previews:', error);
+    console.error('❌ Error in handleNext:', error);
     setReviewImageUrl('');
     setShowReviewModal(true);
   } finally {
