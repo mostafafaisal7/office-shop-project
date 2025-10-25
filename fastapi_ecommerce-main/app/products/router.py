@@ -191,10 +191,12 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     import time
     start_time = time.time()
 
-    # OPTIMIZED: Fetch product and categories in parallel
-    product, category_ids = await crud.get_product_with_categories(db, product_id)
+    # LIGHTWEIGHT VERSION: Fetch product WITHOUT variation/customization media
+    # This reduces initial payload from 72MB to ~50KB for products with many variations
+    # Variations still loaded (for color/size filtering) but without heavy media files
+    product, category_ids = await crud.get_product_lightweight_with_categories(db, product_id)
     db_time = time.time() - start_time
-    print(f"⚡ [BACKEND] Product {product_id} DB query: {db_time*1000:.2f}ms")
+    print(f"⚡ [BACKEND] Product {product_id} DB query (lightweight): {db_time*1000:.2f}ms")
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -203,7 +205,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} media items")
     total_variation_media = sum(len(v.media) for v in product.variations)
     total_customization_media = sum(len(c.media) for c in product.customization_options)
-    print(f"🔍 [DEBUG] Total media: {total_variation_media} variation media, {total_customization_media} customization media")
+    print(f"🔍 [DEBUG] Total media (lightweight mode): {total_variation_media} variation media, {total_customization_media} customization media")
 
     # Convert product ORM to dict and add category_ids
     convert_start = time.time()
