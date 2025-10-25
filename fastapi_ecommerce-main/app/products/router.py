@@ -201,11 +201,9 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # DEBUG: Check data sizes BEFORE conversion
-    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} media items")
-    total_variation_media = sum(len(v.media) for v in product.variations)
-    total_customization_media = sum(len(c.media) for c in product.customization_options)
-    print(f"🔍 [DEBUG] Total media (lightweight mode): {total_variation_media} variation media, {total_customization_media} customization media")
+    # DEBUG: Check data sizes BEFORE conversion (lightweight mode - media not loaded)
+    print(f"🔍 [DEBUG] Product {product_id} has {len(product.variations)} variations, {len(product.customization_options)} customization options, {len(product.media)} product-level media items")
+    print(f"🔍 [DEBUG] Lightweight mode: variation/customization media NOT loaded for performance")
 
     # Convert product ORM to dict and add category_ids
     convert_start = time.time()
