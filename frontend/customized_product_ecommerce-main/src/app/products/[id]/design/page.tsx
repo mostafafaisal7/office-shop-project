@@ -113,6 +113,8 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const loadingStartTimeRef = useRef<number | null>(null);
   // ✅ NEW: Track loaded product to prevent unnecessary reloads
   const loadedProductIdRef = useRef<string | null>(null);
+  // ✅ NEW: Track if we should initialize new version (false when loading existing project)
+  const [shouldInitializeNewVersion, setShouldInitializeNewVersion] = useState(true);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -460,7 +462,16 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       const urlVariationId = unwrappedSearchParams.variation_id;
       const optionId = unwrappedSearchParams.option_id;
       const clientReferenceId = unwrappedSearchParams.client_reference_id;
-      
+
+      // ✅ FIX: Don't initialize new version when loading existing project
+      if (optionId || clientReferenceId) {
+        setShouldInitializeNewVersion(false);
+        console.log('🔄 Loading existing project - will NOT initialize new version');
+      } else {
+        setShouldInitializeNewVersion(true);
+        console.log('🆕 Fresh start - will initialize new version');
+      }
+
       // If coming from project page (option_id or client_reference_id present), set waiting flag
       if ((optionId || clientReferenceId) && !urlVariationId) {
         setIsWaitingForOptionData(true);
@@ -653,12 +664,13 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
 
   // ✅ NEW: Initialize a new version when entering customization page
   // This creates a unique version for this customization session
+  // BUT only if we're NOT loading an existing project
   useEffect(() => {
-    if (productId && selectedVariation?.variationId && !isWaitingForOptionData) {
+    if (productId && selectedVariation?.variationId && !isWaitingForOptionData && shouldInitializeNewVersion) {
       console.log('🆕 Initializing new version for customization session');
       initializeNewVersion();
     }
-  }, [productId, selectedVariation?.variationId, isWaitingForOptionData]);
+  }, [productId, selectedVariation?.variationId, isWaitingForOptionData, shouldInitializeNewVersion]);
 
   const handleAddText = (text: string) => {
     setDesignJson({

@@ -129,35 +129,48 @@ export default function ProjectsPage() {
       setLoading(true);
       // ✅ getUserCustomizationOptions already filters by current user via /users/me/options endpoint
       const customizationOptions = await designApi.getUserCustomizationOptions();
-      
-      // Fetch product details and generate previews for each customization option
+
+      console.log(`📦 Loaded ${customizationOptions.length} customization options`);
+
+      // ✅ OPTIMIZATION: Use saved preview images from design_metadata instead of generating
+      // Only fetch product details when absolutely needed (not in metadata)
       const projectsWithProducts = await Promise.all(
         customizationOptions.map(async (option) => {
           try {
-            const product = await fetchProductById(option.product_id.toString());
-            
-            // Generate preview image (either from canvas data or fallback to product image)
-            const preview_image = await generatePreviewImage(option, product);
-            
+            // ✅ OPTIMIZATION 1: Try to use saved preview image first
+            let preview_image = option.design_metadata?.preview_image_url;
+
+            // ✅ OPTIMIZATION 2: Only fetch product if preview not available
+            let product: ApiProduct | undefined;
+            if (!preview_image) {
+              try {
+                product = await fetchProductById(option.product_id.toString());
+                // Generate preview only if needed
+                preview_image = await generatePreviewImage(option, product);
+              } catch (error) {
+                console.warn('Could not fetch product:', option.product_id, error);
+                // Use a fallback preview
+                preview_image = option.design_metadata?.product_image_url || '';
+              }
+            }
+
             return {
               ...option,
               product,
               preview_image
             };
           } catch (error) {
-            console.error('Error fetching product for option:', option.id, error);
-            
-            // Generate preview even without product data
-            const preview_image = await generatePreviewImage(option);
-            
+            console.error('Error processing option:', option.id, error);
+
             return {
               ...option,
-              preview_image
+              preview_image: option.design_metadata?.preview_image_url || option.design_metadata?.product_image_url || ''
             };
           }
         })
       );
 
+      console.log(`✅ Processed ${projectsWithProducts.length} projects`);
       setProjects(projectsWithProducts);
 
       // Group projects by client_reference_id
