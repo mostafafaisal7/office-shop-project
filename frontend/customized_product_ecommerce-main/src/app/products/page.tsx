@@ -83,16 +83,22 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Products</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Backend Server Not Available</h2>
             <p className="text-gray-600 text-center max-w-md mb-6">
-              We're having trouble loading the products. Please try refreshing the page or contact support if the problem persists.
+              The FastAPI backend is not running. Please start the backend server on port 8000.
             </p>
-            <button 
-              onClick={() => window.location.reload()}
+            <div className="bg-gray-100 p-4 rounded-md mb-4">
+              <code className="text-sm text-gray-800">
+                cd fastapi_ecommerce-main<br />
+                python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+              </code>
+            </div>
+            <a
+              href="/products"
               className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
-              Refresh Page
-            </button>
+              Try Again
+            </a>
           </div>
         </div>
       </div>
