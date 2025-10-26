@@ -502,7 +502,16 @@ async def download_order_item_design_package(
             if order_item.design_canvas_data:
                 all_objects = order_item.design_canvas_data.get('objects', [])
                 print(f"   Found {len(all_objects)} objects in design_canvas_data")
-                print(f"   Types: {[obj.get('type') for obj in all_objects]}")
+                if all_objects:
+                    print(f"   Types: {[obj.get('type') for obj in all_objects]}")
+                    # Validate design_canvas_data objects too
+                    for idx, obj in enumerate(all_objects[:3]):  # Show first 3 for debugging
+                        print(f"   Object {idx}: type={obj.get('type')}, "
+                              f"savedImageUrl={obj.get('savedImageUrl', 'N/A')[:50] if obj.get('savedImageUrl') else 'None'}, "
+                              f"src={obj.get('src', 'N/A')[:50] if obj.get('src') else 'None'}, "
+                              f"text={obj.get('text', 'N/A')[:30] if obj.get('text') else 'None'}")
+                else:
+                    print(f"   ⚠️ design_canvas_data.objects is EMPTY!")
 
                 # If still no valid data, will try customization_options below
 
@@ -984,12 +993,19 @@ Use these files for production, printing, or design editing.
 
             # ✅ FIX: Include preview images from order_item.customized_images
             # These are the same preview images shown in the admin carousel
+            # BUT ONLY if we have valid design objects (text or images)
             preview_count = 0
             print(f"\n{'='*60}")
-            print("Adding preview images from order_item.customized_images")
+            print("Checking preview images from order_item.customized_images")
             print(f"{'='*60}")
 
-            if order_item.customized_images:
+            # ⚠️ VALIDATION: Only include preview images if we have valid design objects
+            # If text_count=0 and image_count=0, customized_images might be stale/wrong data
+            if text_count == 0 and image_count == 0:
+                print(f"⚠️ WARNING: No valid design objects found (text_count={text_count}, image_count={image_count})")
+                print(f"   Skipping preview images from customized_images - likely stale/incorrect data")
+                print(f"   These previews may belong to a different/previous order")
+            elif order_item.customized_images:
                 print(f"Found customized_images: {type(order_item.customized_images)}")
 
                 # Handle different formats (string, array, JSON string)
@@ -1094,7 +1110,23 @@ Use these files for production, printing, or design editing.
 
                 print(f"\n✅ Total preview images added: {preview_count}")
             else:
-                print("No customized_images found in order_item")
+                print("No customized_images found or skipped due to missing design data")
+
+            # ⚠️ CRITICAL VALIDATION: Check if we have ANY files to include
+            # If text_count=0, image_count=0, preview_count=0, ZIP would be almost empty (just README)
+            if text_count == 0 and image_count == 0 and preview_count == 0:
+                print(f"\n❌ CRITICAL ERROR: No design files to include in ZIP!")
+                print(f"   text_count={text_count}, image_count={image_count}, preview_count={preview_count}")
+                print(f"   Design data appears to be missing or corrupted")
+                print(f"   order_item.design_elements length: {len(order_item.design_elements) if order_item.design_elements else 0}")
+                print(f"   order_item.design_canvas_data: {bool(order_item.design_canvas_data)}")
+                if order_item.design_canvas_data:
+                    print(f"   design_canvas_data.objects length: {len(order_item.design_canvas_data.get('objects', []))}")
+
+                raise HTTPException(
+                    status_code=404,
+                    detail="No valid design data found for this order item. Design data may be corrupted or missing."
+                )
 
             # ✅ NEW: Generate print-ready composite SVG files per design area
             # These are vector files combining all text and images for printing on clothing
