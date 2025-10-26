@@ -161,11 +161,18 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesignToStorage: (canvasData: any, productImageUrl: string) => {
+  console.log(`💾 [STORAGE] Starting save to localStorage...`);
+  const saveStartTime = performance.now();
+
   const state = get();
-  if (!state.productId || !state.selectedVariation?.variationId) return;
+  if (!state.productId || !state.selectedVariation?.variationId) {
+    console.warn('⚠️  [STORAGE] Cannot save: missing productId or variationId');
+    return;
+  }
 
   const variationIdKey = state.selectedVariation.variationId.toString();
   const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
+  console.log(`💾 [STORAGE] Design key: ${designKey}`);
 
   // --- sanitize blobs before saving ---
   const sanitizeCanvasData = (data: any) => {
@@ -178,7 +185,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       cleaned.objects = cleaned.objects.map((obj: any) => {
         // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
         if (obj?.type?.toLowerCase() === "image" && obj?.src?.startsWith("blob:")) {
-          console.warn("⚠️ Stripping blob src before saving:", obj.src);
+          console.warn("⚠️ [STORAGE] Stripping blob src before saving:", obj.src);
           obj.src = obj.savedImageUrl || ""; // fallback empty if nothing else
         }
         return obj;
@@ -186,14 +193,17 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
 
     if (cleaned.backgroundImage?.src?.startsWith("blob:")) {
-      console.warn("⚠️ Removing blob backgroundImage before saving");
+      console.warn("⚠️ [STORAGE] Removing blob backgroundImage before saving");
       delete cleaned.backgroundImage;
     }
 
     return cleaned;
   };
 
+  console.log(`🧹 [STORAGE] Sanitizing canvas data...`);
+  const sanitizeStartTime = performance.now();
   const cleanedCanvasData = sanitizeCanvasData(canvasData);
+  console.log(`✅ [STORAGE] Sanitized in ${(performance.now() - sanitizeStartTime).toFixed(2)}ms (${cleanedCanvasData?.objects?.length || 0} objects)`);
 
   const designData: DesignData = {
     design_id: generateDesignId(),
@@ -218,11 +228,17 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     design_elements: cleanedCanvasData?.objects || []
   };
 
+  console.log(`💾 [STORAGE] Updating design map...`);
   const updatedDesigns = new Map(state.savedDesigns);
   updatedDesigns.set(designKey, designData);
 
   set({ savedDesigns: updatedDesigns });
+
+  console.log(`💾 [STORAGE] Persisting to localStorage...`);
+  const persistStartTime = performance.now();
   saveToLocalStorage(updatedDesigns);
+  console.log(`✅ [STORAGE] Persisted in ${(performance.now() - persistStartTime).toFixed(2)}ms`);
+  console.log(`🏁 [STORAGE] Total save time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 
 },
 
@@ -238,14 +254,19 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => {
+  console.log(`📂 [STORAGE] Loading design from localStorage: ${productId}_${variationId}_${area}`);
+  const loadStartTime = performance.now();
+
   const state = get();
   const designKey = generateDesignKey(productId, variationId, area);
   const design = state.savedDesigns.get(designKey);
 
   if (design) {
+    console.log(`✅ [STORAGE] Design found in ${(performance.now() - loadStartTime).toFixed(2)}ms (${design.canvas_data?.objects?.length || 0} objects)`);
     return design;
   }
 
+  console.log(`⚠️  [STORAGE] No design found in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
   return null;
 },
 

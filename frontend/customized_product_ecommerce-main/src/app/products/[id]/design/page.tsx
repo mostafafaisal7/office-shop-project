@@ -845,20 +845,31 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
   const handleViewChange = async (area: string) => {
     if (area === activeView) return;
 
+    console.log('🔄 [VIEW SWITCH] Starting view change from', activeView, 'to', area);
+    const startTime = performance.now();
+
     try {
       // Save current view's design before switching
       if (fabricCanvas && activeView) {
+        console.log('💾 [VIEW SWITCH] Saving current view design...');
+        const saveStartTime = performance.now();
         try {
           const canvasData = fabricCanvas.toJSON();
           if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
             const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
             await saveDesign(canvasData, currentViewImage);
+            console.log(`✅ [VIEW SWITCH] Design saved in ${(performance.now() - saveStartTime).toFixed(2)}ms`);
+          } else {
+            console.log('⏭️  [VIEW SWITCH] No design objects to save, skipping');
           }
         } catch (error) {
-          console.error('Error saving design for view change:', error);
+          console.error('❌ [VIEW SWITCH] Error saving design:', error);
         }
       }
-      
+
+      console.log('🔄 [VIEW SWITCH] Updating active view and design area...');
+      const updateStartTime = performance.now();
+
       // Update active view and product image
       setActiveView(area);
       setCurrentDesignArea(area);
@@ -869,12 +880,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
         setProductImage(selectedView.image);
       }
 
+      console.log(`✅ [VIEW SWITCH] View updated in ${(performance.now() - updateStartTime).toFixed(2)}ms`);
+      console.log(`🏁 [VIEW SWITCH] Total view change time: ${(performance.now() - startTime).toFixed(2)}ms`);
+
       // ✅ FIX: Removed manual design loading - DesignCanvas useEffect handles this automatically
       // when currentDesignArea changes. The previous setTimeout was creating a race condition
       // with the DesignCanvas useEffect, causing blank canvas issues.
-      
+
     } catch (error) {
-      console.error('Error in view change:', error);
+      console.error('❌ [VIEW SWITCH] Error in view change:', error);
     }
   };
 

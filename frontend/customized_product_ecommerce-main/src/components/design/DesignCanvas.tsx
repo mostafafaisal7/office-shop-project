@@ -306,32 +306,46 @@ useEffect(() => {
   }
 
   const loadSavedDesign = async () => {
+    console.log(`📂 [CANVAS LOAD] Starting design load for area: ${currentDesignArea}`);
+    const loadStartTime = performance.now();
+
     try {
       // ✅ FIX: Use designStore's loadDesign method instead of direct localStorage access
       // This ensures we use the correct storage format (Map in 'ecommerce_designs' key)
       let designData = null;
 
       try {
+        console.log(`📂 [CANVAS LOAD] Loading design from storage...`);
+        const loadDesignStartTime = performance.now();
+
         // Use the designStore's loadDesign which handles both localStorage and database
         designData = await loadDesign(productId, variationId, currentDesignArea);
+
+        console.log(`✅ [CANVAS LOAD] Design loaded in ${(performance.now() - loadDesignStartTime).toFixed(2)}ms`, designData ? `(${designData.canvas_data?.objects?.length || 0} objects)` : '(no design found)');
       } catch (err) {
-        console.error('Failed to load design:', err);
+        console.error('❌ [CANVAS LOAD] Failed to load design:', err);
       }
 
       // ✅ FIX: Validate design belongs to current product (prevent data leak)
       if (designData && designData.product_id && designData.product_id.toString() !== productId) {
-        console.warn('⚠️ DATA LEAK PREVENTED: Design belongs to different product');
+        console.warn('⚠️ [CANVAS LOAD] DATA LEAK PREVENTED: Design belongs to different product');
         console.warn(`  Design product ID: ${designData.product_id}`);
         console.warn(`  Current product ID: ${productId}`);
         designData = null; // Reject design from wrong product
       }
 
       // 3️⃣ Clear canvas except background
+      console.log(`🧹 [CANVAS LOAD] Clearing canvas objects...`);
+      const clearStartTime = performance.now();
       canvas.getObjects().forEach((obj: any) => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
+      console.log(`✅ [CANVAS LOAD] Canvas cleared in ${(performance.now() - clearStartTime).toFixed(2)}ms`);
 
       if (designData?.canvas_data?.objects?.length > 0) {
+        console.log(`🎨 [CANVAS LOAD] Loading ${designData.canvas_data.objects.length} design objects...`);
+        const loadJSONStartTime = performance.now();
+
         const fixedCanvasData = { ...designData.canvas_data };
 
         // Remove blob background
@@ -349,6 +363,8 @@ useEffect(() => {
         });
 
         canvas.loadFromJSON(fixedCanvasData, async () => {
+          console.log(`✅ [CANVAS LOAD] JSON loaded in ${(performance.now() - loadJSONStartTime).toFixed(2)}ms`);
+
           // ✅ CRITICAL FIX: Restore custom properties after loadFromJSON
           // canvas.loadFromJSON recreates objects and loses custom properties
           canvas.getObjects().forEach((canvasObj: any, index: number) => {
@@ -357,22 +373,33 @@ useEffect(() => {
             if (canvasObj.type?.toLowerCase() === 'image' && originalData?.savedImageUrl) {
               // ✅ CRITICAL: Assign directly, not via .set() - Fabric.js v6 requirement
               canvasObj.savedImageUrl = originalData.savedImageUrl;
-              // ✅ DEBUG: Log restored savedImageUrl
-              console.log('✅ Restored savedImageUrl:', originalData.savedImageUrl?.substring(0, 50) + '...');
             }
           });
 
+          console.log(`🖼️  [CANVAS LOAD] Loading background image...`);
+          const bgStartTime = performance.now();
           await loadBackgroundImage(productImage);
+          console.log(`✅ [CANVAS LOAD] Background loaded in ${(performance.now() - bgStartTime).toFixed(2)}ms`);
+
           // ✅ FIX: Safe renderAll with disposal check
           if (!canvas.disposed) {
+            console.log(`🎨 [CANVAS LOAD] Rendering canvas...`);
+            const renderStartTime = performance.now();
             canvas.renderAll();
+            console.log(`✅ [CANVAS LOAD] Canvas rendered in ${(performance.now() - renderStartTime).toFixed(2)}ms`);
           }
+
+          console.log(`🏁 [CANVAS LOAD] Total design load time: ${(performance.now() - loadStartTime).toFixed(2)}ms`);
         });
       } else {
+        console.log(`🖼️  [CANVAS LOAD] No design objects, loading only background...`);
+        const bgStartTime = performance.now();
         await loadBackgroundImage(productImage);
+        console.log(`✅ [CANVAS LOAD] Background loaded in ${(performance.now() - bgStartTime).toFixed(2)}ms`);
+        console.log(`🏁 [CANVAS LOAD] Total design load time: ${(performance.now() - loadStartTime).toFixed(2)}ms`);
       }
     } catch (error) {
-      console.error("❌ Error loading saved design:", error);
+      console.error("❌ [CANVAS LOAD] Error loading saved design:", error);
       // ✅ FIX: Wrap canvas.clear() in try-catch to prevent clearRect errors
       try {
         if (canvas && !canvas.disposed) {
@@ -380,12 +407,12 @@ useEffect(() => {
           await loadBackgroundImage(productImage);
         }
       } catch (clearError) {
-        console.error("❌ Error clearing canvas:", clearError);
+        console.error("❌ [CANVAS LOAD] Error clearing canvas:", clearError);
         // Canvas already disposed, just reload background
         try {
           await loadBackgroundImage(productImage);
         } catch (bgError) {
-          console.error("❌ Error loading background:", bgError);
+          console.error("❌ [CANVAS LOAD] Error loading background:", bgError);
         }
       }
     }
