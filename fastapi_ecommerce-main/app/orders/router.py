@@ -458,9 +458,9 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    # ✅ FIX: Fetch ALL customization options for this product/variation
-    # User might have designed on multiple areas (front, back, left, right)
-    # Each area has separate canvas_data - we need to combine them all
+    # ⚡ CRITICAL FIX: Fetch ONLY customization options that belong to THIS order
+    # Previous bug: Was fetching ALL options with same client_reference_id across ALL orders
+    # This caused ZIP files to include designs from other customers' orders!
     all_objects = []
     customization_options = []  # ✅ Store for preview image extraction
 
@@ -478,15 +478,33 @@ async def download_order_item_design_package(
         main_option = result.scalar_one_or_none()
 
         if main_option and main_option.client_reference_id:
-            # Fetch ALL customization options with the same client_reference_id
-            # These represent all design areas (front, back, left, right) for this product/variation
+            # ⚡ SECURITY FIX: First, get ALL customization_option_ids used in THIS order
+            # This prevents including designs from other orders
+            print(f"Fetching all customization options for order: {order_id}")
+            order_items_result = await db.execute(
+                select(models.OrderItem.customization_option_id)
+                .where(
+                    models.OrderItem.order_id == order_id,
+                    models.OrderItem.customization_option_id.isnot(None)
+                )
+            )
+            order_customization_ids = [row[0] for row in order_items_result.all()]
+            print(f"  Found {len(order_customization_ids)} customization IDs in this order: {order_customization_ids}")
+
+            # ⚡ CRITICAL: Fetch options that:
+            # 1. Have the same client_reference_id (to get all design areas: front, back, left, right)
+            # 2. AND are actually used in THIS order (security check)
             result = await db.execute(
                 select(product_models.CustomizationOption)
-                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
+                .where(
+                    product_models.CustomizationOption.client_reference_id == main_option.client_reference_id,
+                    product_models.CustomizationOption.id.in_(order_customization_ids)
+                )
             )
             all_options = result.scalars().all()
 
             print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
+            print(f"  (Filtered to only include designs from order {order_id})")
 
             # ✅ Store all_options for later preview image extraction
             customization_options = all_options
@@ -494,7 +512,7 @@ async def download_order_item_design_package(
             # Combine objects from all design areas
             for option in all_options:
                 area_objects = option.canvas_data.get('objects', [])
-                print(f"  - {option.design_area}: {len(area_objects)} objects")
+                print(f"  - {option.design_area}: {len(area_objects)} objects (ID: {option.id})")
                 all_objects.extend(area_objects)
         else:
             # Fallback: use just the main option's canvas_data
