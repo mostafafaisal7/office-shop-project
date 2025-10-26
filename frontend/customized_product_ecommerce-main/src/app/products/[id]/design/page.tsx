@@ -1078,6 +1078,36 @@ const handlePreview = async () => {
 const handleNext = async () => {
   if (!fabricCanvas) return;
 
+  // ⚡ ENHANCED NAVIGATION: Navigate through views before showing review modal
+  // Find current view index
+  const currentViewIndex = availableViews.findIndex(v => v.area === activeView);
+  const isLastView = currentViewIndex === availableViews.length - 1;
+
+  // If not on last view, navigate to next view
+  if (!isLastView && currentViewIndex >= 0) {
+    const nextView = availableViews[currentViewIndex + 1];
+    console.log(`🔄 [NAVIGATION] Moving to next view: ${activeView} → ${nextView.area}`);
+
+    // Save current view and navigate to next
+    try {
+      const canvasData = fabricCanvas.toJSON();
+      if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
+        const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
+        // Use synchronous save to prevent data loss
+        await saveDesign(canvasData, currentViewImage, undefined, undefined, true);
+        console.log(`✅ [NAVIGATION] Saved ${activeView} view before navigating`);
+      }
+    } catch (error) {
+      console.error('❌ [NAVIGATION] Error saving before navigation:', error);
+    }
+
+    // Navigate to next view
+    await handleViewChange(nextView.area);
+    return;
+  }
+
+  // On last view, proceed with review modal
+  console.log(`🔹 [NAVIGATION] On last view (${activeView}), showing review modal...`);
   setIsGeneratingReviewPreviews(true);
 
   try {
@@ -1088,7 +1118,7 @@ const handleNext = async () => {
     if (!variationId) throw new Error('Variation not selected');
 
     const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-    await saveDesign(canvasData, currentViewImage);
+    await saveDesign(canvasData, currentViewImage, undefined, undefined, true);
 
     console.log('✅ Current design saved, generating review previews...');
 
