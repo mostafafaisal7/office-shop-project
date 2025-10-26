@@ -128,10 +128,10 @@ export default function OrderDetailsPage() {
 
   const handleDownloadInvoice = async () => {
     if (!order) return;
-    
+
     try {
       const blob = await orderService.downloadInvoice(order.id);
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -141,11 +141,35 @@ export default function OrderDetailsPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       message.success('Invoice downloaded successfully');
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to download invoice';
       message.error(errorMessage);
+    }
+  };
+
+  const handleDownloadDesignPackage = async (itemId: number, productName: string) => {
+    if (!order) return;
+
+    try {
+      message.loading({ content: 'Creating design package...', key: 'download-zip' });
+      const blob = await orderService.downloadDesignPackage(order.id, itemId);
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `order_${order.id}_item_${itemId}_design_package.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      message.success({ content: 'Design package downloaded successfully', key: 'download-zip' });
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to download design package';
+      message.error({ content: errorMessage, key: 'download-zip' });
     }
   };
 
@@ -429,6 +453,28 @@ export default function OrderDetailsPage() {
       render: (_, record) => (
         <Text strong>${(record.quantity * record.unit_price).toFixed(2)}</Text>
       ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 120,
+      render: (_, record) => {
+        // Only show download button if item has custom design (customization_option_id exists)
+        if (record.customization_option_id) {
+          return (
+            <Button
+              type="primary"
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownloadDesignPackage(record.id, record.product_name)}
+              style={{ fontSize: '12px' }}
+            >
+              Download ZIP
+            </Button>
+          );
+        }
+        return <Text type="secondary" style={{ fontSize: '12px' }}>No custom design</Text>;
+      },
     },
   ];
 

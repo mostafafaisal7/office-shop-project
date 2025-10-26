@@ -149,6 +149,33 @@ class OrderService {
     return response.data;
   }
 
+  // Download design package (ZIP) for order item
+  async downloadDesignPackage(orderId: string, itemId: number): Promise<Blob> {
+    const response = await apiService.get(
+      `${this.baseUrl}/${orderId}/items/${itemId}/download-design-package`,
+      { responseType: 'blob' }
+    );
+    return response.data;
+  }
+
+  // Download canvas JSON for order item
+  async downloadCanvasData(orderId: string, itemId: number): Promise<Blob> {
+    const response = await apiService.get(
+      `${this.baseUrl}/${orderId}/items/${itemId}/download-canvas`,
+      { responseType: 'blob' }
+    );
+    return response.data;
+  }
+
+  // Download design elements JSON for order item
+  async downloadDesignElements(orderId: string, itemId: number): Promise<Blob> {
+    const response = await apiService.get(
+      `${this.baseUrl}/${orderId}/items/${itemId}/download-elements`,
+      { responseType: 'blob' }
+    );
+    return response.data;
+  }
+
   // Get order statistics (for dashboard)
   async getOrderStats(): Promise<{
     total_orders: number;

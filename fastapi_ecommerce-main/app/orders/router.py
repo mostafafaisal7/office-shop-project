@@ -8,6 +8,7 @@ from app.orders.schemas import OrderStatusUpdate, OrderRead
 from app.orders.service import change_order_status
 from app.common.dependencies import get_current_user, require_admin
 from app.common.enums import OrderStatus
+from datetime import datetime
 from typing import List, Optional
 from fastapi.responses import StreamingResponse
 from app.orders.invoice import generate_invoice_pdf
@@ -182,6 +183,341 @@ async def download_invoice(
         headers={"Content-Disposition": f"attachment; filename=invoice-{order_id}.pdf"},
     )
 
+
+@router.get("/{order_id}/items/{item_id}/download-canvas", dependencies=[Depends(require_admin)])
+async def download_order_item_canvas(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download canvas JSON data for a specific order item (admin only).
+
+    This endpoint returns the complete Fabric.js canvas data including all objects,
+    transformations, and design elements. Useful for recreating or editing the design.
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_canvas_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No canvas data available for this order item"
+        )
+
+    # Prepare filename
+    filename = f"order_{order_id}_item_{item_id}_canvas.json"
+
+    # Return canvas data as downloadable JSON file
+    import json
+    from io import BytesIO
+    canvas_json = json.dumps(order_item.design_canvas_data, indent=2)
+    canvas_bytes = BytesIO(canvas_json.encode("utf-8"))
+
+    return StreamingResponse(
+        canvas_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/{order_id}/items/{item_id}/download-elements", dependencies=[Depends(require_admin)])
+async def download_order_item_elements(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download design elements JSON for a specific order item (admin only).
+
+    This endpoint returns a simplified list of design elements (text, images, shapes)
+    with their properties. Useful for understanding the design composition.
+    """
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_elements:
+        raise HTTPException(
+            status_code=404,
+            detail="No design elements available for this order item"
+        )
+
+    # Prepare filename
+    filename = f"order_{order_id}_item_{item_id}_elements.json"
+
+    # Return design elements as downloadable JSON file
+    import json
+    from io import BytesIO
+    elements_json = json.dumps(order_item.design_elements, indent=2)
+    elements_bytes = BytesIO(elements_json.encode("utf-8"))
+
+    return StreamingResponse(
+        elements_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/{order_id}/items/{item_id}/download-design-package", dependencies=[Depends(require_admin)])
+async def download_order_item_design_package(
+    order_id: str,
+    item_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download complete design package as ZIP file (admin only).
+
+    This endpoint returns a ZIP file containing:
+    - Text elements as individual SVG files
+    - Images as their original uploaded files
+    - A manifest.json with design metadata
+
+    Perfect for production/printing workflows.
+    """
+    import zipfile
+    import io
+    import os
+    import re
+    from urllib.parse import urlparse
+    import json
+    from datetime import datetime
+
+    print(f"\n=== Creating design package for order {order_id}, item {item_id} ===")
+
+    # Fetch the order item
+    result = await db.execute(
+        select(models.OrderItem)
+        .where(models.OrderItem.id == item_id, models.OrderItem.order_id == order_id)
+    )
+    order_item = result.scalar_one_or_none()
+
+    if not order_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order item {item_id} not found in order {order_id}"
+        )
+
+    if not order_item.design_canvas_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No design data available for this order item"
+        )
+
+    try:
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            canvas_data = order_item.design_canvas_data
+            objects = canvas_data.get('objects', [])
+
+            print(f"Processing {len(objects)} canvas objects...")
+
+            text_count = 0
+            image_count = 0
+            files_added = []
+
+            # Add README file
+            readme_content = f"""Design Package for Order {order_id} - Item {item_id}
+===============================================
+
+Product: {order_item.product_name}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Contents:
+- texts/ : Text elements as SVG files
+- images/ : Original uploaded images
+- manifest.json : Design metadata
+- canvas_data.json : Complete Fabric.js canvas data
+
+Use these files for production, printing, or design editing.
+"""
+            zip_file.writestr("README.txt", readme_content)
+            files_added.append("README.txt")
+            print("Added README.txt")
+
+            # Process each object in the canvas
+            for idx, obj in enumerate(objects):
+                obj_type = obj.get('type', '').lower()
+
+                # Handle text elements - convert to SVG
+                if obj_type in ['text', 'i-text', 'textbox']:
+                    text_count += 1
+                    text_content = obj.get('text', '')
+                    font_family = obj.get('fontFamily', 'Arial')
+                    font_size = obj.get('fontSize', 40)
+                    fill_color = obj.get('fill', '#000000')
+                    font_weight = 'bold' if obj.get('fontWeight') == 'bold' else 'normal'
+                    font_style = 'italic' if obj.get('fontStyle') == 'italic' else 'normal'
+                    text_decoration = ''
+                    if obj.get('underline'):
+                        text_decoration = 'underline'
+                    if obj.get('linethrough'):
+                        text_decoration += ' line-through'
+
+                    # Create SVG for text
+                    svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <text x="{obj.get('left', 0)}" y="{obj.get('top', 0)}"
+        font-family="{font_family}"
+        font-size="{font_size}"
+        fill="{fill_color}"
+        font-weight="{font_weight}"
+        font-style="{font_style}"
+        text-decoration="{text_decoration}">
+    {text_content}
+  </text>
+</svg>'''
+
+                    # Add to ZIP
+                    filename_safe = re.sub(r'[^a-zA-Z0-9]', '_', text_content[:20]) if text_content else f"text_{text_count}"
+                    svg_filename = f"texts/text_{text_count}_{filename_safe}.svg"
+                    zip_file.writestr(svg_filename, svg_content)
+                    files_added.append(svg_filename)
+                    print(f"Added {svg_filename}")
+
+                # Handle image elements
+                elif obj_type == 'image':
+                    image_count += 1
+
+                    # Include BOTH original uploaded images AND preview images
+                    # Get both savedImageUrl (original) and src (might be preview)
+                    saved_image_url = obj.get('savedImageUrl', '')
+                    src_url = obj.get('src', '')
+
+                    # Collect all valid image URLs
+                    image_urls = []
+                    if saved_image_url and not saved_image_url.startswith('blob:'):
+                        image_urls.append(('original', saved_image_url))
+                    if src_url and not src_url.startswith('blob:') and src_url != saved_image_url:
+                        image_urls.append(('preview', src_url))
+
+                    if not image_urls:
+                        print(f"⚠️ Skipping image {image_count}: no valid source URLs")
+                        continue
+
+                    print(f"Processing image {image_count} ({len(image_urls)} versions):")
+
+                    # Process each image URL (original and/or preview)
+                    for img_type, image_url in image_urls:
+                        try:
+                            # Parse the URL to get the filename
+                            parsed_url = urlparse(image_url)
+                            path_parts = parsed_url.path.split('/')
+                            original_filename = path_parts[-1] if path_parts else f'image_{image_count}.png'
+
+                            # If it's a local file path
+                            if 'images/' in image_url:
+                                # Extract path after /images/
+                                image_path = image_url.split('/images/', 1)[1]
+
+                                # Try multiple possible locations for the image
+                                # 1. app/static/ (where /images/ URLs are served from)
+                                # 2. uploads/images/ (legacy location)
+                                # 3. images/ (relative path)
+                                possible_paths = [
+                                    os.path.join('app', 'static', image_path),
+                                    os.path.join('uploads', 'images', image_path),
+                                    os.path.join('images', image_path)
+                                ]
+
+                                image_found = False
+                                for full_path in possible_paths:
+                                    print(f"  Looking for {img_type} image at: {full_path}")
+                                    if os.path.exists(full_path):
+                                        with open(full_path, 'rb') as img_file:
+                                            # Add prefix to filename to distinguish original vs preview
+                                            img_filename = f"images/{img_type}_{original_filename}"
+                                            zip_file.writestr(img_filename, img_file.read())
+                                            files_added.append(img_filename)
+                                            print(f"  ✅ Added {img_filename}")
+                                            image_found = True
+                                            break
+
+                                if not image_found:
+                                    print(f"  ⚠️ WARNING: {img_type} image not found at any checked path")
+
+                        except Exception as e:
+                            print(f"  ❌ ERROR processing {img_type} image {image_count}: {e}")
+
+            # Add manifest with design info
+            manifest = {
+                "order_id": order_id,
+                "order_item_id": item_id,
+                "product_id": order_item.product_id,
+                "product_name": order_item.product_name,
+                "text_elements": text_count,
+                "image_elements": image_count,
+                "files_included": files_added
+            }
+
+            zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+            files_added.append("manifest.json")
+            print("Added manifest.json")
+
+            # Also add the full canvas JSON for reference
+            zip_file.writestr("canvas_data.json", json.dumps(canvas_data, indent=2))
+            files_added.append("canvas_data.json")
+            print("Added canvas_data.json")
+
+            print(f"Total files added to ZIP: {len(files_added)}")
+
+        # Get the ZIP file bytes
+        zip_bytes = zip_buffer.getvalue()
+        zip_size = len(zip_bytes)
+        print(f"ZIP file created successfully. Size: {zip_size} bytes")
+
+        if zip_size == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Generated ZIP file is empty"
+            )
+
+        filename = f"order_{order_id}_item_{item_id}_design_package.zip"
+
+        # Use Response instead of StreamingResponse for simpler byte delivery
+        from fastapi.responses import Response
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(zip_size)
+            }
+        )
+
+    except Exception as e:
+        print(f"ERROR creating ZIP package: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create design package: {str(e)}"
+        )
 
 
 @router.patch("/{order_id}/track", response_model=schemas.OrderRead, dependencies=[Depends(require_admin)])
