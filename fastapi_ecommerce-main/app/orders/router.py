@@ -476,12 +476,39 @@ async def download_order_item_design_package(
 
     # Priority 1: Try order_item.design_elements (most reliable snapshot)
     if order_item.design_elements and len(order_item.design_elements) > 0:
-        print(f"\n✅ Using design_elements from order_item snapshot")
+        print(f"\n✅ Checking design_elements from order_item snapshot")
         print(f"   Found {len(order_item.design_elements)} elements")
-        all_objects = order_item.design_elements
-        print(f"   Element types: {[obj.get('type') for obj in all_objects]}")
+        print(f"   Element types: {[obj.get('type') for obj in order_item.design_elements]}")
+
+        # ✅ VALIDATION: Check if design_elements has meaningful data
+        has_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
+                       for obj in order_item.design_elements)
+        has_valid_images = any(
+            obj.get('type', '').lower() == 'image' and
+            (obj.get('savedImageUrl') or obj.get('src')) and
+            not (obj.get('savedImageUrl', '').startswith('blob:') or obj.get('src', '').startswith('blob:'))
+            for obj in order_item.design_elements
+        )
+
+        print(f"   Data validation: has_text={has_text}, has_valid_images={has_valid_images}")
+
+        # Only use design_elements if it has valid data
+        if has_text or has_valid_images or len(order_item.design_elements) > 2:
+            print(f"✅ design_elements validation passed - using this data")
+            all_objects = order_item.design_elements
+        else:
+            print(f"⚠️ design_elements validation FAILED - data appears incomplete/invalid")
+            print(f"   Falling back to design_canvas_data...")
+            if order_item.design_canvas_data:
+                all_objects = order_item.design_canvas_data.get('objects', [])
+                print(f"   Found {len(all_objects)} objects in design_canvas_data")
+                print(f"   Types: {[obj.get('type') for obj in all_objects]}")
+
+                # If still no valid data, will try customization_options below
+
     # Priority 2: Try customization_options (for multi-area support)
-    elif order_item.customization_option_id:
+    # This runs if: design_elements failed validation OR doesn't exist
+    if (not all_objects or len(all_objects) == 0) and order_item.customization_option_id:
         print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
 
         # Import products models to access CustomizationOption
@@ -557,13 +584,18 @@ async def download_order_item_design_package(
                 all_objects = order_item.design_elements
             elif order_item.design_canvas_data:
                 all_objects = order_item.design_canvas_data.get('objects', [])
-    elif order_item.design_elements and len(order_item.design_elements) > 0:
-        print("⚠️ No customization_option_id, using design_elements snapshot")
-        all_objects = order_item.design_elements
-    elif order_item.design_canvas_data:
-        print("⚠️ No customization_option_id, using design_canvas_data snapshot")
-        # Fallback: use order_item's saved canvas_data
-        all_objects = order_item.design_canvas_data.get('objects', [])
+
+    # Final fallback: if still no data, try whatever is available
+    if not all_objects or len(all_objects) == 0:
+        print("\n⚠️ FINAL FALLBACK: Trying any available data source...")
+        if order_item.design_canvas_data:
+            print("  Attempting design_canvas_data...")
+            all_objects = order_item.design_canvas_data.get('objects', [])
+            print(f"  Found {len(all_objects)} objects")
+        elif order_item.design_elements:
+            print("  Attempting design_elements (without validation)...")
+            all_objects = order_item.design_elements
+            print(f"  Found {len(all_objects)} objects")
 
     if not all_objects:
         raise HTTPException(
