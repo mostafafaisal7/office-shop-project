@@ -859,9 +859,9 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
             const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
 
-            // ⚡ CRITICAL FIX: Don't await - let it save in background
-            // This prevents blocking the UI while waiting for database sync
-            saveDesign(canvasData, currentViewImage).catch(error => {
+            // ⚡ CRITICAL FIX: Use synchronous localStorage save to prevent data loss
+            // Pass syncSave=true to ensure immediate save, then database sync happens in background
+            saveDesign(canvasData, currentViewImage, undefined, undefined, true).catch(error => {
               console.error('❌ [VIEW SWITCH] Background save failed:', error);
             });
 

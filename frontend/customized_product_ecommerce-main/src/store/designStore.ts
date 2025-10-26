@@ -66,7 +66,7 @@ interface DesignState {
 const STORAGE_KEY = 'ecommerce_designs';
 const AUTO_SAVE_INTERVAL = 5000; // ⚡ OPTIMIZED: 5 seconds (matches debounce delay)
 
-// ⚡ OPTIMIZED: Use async localStorage operations to prevent blocking main thread
+// ⚡ OPTIMIZED: Use async localStorage operations to prevent blocking main thread (for auto-save)
 const saveToLocalStorage = (designs: Map<string, DesignData>) => {
   if (typeof window === 'undefined') return; // SSR-safe
 
@@ -85,6 +85,20 @@ const saveToLocalStorage = (designs: Map<string, DesignData>) => {
   } else {
     // Fallback: defer with setTimeout
     setTimeout(saveOperation, 0);
+  }
+};
+
+// ⚡ CRITICAL: Synchronous save for critical operations (view switching, manual save)
+// This prevents data loss during rapid view switches
+const saveToLocalStorageSync = (designs: Map<string, DesignData>) => {
+  if (typeof window === 'undefined') return; // SSR-safe
+
+  try {
+    const designsArray = Array.from(designs.entries());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(designsArray));
+    console.log(`✅ [STORAGE SYNC] Synchronous save completed successfully`);
+  } catch (error) {
+    console.error('❌ [STORAGE SYNC] Failed to save to localStorage:', error);
   }
 };
 
@@ -160,8 +174,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return { isValid: true };
   },
 
-  saveDesignToStorage: (canvasData: any, productImageUrl: string) => {
-  console.log(`💾 [STORAGE] Starting save to localStorage...`);
+  saveDesignToStorage: (canvasData: any, productImageUrl: string, syncSave: boolean = false) => {
+  console.log(`💾 [STORAGE] Starting save to localStorage (sync: ${syncSave})...`);
   const saveStartTime = performance.now();
 
   const state = get();
@@ -236,7 +250,14 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
   console.log(`💾 [STORAGE] Persisting to localStorage...`);
   const persistStartTime = performance.now();
-  saveToLocalStorage(updatedDesigns);
+
+  // ⚡ CRITICAL: Use synchronous save for view switching to prevent data loss
+  if (syncSave) {
+    saveToLocalStorageSync(updatedDesigns);
+  } else {
+    saveToLocalStorage(updatedDesigns);
+  }
+
   console.log(`✅ [STORAGE] Persisted in ${(performance.now() - persistStartTime).toFixed(2)}ms`);
   console.log(`🏁 [STORAGE] Total save time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 
@@ -433,12 +454,13 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   },
 
-  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
-  console.log(`💾 [SAVE DESIGN] Starting save...`);
+  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string, syncSave: boolean = false) => {
+  console.log(`💾 [SAVE DESIGN] Starting save (sync: ${syncSave})...`);
   const saveStartTime = performance.now();
 
-  // ⚡ CRITICAL: Save to localStorage FIRST (instant)
-  get().saveDesignToStorage(canvasData, productImageUrl);
+  // ⚡ CRITICAL: Save to localStorage FIRST
+  // Use syncSave=true for critical operations (view switching) to prevent data loss
+  get().saveDesignToStorage(canvasData, productImageUrl, syncSave);
   console.log(`✅ [SAVE DESIGN] localStorage save in ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 
   // ⚡ OPTIMIZED: Defer database sync to not block the UI
