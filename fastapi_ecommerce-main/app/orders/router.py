@@ -483,10 +483,18 @@ async def download_order_item_design_package(
         # ✅ VALIDATION: Check if design_elements has meaningful data
         has_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
                        for obj in order_item.design_elements)
+
+        # Check for valid images - must have savedImageUrl or src that's NOT a preview
         has_valid_images = any(
             obj.get('type', '').lower() == 'image' and
-            (obj.get('savedImageUrl') or obj.get('src')) and
-            not (obj.get('savedImageUrl', '').startswith('blob:') or obj.get('src', '').startswith('blob:'))
+            (
+                # Has savedImageUrl that's not a blob
+                (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
+                # Has src that's not a blob AND not a preview (previews are generated, not design)
+                (obj.get('src') and
+                 not obj.get('src', '').startswith('blob:') and
+                 '/previews/' not in obj.get('src', ''))
+            )
             for obj in order_item.design_elements
         )
 
@@ -510,6 +518,28 @@ async def download_order_item_design_package(
                               f"savedImageUrl={obj.get('savedImageUrl', 'N/A')[:50] if obj.get('savedImageUrl') else 'None'}, "
                               f"src={obj.get('src', 'N/A')[:50] if obj.get('src') else 'None'}, "
                               f"text={obj.get('text', 'N/A')[:30] if obj.get('text') else 'None'}")
+
+                    # ✅ VALIDATE design_canvas_data objects (same logic as design_elements)
+                    has_canvas_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
+                                         for obj in all_objects)
+                    has_canvas_valid_images = any(
+                        obj.get('type', '').lower() == 'image' and
+                        (
+                            (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
+                            (obj.get('src') and
+                             not obj.get('src', '').startswith('blob:') and
+                             '/previews/' not in obj.get('src', ''))
+                        )
+                        for obj in all_objects
+                    )
+
+                    print(f"   Canvas validation: has_text={has_canvas_text}, has_valid_images={has_canvas_valid_images}")
+
+                    # If canvas data is also invalid (only preview images, no real design)
+                    if not has_canvas_text and not has_canvas_valid_images:
+                        print(f"   ⚠️ design_canvas_data validation FAILED - only preview images, no real design")
+                        print(f"   Will try customization_options as fallback...")
+                        all_objects = []  # Clear so we try customization_options
                 else:
                     print(f"   ⚠️ design_canvas_data.objects is EMPTY!")
 
