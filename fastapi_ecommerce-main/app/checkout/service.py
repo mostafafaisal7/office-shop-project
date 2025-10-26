@@ -94,6 +94,8 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         total_quantity += item.quantity
 
         # Extract preview image URLs and design data from customization details
+        # ⚡ CRITICAL: Cart's customized_images is the source of truth (contains ALL views)
+        # Only use preview_url from customization data as fallback if cart has no images
         customized_images = item.customized_images or []
         design_svg_data = None
         design_canvas_data = None
@@ -101,6 +103,7 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
 
         print(f"\n=== DEBUG CHECKOUT Item {index} ===")
         print(f"customization_option_id: {item.customization_option_id}")
+        print(f"customized_images from cart: {customized_images}")
 
         if item.customization_option_id:
             try:
@@ -113,12 +116,15 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                 if customization_data:
                     print(f"Customization keys: {list(customization_data.keys())}")
 
-                    # Extract preview image URL
-                    if customization_data.get("design_metadata"):
+                    # ⚡ FIX: Only use preview_url as fallback if cart has NO images
+                    # Cart's customized_images array contains all views and is the source of truth
+                    if customization_data.get("design_metadata") and not customized_images:
                         preview_url = customization_data["design_metadata"].get("preview_image_url")
-                        if preview_url and preview_url not in customized_images:
-                            customized_images.append(preview_url)
-                            print(f"Added preview image URL to order item: {preview_url}")
+                        if preview_url:
+                            customized_images = [preview_url]
+                            print(f"Used preview image URL as fallback: {preview_url}")
+                    else:
+                        print(f"Using cart's customized_images ({len(customized_images)} images) - skipping preview_url")
 
                     # Extract design data for print-ready files
                     design_svg_data = customization_data.get("svg_data")
