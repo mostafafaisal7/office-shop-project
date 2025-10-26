@@ -458,22 +458,83 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    # ⚡ SIMPLIFIED: Use ONLY the order_item's snapshot data
-    # Order items contain design_canvas_data, design_svg_data, design_elements at order time
-    # This is the CORRECT source - it's the snapshot when the order was placed
-    # We should NOT fetch from customization_options as that may have changed/deleted
+    # ✅ HYBRID APPROACH: Fetch customization_options but filter properly for THIS order only
+    # Why: order_item.design_canvas_data may only contain ONE design area (e.g., just "front")
+    # Solution: Fetch ALL areas with same client_reference_id, but ONLY if they belong to THIS order
 
-    if not order_item.design_canvas_data:
+    all_objects = []
+    customization_options = []  # Store for preview image extraction and print-ready SVG generation
+
+    if order_item.customization_option_id:
+        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
+
+        # Import products models to access CustomizationOption
+        from app.products import models as product_models
+
+        # Get the customization option to find client_reference_id
+        result = await db.execute(
+            select(product_models.CustomizationOption)
+            .where(product_models.CustomizationOption.id == order_item.customization_option_id)
+        )
+        main_option = result.scalar_one_or_none()
+
+        if main_option and main_option.client_reference_id:
+            # ✅ SECURITY FIX: First, get ALL customization_option_ids used in THIS specific order
+            # This ensures we only include designs that belong to this order
+            result = await db.execute(
+                select(models.OrderItem.customization_option_id)
+                .where(
+                    models.OrderItem.order_id == order_id,
+                    models.OrderItem.customization_option_id.isnot(None)
+                )
+            )
+            order_customization_ids = set([row[0] for row in result.fetchall()])
+            print(f"Found {len(order_customization_ids)} customization options used in this order: {order_customization_ids}")
+
+            # Fetch ALL customization options with the same client_reference_id
+            # These represent all design areas (front, back, left, right) for this product/variation
+            result = await db.execute(
+                select(product_models.CustomizationOption)
+                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
+            )
+            all_options = result.scalars().all()
+
+            # ✅ CRITICAL: Filter to ONLY include options that are used in THIS order
+            # This prevents downloading designs from other customers' orders
+            filtered_options = [opt for opt in all_options if opt.id in order_customization_ids]
+
+            print(f"Found {len(all_options)} total design areas for client_reference_id: {main_option.client_reference_id}")
+            print(f"Filtered to {len(filtered_options)} design areas that belong to THIS order")
+
+            if filtered_options:
+                customization_options = filtered_options
+
+                # Combine objects from all design areas belonging to this order
+                for option in filtered_options:
+                    area_objects = option.canvas_data.get('objects', [])
+                    print(f"  - {option.design_area}: {len(area_objects)} objects")
+                    all_objects.extend(area_objects)
+            else:
+                print("⚠️ No filtered options found, falling back to order_item snapshot")
+                if order_item.design_canvas_data:
+                    all_objects = order_item.design_canvas_data.get('objects', [])
+        else:
+            print("⚠️ No client_reference_id found, using order_item snapshot")
+            # Fallback: use just the order_item's canvas_data snapshot
+            if order_item.design_canvas_data:
+                all_objects = order_item.design_canvas_data.get('objects', [])
+    elif order_item.design_canvas_data:
+        print("⚠️ No customization_option_id, using order_item snapshot")
+        # Fallback: use order_item's saved canvas_data
+        all_objects = order_item.design_canvas_data.get('objects', [])
+
+    if not all_objects:
         raise HTTPException(
             status_code=404,
             detail="No design data available for this order item"
         )
 
-    # Use the canvas data from the order item snapshot
-    all_objects = order_item.design_canvas_data.get('objects', [])
-
-    print(f"Using design snapshot from order_item")
-    print(f"Total objects in design: {len(all_objects)}")
+    print(f"Total objects from ALL design areas: {len(all_objects)}")
 
     try:
         # Create ZIP file in memory
@@ -973,10 +1034,8 @@ Use these files for production, printing, or design editing.
             print(f"{'='*60}")
 
             vector_count = 0
-            # ⚠️ DISABLED: This requires customization_options which we removed
-            # We now use order_item.design_canvas_data only (snapshot at order time)
-            # If needed in future, generate single composite SVG from all_objects
-            if False and customization_options:
+            # ✅ RE-ENABLED: Now that we properly fetch customization_options with security filtering
+            if customization_options:
                 # Generate separate SVG for each design area (front, back, etc.)
                 for option in customization_options:
                     area_objects = option.canvas_data.get('objects', [])
