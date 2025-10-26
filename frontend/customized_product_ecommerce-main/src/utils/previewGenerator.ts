@@ -222,7 +222,10 @@ export class PreviewGenerator {
 
     for (const view of availableViews) {
       try {
-        const savedDesign = await loadDesignFromStorage(productId, variationId, view.area);
+        // ⚡ OPTIMIZED: Load from localStorage only, don't try database
+        // This prevents 500 errors when database doesn't have the design
+        const savedDesign = loadDesignFromStorage(productId, variationId, view.area);
+
         const previewUrl = await this.generatePreview(
           savedDesign?.canvas_data || null,
           view.image,

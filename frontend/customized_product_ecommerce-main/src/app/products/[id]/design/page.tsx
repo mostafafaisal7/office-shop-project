@@ -69,14 +69,15 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     // Return the relative URL as is (will be served by Next.js from public directory)
     return imageUrl;
   };
-  const { 
-    setDesignJson, 
-    selectedObject, 
-    selectedVariation, 
-    setProductId, 
+  const {
+    setDesignJson,
+    selectedObject,
+    selectedVariation,
+    setProductId,
     setCurrentDesignArea,
     saveDesign,
     loadDesign,
+    loadDesignFromStorage,
     syncStatus,
     setSelectedVariation,
     getCustomizationOptionId
@@ -1015,11 +1016,12 @@ const handlePreview = async () => {
     // 2️⃣ Generate previews for all views
     const variationId = selectedVariation?.variationId?.toString() || selectedVariation?.size || selectedVariation?.color || 'default';
 
+    // ⚡ OPTIMIZED: Use loadDesignFromStorage to avoid async database calls during preview generation
     const allPreviews = await previewGenerator.generatePreviewsForAllViews(
       productId.toString(),
       variationId,
       availableViews,
-      loadDesign // this must return saved canvas_data for product + variation + view
+      loadDesignFromStorage
     );
 
     console.log('Generated previews:', allPreviews);
@@ -1068,11 +1070,12 @@ const handleNext = async () => {
 
     console.log('✅ Current design saved, generating review previews...');
 
+    // ⚡ OPTIMIZED: Use loadDesignFromStorage for review previews
     const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(
       productId,
       variationId,
       availableViews,
-      loadDesign
+      loadDesignFromStorage
     );
 
     console.log('✅ Review previews generated:', allReviewPreviews);
@@ -1261,11 +1264,12 @@ const handleReviewViewChange = async (area: string) => {
               if (isAuthenticated && selectedVariation?.variationId) {
                 const variationId = selectedVariation.variationId.toString();
                 
+                // ⚡ OPTIMIZED: Use loadDesignFromStorage for add to cart previews
                 const allPreviews = await previewGenerator.generatePreviewsForAllViews(
                   unwrappedParams.id,
                   variationId,
                   availableViews,
-                  loadDesign
+                  loadDesignFromStorage
                 );
                 
                 // Save each preview image to backend for designed products
@@ -1288,11 +1292,12 @@ const handleReviewViewChange = async (area: string) => {
               } else {
                 // For guests with custom design, generate preview without saving to backend
                 const variationId = selectedVariation?.size || selectedVariation?.color || 'default';
+                // ⚡ OPTIMIZED: Use loadDesignFromStorage for add to cart previews
                 const allPreviews = await previewGenerator.generatePreviewsForAllViews(
                   unwrappedParams.id,
                   variationId,
                   availableViews,
-                  loadDesign
+                  loadDesignFromStorage
                 );
                 mainPreviewImage = Object.values(allPreviews)[0] || '';
                 console.log('🎨 Using guest custom design preview (not saved to backend)');

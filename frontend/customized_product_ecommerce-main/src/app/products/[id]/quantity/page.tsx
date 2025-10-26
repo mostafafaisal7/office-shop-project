@@ -27,7 +27,7 @@ interface SizeQuantity {
 
 export default function QuantityPage({ params, searchParams }: QuantityPageProps) {
   const router = useRouter();
-  const { selectedVariation, loadDesign, setSelectedVariation, getCustomizationOptionId } = useDesignStore();
+  const { selectedVariation, loadDesignFromStorage, setSelectedVariation, getCustomizationOptionId } = useDesignStore();
   const { addItemsFromQuantityPage, items: cartItems } = useCartStore();
   const [currentProduct, setCurrentProduct] = useState<any>(null);
   const [sizeQuantities, setSizeQuantities] = useState<SizeQuantity[]>([]);
@@ -224,7 +224,7 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
         productId,
         variationId,
         views,
-        loadDesign
+        loadDesignFromStorage
       );
       
       console.log('Generated previews:', allPreviews);

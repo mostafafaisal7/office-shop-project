@@ -593,11 +593,12 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const previews: {[area: string]: string} = {};
 
 
+  // ⚡ OPTIMIZED: Use loadDesignFromStorage instead of loadDesign to avoid async database calls
   const allPreviews = await previewGenerator.generatePreviewsForAllViews(
     productId,
     variationIdKey,
     availableViews,
-    (prodId, varId, area) => state.loadDesign(prodId, varId, area)?.canvas_data || null
+    (prodId, varId, area) => state.loadDesignFromStorage(prodId, varId, area)
   );
 
   for (const [area, previewUrl] of Object.entries(allPreviews)) {
