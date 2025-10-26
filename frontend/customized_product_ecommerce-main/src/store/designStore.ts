@@ -64,16 +64,27 @@ interface DesignState {
 }
 
 const STORAGE_KEY = 'ecommerce_designs';
-const AUTO_SAVE_INTERVAL = 5000; // 5 seconds
+const AUTO_SAVE_INTERVAL = 5000; // ⚡ OPTIMIZED: 5 seconds (matches debounce delay)
 
-// Helper functions for localStorage
+// ⚡ OPTIMIZED: Use async localStorage operations to prevent blocking main thread
 const saveToLocalStorage = (designs: Map<string, DesignData>) => {
   if (typeof window === 'undefined') return; // SSR-safe
-  try {
-    const designsArray = Array.from(designs.entries());
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(designsArray));
-  } catch (error) {
-    console.error('Failed to save to localStorage:', error);
+
+  // Use requestIdleCallback to save during idle time
+  const saveOperation = () => {
+    try {
+      const designsArray = Array.from(designs.entries());
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(designsArray));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  };
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(saveOperation, { timeout: 2000 });
+  } else {
+    // Fallback: defer with setTimeout
+    setTimeout(saveOperation, 0);
   }
 };
 

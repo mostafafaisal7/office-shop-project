@@ -82,6 +82,11 @@ useEffect(() => {
     height: 600,
     backgroundColor: '#f3f4f6',
     preserveObjectStacking: true,
+    // ⚡ PERFORMANCE OPTIMIZATIONS:
+    renderOnAddRemove: false, // Don't auto-render on object add/remove (we'll control it)
+    skipOffscreen: true, // Skip rendering objects outside viewport
+    enableRetinaScaling: false, // Disable retina scaling for better performance
+    imageSmoothingEnabled: false, // Disable image smoothing for faster rendering
   });
 
   fabricCanvasRef.current = canvas;
@@ -172,11 +177,27 @@ useEffect(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveIfChanged();
-    }, 2000);
+    }, 5000); // ⚡ OPTIMIZED: Increased from 2s to 5s to reduce save frequency
   };
 
+  // ⚡ OPTIMIZED: Throttle canvas change handler to prevent excessive debounce resets
+  let isHandlingChange = false;
   const handleCanvasChange = () => {
-    debouncedSave();
+    if (isHandlingChange) return;
+    isHandlingChange = true;
+
+    // Use requestIdleCallback for non-critical operations
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        debouncedSave();
+        isHandlingChange = false;
+      });
+    } else {
+      setTimeout(() => {
+        debouncedSave();
+        isHandlingChange = false;
+      }, 16); // ~60fps fallback
+    }
   };
 
   canvas.on("object:added", handleCanvasChange);
@@ -233,15 +254,19 @@ useEffect(() => {
       });
 
       canvas.backgroundImage = img;
-      // ✅ FIX: Safe renderAll with disposal check
+      // ⚡ OPTIMIZED: Throttled render with disposal check
       if (!canvas.disposed) {
-        canvas.renderAll();
+        requestAnimationFrame(() => {
+          if (!canvas.disposed) canvas.renderAll();
+        });
       }
     } catch (error) {
       console.error("❌ Failed to load background image:", error);
       if (!canvas.disposed) {
         canvas.backgroundColor = "#f3f4f6";
-        canvas.renderAll();
+        requestAnimationFrame(() => {
+          if (!canvas.disposed) canvas.renderAll();
+        });
       }
     }
   };
@@ -259,9 +284,11 @@ useEffect(() => {
     canvas.getObjects().forEach((obj: any) => {
       if (obj !== canvas.backgroundImage) canvas.remove(obj);
     });
-    // ✅ FIX: Safe renderAll with disposal check
+    // ⚡ OPTIMIZED: Throttled render after clearing
     if (!canvas.disposed) {
-      canvas.renderAll();
+      requestAnimationFrame(() => {
+        if (!canvas.disposed) canvas.renderAll();
+      });
     }
   }
 
