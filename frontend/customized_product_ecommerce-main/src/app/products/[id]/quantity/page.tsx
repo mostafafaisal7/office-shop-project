@@ -329,9 +329,9 @@ const handleAddToCart = async () => {
         // Check if there are any designs for any of the views
         let hasAnyDesign = false;
         for (const view of availableViews) {
-          const designData = await loadDesign(
-            productId, 
-            selectedVariation.variationId, 
+          const designData = loadDesignFromStorage(
+            productId,
+            selectedVariation.variationId.toString(),
             view.area
           );
           if (designData && designData.canvas_data && designData.canvas_data.objects && designData.canvas_data.objects.length > 0) {
@@ -347,12 +347,12 @@ const handleAddToCart = async () => {
           const uploadedPreviews: string[] = [];
           for (const view of availableViews) {
             try {
-              const designData = await loadDesign(
-                productId, 
-                selectedVariation.variationId, 
+              const designData = loadDesignFromStorage(
+                productId,
+                selectedVariation.variationId.toString(),
                 view.area
               );
-              
+
               let previewDataUrl: string;
               if (designData && designData.canvas_data && designData.canvas_data.objects && designData.canvas_data.objects.length > 0) {
                 // Generate preview with design data
