@@ -50,7 +50,7 @@ interface CartStore {
   getTotalPrice: () => number;
   getUniqueProductCount: () => number;
   addItemsFromQuantityPage: (productId: string, productName: string, sizeQuantities: any[], customizationId?: number) => Promise<void>;
-  addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string, customizationId?: number) => Promise<void>;
+  addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string | string[], customizationId?: number) => Promise<void>;
 }
 
 // Helper function to generate or get guest ID

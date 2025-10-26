@@ -1241,7 +1241,7 @@ const handleReviewViewChange = async (area: string) => {
           }
           
           // Generate and save preview images ONLY if user has created a custom design
-          let mainPreviewImage = '';
+          let previewImagesArray: string[] = [];
           let hasCustomDesign = false;
           
           // Check if user has created any custom design elements
@@ -1286,9 +1286,9 @@ const handleReviewViewChange = async (area: string) => {
                   }
                 }
                 
-                // Use the preview for the current active view as the main image
-                mainPreviewImage = allPreviews[activeView] || Object.values(allPreviews)[0] || '';
-                console.log('🎨 Using custom design preview image:', mainPreviewImage);
+                // Store ALL previews as an array for multi-view cart display
+                previewImagesArray = Object.values(allPreviews).filter(url => url);
+                console.log('🎨 Using custom design preview images:', previewImagesArray);
               } else {
                 // For guests with custom design, generate preview without saving to backend
                 const variationId = selectedVariation?.size || selectedVariation?.color || 'default';
@@ -1299,18 +1299,20 @@ const handleReviewViewChange = async (area: string) => {
                   availableViews,
                   loadDesignFromStorage
                 );
-                mainPreviewImage = Object.values(allPreviews)[0] || '';
-                console.log('🎨 Using guest custom design preview (not saved to backend)');
+                previewImagesArray = Object.values(allPreviews).filter(url => url);
+                console.log('🎨 Using guest custom design previews (not saved to backend):', previewImagesArray);
               }
             } catch (error) {
               console.error('Error generating custom design preview:', error);
               // Final fallback to variation image
-              mainPreviewImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
+              const fallbackImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
+              previewImagesArray = fallbackImage ? [fallbackImage] : [];
             }
           } else {
             // For non-designed products, just use the variation or product image
-            mainPreviewImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
-            console.log('📦 STANDARD PRODUCT: Using variation/product image:', mainPreviewImage);
+            const productImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
+            previewImagesArray = productImage ? [productImage] : [];
+            console.log('📦 STANDARD PRODUCT: Using variation/product image:', previewImagesArray[0]);
           }
           
           // Add to cart with default quantity of 1
@@ -1321,7 +1323,7 @@ const handleReviewViewChange = async (area: string) => {
             parseFloat(currentVariation?.price || currentProduct.base_price),
             currentVariation?.attributes?.size,
             currentVariation?.attributes?.color,
-            mainPreviewImage, // Use the saved or fallback preview image
+            previewImagesArray, // Pass ALL preview images for multi-view cart display
             customizationId // Use the fetched customization ID
           );
           
@@ -1330,6 +1332,7 @@ const handleReviewViewChange = async (area: string) => {
         } catch (error) {
           console.error('Error adding item to cart:', error);
           // Fallback: still redirect to cart even if preview generation fails
+          const fallbackImage = currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '';
           await addItemFromProductPage(
             unwrappedParams.id,
             currentProduct.name,
@@ -1337,7 +1340,7 @@ const handleReviewViewChange = async (area: string) => {
             parseFloat(currentVariation?.price || currentProduct.base_price),
             currentVariation?.attributes?.size,
             currentVariation?.attributes?.color,
-            currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '',
+            fallbackImage ? [fallbackImage] : [], // Wrap in array for consistent format
             undefined // No customization ID in fallback
           );
           router.push('/cart');
