@@ -458,14 +458,30 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    # ✅ HYBRID APPROACH: Fetch customization_options but filter properly for THIS order only
-    # Why: order_item.design_canvas_data may only contain ONE design area (e.g., just "front")
-    # Solution: Fetch ALL areas with same client_reference_id, but ONLY if they belong to THIS order
+    # ✅ MULTI-SOURCE APPROACH: Try multiple data sources to get complete design data
+    # Priority:
+    # 1. order_item.design_elements (complete snapshot at order time)
+    # 2. customization_options (multi-area support, but may be modified/deleted)
+    # 3. order_item.design_canvas_data (fallback single-area snapshot)
 
     all_objects = []
     customization_options = []  # Store for preview image extraction and print-ready SVG generation
 
-    if order_item.customization_option_id:
+    print(f"\n{'='*60}")
+    print(f"Checking available data sources for order {order_id}, item {item_id}")
+    print(f"{'='*60}")
+    print(f"design_elements available: {bool(order_item.design_elements)}")
+    print(f"design_canvas_data available: {bool(order_item.design_canvas_data)}")
+    print(f"customization_option_id: {order_item.customization_option_id}")
+
+    # Priority 1: Try order_item.design_elements (most reliable snapshot)
+    if order_item.design_elements and len(order_item.design_elements) > 0:
+        print(f"\n✅ Using design_elements from order_item snapshot")
+        print(f"   Found {len(order_item.design_elements)} elements")
+        all_objects = order_item.design_elements
+        print(f"   Element types: {[obj.get('type') for obj in all_objects]}")
+    # Priority 2: Try customization_options (for multi-area support)
+    elif order_item.customization_option_id:
         print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
 
         # Import products models to access CustomizationOption
@@ -514,17 +530,38 @@ async def download_order_item_design_package(
                     area_objects = option.canvas_data.get('objects', [])
                     print(f"  - {option.design_area}: {len(area_objects)} objects")
                     all_objects.extend(area_objects)
+
+                # ✅ VALIDATION: Check if customization_options gave us meaningful data
+                # If we only got 1-2 objects and they're just images/previews, data might be incomplete
+                if len(all_objects) <= 2:
+                    print(f"\n⚠️ WARNING: Only {len(all_objects)} objects from customization_options")
+                    print(f"   This might be incomplete data. Checking design_elements fallback...")
+
+                    if order_item.design_elements and len(order_item.design_elements) > len(all_objects):
+                        print(f"✅ design_elements has {len(order_item.design_elements)} elements (more complete)")
+                        print(f"   Switching to design_elements snapshot")
+                        all_objects = order_item.design_elements
+                        customization_options = []  # Clear since we're not using multi-area data
+                    else:
+                        print(f"   design_elements not available or not better. Using customization_options data.")
             else:
                 print("⚠️ No filtered options found, falling back to order_item snapshot")
-                if order_item.design_canvas_data:
+                if order_item.design_elements and len(order_item.design_elements) > 0:
+                    all_objects = order_item.design_elements
+                elif order_item.design_canvas_data:
                     all_objects = order_item.design_canvas_data.get('objects', [])
         else:
             print("⚠️ No client_reference_id found, using order_item snapshot")
-            # Fallback: use just the order_item's canvas_data snapshot
-            if order_item.design_canvas_data:
+            # Fallback: use design_elements first, then canvas_data
+            if order_item.design_elements and len(order_item.design_elements) > 0:
+                all_objects = order_item.design_elements
+            elif order_item.design_canvas_data:
                 all_objects = order_item.design_canvas_data.get('objects', [])
+    elif order_item.design_elements and len(order_item.design_elements) > 0:
+        print("⚠️ No customization_option_id, using design_elements snapshot")
+        all_objects = order_item.design_elements
     elif order_item.design_canvas_data:
-        print("⚠️ No customization_option_id, using order_item snapshot")
+        print("⚠️ No customization_option_id, using design_canvas_data snapshot")
         # Fallback: use order_item's saved canvas_data
         all_objects = order_item.design_canvas_data.get('objects', [])
 
