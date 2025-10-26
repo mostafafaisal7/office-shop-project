@@ -849,16 +849,23 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     const startTime = performance.now();
 
     try {
-      // Save current view's design before switching
+      // ⚡ OPTIMIZED: Save current view's design in background (non-blocking)
+      // Don't wait for database sync to complete - just save to localStorage immediately
       if (fabricCanvas && activeView) {
-        console.log('💾 [VIEW SWITCH] Saving current view design...');
+        console.log('💾 [VIEW SWITCH] Saving current view design (non-blocking)...');
         const saveStartTime = performance.now();
         try {
           const canvasData = fabricCanvas.toJSON();
           if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
             const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-            await saveDesign(canvasData, currentViewImage);
-            console.log(`✅ [VIEW SWITCH] Design saved in ${(performance.now() - saveStartTime).toFixed(2)}ms`);
+
+            // ⚡ CRITICAL FIX: Don't await - let it save in background
+            // This prevents blocking the UI while waiting for database sync
+            saveDesign(canvasData, currentViewImage).catch(error => {
+              console.error('❌ [VIEW SWITCH] Background save failed:', error);
+            });
+
+            console.log(`✅ [VIEW SWITCH] Design save initiated in ${(performance.now() - saveStartTime).toFixed(2)}ms (non-blocking)`);
           } else {
             console.log('⏭️  [VIEW SWITCH] No design objects to save, skipping');
           }
@@ -870,12 +877,13 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
       console.log('🔄 [VIEW SWITCH] Updating active view and design area...');
       const updateStartTime = performance.now();
 
-      // Update active view and product image
+      // ⚡ OPTIMIZED: Batch state updates to prevent multiple re-renders
+      // Update all state in one batch to minimize re-renders
+      const selectedView = availableViews.find(view => view.area === area);
+
+      // Use React 18's automatic batching or wrap in single update
       setActiveView(area);
       setCurrentDesignArea(area);
-
-      // Update product image for the new view
-      const selectedView = availableViews.find(view => view.area === area);
       if (selectedView) {
         setProductImage(selectedView.image);
       }

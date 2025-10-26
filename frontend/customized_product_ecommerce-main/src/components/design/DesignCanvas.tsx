@@ -233,6 +233,7 @@ useEffect(() => {
     if (!url) return;
 
     try {
+      // ⚡ OPTIMIZED: Use Promise-based image loading for better performance
       const img: FabricImage = await FabricImage.fromURL(url, {
         crossOrigin: "anonymous",
       });
@@ -254,19 +255,17 @@ useEffect(() => {
       });
 
       canvas.backgroundImage = img;
-      // ⚡ OPTIMIZED: Throttled render with disposal check
+
+      // ⚡ OPTIMIZED: Immediate render for faster view switching
+      // Don't use requestAnimationFrame here as it adds 16ms delay
       if (!canvas.disposed) {
-        requestAnimationFrame(() => {
-          if (!canvas.disposed) canvas.renderAll();
-        });
+        canvas.renderAll();
       }
     } catch (error) {
       console.error("❌ Failed to load background image:", error);
       if (!canvas.disposed) {
         canvas.backgroundColor = "#f3f4f6";
-        requestAnimationFrame(() => {
-          if (!canvas.disposed) canvas.renderAll();
-        });
+        canvas.renderAll();
       }
     }
   };
@@ -381,14 +380,8 @@ useEffect(() => {
           await loadBackgroundImage(productImage);
           console.log(`✅ [CANVAS LOAD] Background loaded in ${(performance.now() - bgStartTime).toFixed(2)}ms`);
 
-          // ✅ FIX: Safe renderAll with disposal check
-          if (!canvas.disposed) {
-            console.log(`🎨 [CANVAS LOAD] Rendering canvas...`);
-            const renderStartTime = performance.now();
-            canvas.renderAll();
-            console.log(`✅ [CANVAS LOAD] Canvas rendered in ${(performance.now() - renderStartTime).toFixed(2)}ms`);
-          }
-
+          // ⚡ OPTIMIZED: Removed redundant renderAll call
+          // loadBackgroundImage already calls renderAll, no need to call it again
           console.log(`🏁 [CANVAS LOAD] Total design load time: ${(performance.now() - loadStartTime).toFixed(2)}ms`);
         });
       } else {

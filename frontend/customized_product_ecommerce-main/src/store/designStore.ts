@@ -434,32 +434,63 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
-  // Save to localStorage always
-  get().saveDesignToStorage(canvasData, productImageUrl);
+  console.log(`💾 [SAVE DESIGN] Starting save...`);
+  const saveStartTime = performance.now();
 
-  // Optionally sync to DB if logged-in
+  // ⚡ CRITICAL: Save to localStorage FIRST (instant)
+  get().saveDesignToStorage(canvasData, productImageUrl);
+  console.log(`✅ [SAVE DESIGN] localStorage save in ${(performance.now() - saveStartTime).toFixed(2)}ms`);
+
+  // ⚡ OPTIMIZED: Defer database sync to not block the UI
+  // Use setTimeout to push database sync to next event loop tick
   const { useAuthStore } = await import('@/store/authStore');
   const { isAuthenticated } = useAuthStore.getState();
+
   if (isAuthenticated) {
-    try {
-      await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
-    } catch (error) {
-    }
+    console.log(`🔄 [SAVE DESIGN] Deferring database sync for logged-in user...`);
+
+    // Push to next tick so it doesn't block current operation
+    setTimeout(async () => {
+      const dbStartTime = performance.now();
+      try {
+        await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
+        console.log(`✅ [SAVE DESIGN] Database sync completed in ${(performance.now() - dbStartTime).toFixed(2)}ms`);
+      } catch (error) {
+        console.error('❌ [SAVE DESIGN] Database sync failed:', error);
+      }
+    }, 0);
   }
+
+  console.log(`🏁 [SAVE DESIGN] Total (non-blocking) time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 }
 ,
 
   loadDesign: async (productId: string, variationId: string, area: string) => {
-  // Always try localStorage first
-  const localDesign = get().loadDesignFromStorage(productId, variationId, area);
-  if (localDesign) return localDesign;
+  console.log(`📂 [LOAD DESIGN] Starting load for ${productId}_${variationId}_${area}`);
+  const loadStartTime = performance.now();
 
-  // Fallback for logged-in users: database
+  // ⚡ OPTIMIZED: ALWAYS use localStorage first for instant load
+  // This makes view switching instant instead of waiting for database
+  const localDesign = get().loadDesignFromStorage(productId, variationId, area);
+
+  if (localDesign) {
+    console.log(`✅ [LOAD DESIGN] Loaded from localStorage in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
+    return localDesign;
+  }
+
+  // ⚡ OPTIMIZED: Only try database as fallback (rare case)
+  // This only happens when design exists in database but not in localStorage
   const { useAuthStore } = await import('@/store/authStore');
   const { isAuthenticated } = useAuthStore.getState();
   if (isAuthenticated) {
-    return await get().loadDesignFromDatabase(productId, variationId, area);
+    console.log(`📂 [LOAD DESIGN] Not in localStorage, trying database...`);
+    const dbStartTime = performance.now();
+    const dbDesign = await get().loadDesignFromDatabase(productId, variationId, area);
+    console.log(`✅ [LOAD DESIGN] Database load took ${(performance.now() - dbStartTime).toFixed(2)}ms`);
+    return dbDesign;
   }
+
+  console.log(`⚠️  [LOAD DESIGN] No design found in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
   return null;
 }
 ,
