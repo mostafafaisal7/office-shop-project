@@ -728,6 +728,66 @@ async def create_customization_option(product_id: int, data: schemas.Customizati
     return await service.create_customization_option(db, product_id, data)
 
 
+@router.get("/debug/customization-options/{product_id}/{variation_id}")
+async def debug_customization_options(
+    product_id: int,
+    variation_id: int,
+    design_area: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Debug endpoint to see all customization options for a product/variation.
+    Shows ID, design_area, created_at, updated_at, and text content from canvas.
+    """
+    from sqlalchemy import select
+    from app.products import models
+
+    query = select(models.CustomizationOption).where(
+        models.CustomizationOption.user_id == current_user.id,
+        models.CustomizationOption.product_id == product_id,
+        models.CustomizationOption.variation_id == variation_id
+    )
+
+    if design_area:
+        query = query.where(models.CustomizationOption.design_area == design_area)
+
+    # Order by updated_at DESC to see latest first
+    query = query.order_by(models.CustomizationOption.updated_at.desc())
+
+    result = await db.execute(query)
+    options = result.scalars().all()
+
+    debug_data = []
+    for option in options:
+        # Extract text from canvas objects
+        text_content = []
+        if option.canvas_data and isinstance(option.canvas_data, dict):
+            objects = option.canvas_data.get('objects', [])
+            for obj in objects:
+                if obj.get('type') in ['text', 'textbox', 'i-text', 'Text']:
+                    text_content.append(obj.get('text', ''))
+
+        debug_data.append({
+            "id": option.id,
+            "design_area": option.design_area,
+            "created_at": option.created_at.isoformat() if option.created_at else None,
+            "updated_at": option.updated_at.isoformat() if option.updated_at else None,
+            "text_content": text_content,
+            "canvas_objects_count": len(option.canvas_data.get('objects', [])) if option.canvas_data else 0,
+            "client_reference_id": option.client_reference_id
+        })
+
+    return {
+        "product_id": product_id,
+        "variation_id": variation_id,
+        "user_id": current_user.id,
+        "total_records": len(debug_data),
+        "records": debug_data
+    }
+
+
+
 @router.put("/options/{option_id}", response_model=schemas.CustomizationOptionResponse, dependencies=[Depends(require_admin)])
 async def update_customization_option(option_id: int, data: schemas.CustomizationOptionUpdate, db: AsyncSession = Depends(get_db)):
     return await service.update_customization_option(db, option_id, data)
