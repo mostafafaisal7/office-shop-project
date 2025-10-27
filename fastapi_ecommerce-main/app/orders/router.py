@@ -504,16 +504,34 @@ async def download_order_item_design_package(
             print(f"   Canvas Objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
 
         if main_option and main_option.client_reference_id:
-            # Fetch ALL customization options with the same client_reference_id
-            # These represent all design areas (front, back, left, right) for this product/variation
-            print(f"\nFetching all design areas with client_reference_id: {main_option.client_reference_id}")
+            # ✅ CRITICAL FIX: client_reference_id is NOT unique across users!
+            # We MUST filter by user_id to prevent cross-user data contamination
 
+            # Get the order to find which user placed it
+            order_result = await db.execute(
+                select(models.Order).where(models.Order.id == order_id)
+            )
+            order = order_result.scalar_one_or_none()
+            order_user_id = order.user_id if order else None
+
+            print(f"\n🔒 FILTERING BY USER:")
+            print(f"   Order user_id: {order_user_id}")
+            print(f"   Main option user_id: {main_option.user_id}")
+            print(f"   client_reference_id: {main_option.client_reference_id}")
+
+            # Use the order's user_id if available, otherwise use main_option's user_id
+            filter_user_id = order_user_id if order_user_id else main_option.user_id
+
+            print(f"   Filtering for user_id: {filter_user_id}")
+
+            # Fetch ALL customization options with same client_reference_id AND user_id
             # ✅ FIX: Add LIMIT to prevent MySQL sort buffer overflow
-            # Typically a product has 1-4 design areas (front, back, left, right)
-            # Limit to 10 to be safe while preventing sort buffer issues
             result = await db.execute(
                 select(product_models.CustomizationOption)
-                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
+                .where(
+                    product_models.CustomizationOption.client_reference_id == main_option.client_reference_id,
+                    product_models.CustomizationOption.user_id == filter_user_id
+                )
                 .order_by(product_models.CustomizationOption.created_at.desc())
                 .limit(10)
             )
