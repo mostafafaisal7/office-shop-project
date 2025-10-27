@@ -728,23 +728,26 @@ async def create_customization_option(product_id: int, data: schemas.Customizati
     return await service.create_customization_option(db, product_id, data)
 
 
-@router.get("/debug/customization-options/{product_id}/{variation_id}")
+@router.get("/debug/customization-options/{product_id}/{variation_id}/{user_id}")
 async def debug_customization_options(
     product_id: int,
     variation_id: int,
+    user_id: int,
     design_area: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Debug endpoint to see all customization options for a product/variation.
+    Debug endpoint to see all customization options for a product/variation/user.
     Shows ID, design_area, created_at, updated_at, and text content from canvas.
+    NO AUTHENTICATION REQUIRED - For debugging only!
+
+    Example: /products/debug/customization-options/32/15/66
     """
     from sqlalchemy import select
     from app.products import models
 
     query = select(models.CustomizationOption).where(
-        models.CustomizationOption.user_id == current_user.id,
+        models.CustomizationOption.user_id == user_id,
         models.CustomizationOption.product_id == product_id,
         models.CustomizationOption.variation_id == variation_id
     )
@@ -781,7 +784,7 @@ async def debug_customization_options(
     return {
         "product_id": product_id,
         "variation_id": variation_id,
-        "user_id": current_user.id,
+        "user_id": user_id,
         "total_records": len(debug_data),
         "records": debug_data
     }
