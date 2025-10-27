@@ -508,10 +508,14 @@ async def download_order_item_design_package(
             # These represent all design areas (front, back, left, right) for this product/variation
             print(f"\nFetching all design areas with client_reference_id: {main_option.client_reference_id}")
 
+            # ✅ FIX: Add LIMIT to prevent MySQL sort buffer overflow
+            # Typically a product has 1-4 design areas (front, back, left, right)
+            # Limit to 10 to be safe while preventing sort buffer issues
             result = await db.execute(
                 select(product_models.CustomizationOption)
                 .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
                 .order_by(product_models.CustomizationOption.created_at.desc())
+                .limit(10)
             )
             all_options = result.scalars().all()
 
