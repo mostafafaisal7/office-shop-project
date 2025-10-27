@@ -91,9 +91,9 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                     "rule_name": discount_response.get("rule_name"),
                     "rule_id": discount_response.get("rule_id")
                 })
-        except Exception as e:
-            print(f"Discount calculation failed for product {item.product_id}: {e}")
+        except Exception:
             # Continue without discount if service fails
+            pass
 
         price = final_unit_price * float(item.quantity)
         subtotal += price
@@ -107,8 +107,6 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
         design_canvas_data = None
         design_elements = None
         order_specific_customization_id = item.customization_option_id  # Will be replaced with snapshot ID
-
-        print(f"\n=== Processing checkout item {index}: customization_option_id={item.customization_option_id} ===")
 
         if item.customization_option_id:
             try:
@@ -239,9 +237,8 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                 "delivery_days": shipping_calc_response.get("delivery_days")
             }
 
-        except Exception as e:
-            print(f"Product-specific shipping calculation failed: {e}")
-            # Only fall back to base shipping cost if calculation service is completely unavailable
+        except Exception:
+            # Fall back to base shipping cost if calculation service is unavailable
             try:
                 shipping_method_url = f"{SHIPPING_SERVICE_URL}/methods/{data.shipping_method_id}"
                 shipping_method = await http_get(shipping_method_url)
@@ -254,7 +251,7 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                     "error": "Product-specific calculation service unavailable"
                 }
             except Exception:
-                print("Failed to get base shipping cost, using 0.0")
+                pass  # Use default 0.0 shipping cost
 
     # Calculate final total
     total_price = subtotal + shipping_cost
@@ -274,19 +271,11 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
             "payment_method_id": data.payment_method_id,
             "shipping_address_id": data.shipping_address_id
         }
-        
-        # Debug logging to see what we're sending
-        print("=== DEBUG: Order payload being sent to orders service ===")
-        import json
-        print(json.dumps(order_payload, indent=2, default=str))
-        print("=== END DEBUG ===")
-        
+
         order = await http_post(f"{ORDER_SERVICE_URL}/", order_payload)
 
-        # ⚡ CRITICAL: Commit the database session to save all snapshot customization_options
-        # This ensures the new snapshot records are persisted to the database
+        # Commit the database session to save all snapshot customization_options
         await db.commit()
-        print(f"✅ Committed all design snapshots to database")
 
     except Exception as e:
         # Rollback database changes if order creation fails
@@ -299,11 +288,11 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
         headers = {}
         if data.guest_id:
             headers["guest_id"] = data.guest_id
-        
+
         cart_item_ids = [item.cart_item_id for item in data.items]
         await http_delete(f"{CART_SERVICE_URL}/delete/bulk", data={"item_ids": cart_item_ids}, headers=headers)
-    except Exception as e:
-        print("Cart item deletion failed:", e)  # Optional: Log it
+    except Exception:
+        pass  # Silent fail - cart cleanup is not critical
 
     # Create order summary
     order_summary = OrderSummary(
