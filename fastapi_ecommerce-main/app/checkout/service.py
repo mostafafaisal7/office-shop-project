@@ -9,6 +9,9 @@ import os
 import time
 from datetime import datetime
 import copy
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+from app.products import models as product_models
 
 # Replace with your real service URLs or use environment config
 PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", "http://localhost:8000/products")
@@ -17,7 +20,7 @@ CART_SERVICE_URL = os.getenv("CART_SERVICE_URL", "http://localhost:8000/cart")
 SHIPPING_SERVICE_URL = os.getenv("SHIPPING_SERVICE_URL", "http://localhost:8000/shipping")
 DISCOUNT_SERVICE_URL = os.getenv("DISCOUNT_SERVICE_URL", "http://localhost:8000/discounts")
 
-async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
+async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutResponse:
     if not data.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
@@ -148,24 +151,55 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                     if design_elements:
                         print(f"Captured {len(design_elements)} design elements for order item")
 
-                    # ⚡ NEW FIX: Add snapshot metadata to track when this design was captured
-                    # This helps identify which order this design snapshot belongs to
-                    # Even though we're not creating a new customization_option, we ensure
-                    # the snapshot data is complete and properly attributed to this order
+                    # ⚡ CRITICAL FIX: Create a NEW customization_option record in database as snapshot
+                    # This ensures each order has its own immutable customization_option_id
+                    # Even if user edits the original design later, this snapshot remains unchanged
 
-                    # Add order timestamp to canvas_data metadata for tracking
-                    if design_canvas_data and isinstance(design_canvas_data, dict):
-                        if 'metadata' not in design_canvas_data:
-                            design_canvas_data['metadata'] = {}
-                        design_canvas_data['metadata']['snapshotted_at'] = datetime.utcnow().isoformat()
-                        design_canvas_data['metadata']['snapshot_for_order'] = f"checkout_{int(time.time())}"
-                        design_canvas_data['metadata']['original_customization_id'] = item.customization_option_id
-                        print(f"✅ Added snapshot metadata to design_canvas_data")
+                    try:
+                        # Add snapshot metadata to track this is an order snapshot
+                        if design_canvas_data and isinstance(design_canvas_data, dict):
+                            if 'metadata' not in design_canvas_data:
+                                design_canvas_data['metadata'] = {}
+                            design_canvas_data['metadata']['snapshotted_at'] = datetime.utcnow().isoformat()
+                            design_canvas_data['metadata']['snapshot_for_order'] = f"checkout_{int(time.time())}"
+                            design_canvas_data['metadata']['original_customization_id'] = item.customization_option_id
+                            design_canvas_data['metadata']['is_order_snapshot'] = True
+                            print(f"✅ Added snapshot metadata to design_canvas_data")
 
-                    print(f"✅ Design data captured for order:")
-                    print(f"   customization_option_id: {item.customization_option_id}")
-                    print(f"   Canvas objects: {len(design_canvas_data.get('objects', [])) if design_canvas_data else 0}")
-                    print(f"   Design elements: {len(design_elements) if design_elements else 0}")
+                        # Create new customization_option record in database
+                        print(f"Creating permanent snapshot in database...")
+                        snapshot_option = product_models.CustomizationOption(
+                            user_id=customization_data.get("user_id"),
+                            product_id=customization_data.get("product_id"),
+                            variation_id=customization_data.get("variation_id"),
+                            design_area=customization_data.get("design_area"),
+                            client_reference_id=f"order_snapshot_{item.customization_option_id}_{int(time.time())}",
+                            canvas_data=design_canvas_data,
+                            svg_data=design_svg_data,
+                            design_metadata=customization_data.get("design_metadata", {}),
+                            design_elements=design_elements,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+
+                        db.add(snapshot_option)
+                        await db.flush()  # Flush to get the ID without committing
+
+                        # Use the new snapshot ID for this order
+                        order_specific_customization_id = snapshot_option.id
+
+                        print(f"✅ Created permanent snapshot in database:")
+                        print(f"   Original customization_id: {item.customization_option_id}")
+                        print(f"   New snapshot_id: {order_specific_customization_id}")
+                        print(f"   Canvas objects: {len(design_canvas_data.get('objects', [])) if design_canvas_data else 0}")
+                        print(f"   Design elements: {len(design_elements) if design_elements else 0}")
+
+                    except Exception as snapshot_error:
+                        print(f"⚠️ Failed to create database snapshot: {snapshot_error}")
+                        import traceback
+                        traceback.print_exc()
+                        print(f"   Falling back to original customization_id: {item.customization_option_id}")
+                        # Continue with original ID if snapshot creation fails
 
                 else:
                     print("WARNING: customization_data is None or empty!")
@@ -288,7 +322,16 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         print("=== END DEBUG ===")
         
         order = await http_post(f"{ORDER_SERVICE_URL}/", order_payload)
+
+        # ⚡ CRITICAL: Commit the database session to save all snapshot customization_options
+        # This ensures the new snapshot records are persisted to the database
+        await db.commit()
+        print(f"✅ Committed all design snapshots to database")
+
     except Exception as e:
+        # Rollback database changes if order creation fails
+        await db.rollback()
+        print(f"⚠️ Rolled back database changes due to order creation failure")
         raise HTTPException(status_code=500, detail=f"Failed to create order: {str(e)}")
 
     # Remove only the ordered cart items (selective deletion)
