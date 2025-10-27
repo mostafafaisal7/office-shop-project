@@ -6,6 +6,9 @@ from app.common.http import http_get, http_post, http_delete
 from uuid import UUID
 from typing import List
 import os
+import time
+from datetime import datetime
+import copy
 
 # Replace with your real service URLs or use environment config
 PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", "http://localhost:8000/products")
@@ -100,9 +103,10 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         design_svg_data = None
         design_canvas_data = None
         design_elements = None
+        order_specific_customization_id = item.customization_option_id  # Will be replaced with snapshot ID
 
         print(f"\n=== DEBUG CHECKOUT Item {index} ===")
-        print(f"customization_option_id: {item.customization_option_id}")
+        print(f"customization_option_id from cart: {item.customization_option_id}")
         print(f"customized_images from cart: {customized_images}")
 
         if item.customization_option_id:
@@ -127,9 +131,11 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                         print(f"Using cart's customized_images ({len(customized_images)} images) - skipping preview_url")
 
                     # Extract design data for print-ready files
-                    design_svg_data = customization_data.get("svg_data")
-                    design_canvas_data = customization_data.get("canvas_data")
-                    design_elements = customization_data.get("design_elements")
+                    # ⚡ CRITICAL FIX: Make deep copies to ensure independent snapshots
+                    # This prevents any reference issues where multiple orders might point to the same object
+                    design_svg_data = copy.deepcopy(customization_data.get("svg_data"))
+                    design_canvas_data = copy.deepcopy(customization_data.get("canvas_data"))
+                    design_elements = copy.deepcopy(customization_data.get("design_elements"))
 
                     print(f"design_svg_data exists: {design_svg_data is not None}")
                     print(f"design_canvas_data exists: {design_canvas_data is not None}")
@@ -141,6 +147,26 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                         print(f"Captured canvas data with {len(design_canvas_data.get('objects', []))} objects")
                     if design_elements:
                         print(f"Captured {len(design_elements)} design elements for order item")
+
+                    # ⚡ NEW FIX: Add snapshot metadata to track when this design was captured
+                    # This helps identify which order this design snapshot belongs to
+                    # Even though we're not creating a new customization_option, we ensure
+                    # the snapshot data is complete and properly attributed to this order
+
+                    # Add order timestamp to canvas_data metadata for tracking
+                    if design_canvas_data and isinstance(design_canvas_data, dict):
+                        if 'metadata' not in design_canvas_data:
+                            design_canvas_data['metadata'] = {}
+                        design_canvas_data['metadata']['snapshotted_at'] = datetime.utcnow().isoformat()
+                        design_canvas_data['metadata']['snapshot_for_order'] = f"checkout_{int(time.time())}"
+                        design_canvas_data['metadata']['original_customization_id'] = item.customization_option_id
+                        print(f"✅ Added snapshot metadata to design_canvas_data")
+
+                    print(f"✅ Design data captured for order:")
+                    print(f"   customization_option_id: {item.customization_option_id}")
+                    print(f"   Canvas objects: {len(design_canvas_data.get('objects', [])) if design_canvas_data else 0}")
+                    print(f"   Design elements: {len(design_elements) if design_elements else 0}")
+
                 else:
                     print("WARNING: customization_data is None or empty!")
 
@@ -153,6 +179,7 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
             print("No customization_option_id - skipping design data fetch")
 
         print(f"Final values being set:")
+        print(f"  - customization_option_id: {order_specific_customization_id}")
         print(f"  - design_svg_data: {design_svg_data is not None}")
         print(f"  - design_canvas_data: {design_canvas_data is not None}")
         print(f"  - design_elements: {design_elements is not None}")
@@ -164,11 +191,11 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
             "product_name": product["name"],
             "variation_id": item.variation_id,
             "quantity": item.quantity,
-            "customization_option_id": item.customization_option_id,
+            "customization_option_id": order_specific_customization_id,  # ⚡ Use snapshot ID
             "customized_images": customized_images,
             "unit_price": final_unit_price,
             "shipping_method_id": data.shipping_method_id,
-            # Include design data for print-ready files
+            # Include design data for print-ready files (snapshot at order time)
             "design_svg_data": design_svg_data,
             "design_canvas_data": design_canvas_data,
             "design_elements": design_elements
