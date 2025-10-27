@@ -573,17 +573,35 @@ async def download_order_item_design_package(
             print(f"   - Order: {order_id_check}, Item: {item_id_check} {is_current}")
 
         if len(orders_using_this_option) > 1:
-            print(f"\n❌ CRITICAL ISSUE: customization_option_id {order_item.customization_option_id} is used by {len(orders_using_this_option)} different order items!")
+            print(f"\n⚠️ WARNING: customization_option_id {order_item.customization_option_id} is used by {len(orders_using_this_option)} different order items!")
             print(f"   This means the design data in customization_options table is SHARED")
             print(f"   It may have been modified by other orders after this order was placed")
-            print(f"   Cannot trust this data - it might be from a different order!")
-            print(f"   THIS IS WHY ALL ORDERS GET THE SAME DESIGN!")
+            print(f"   The design data might be from a different order!")
+            print(f"   THIS IS WHY ORDERS MAY GET WRONG DESIGNS!")
+            print(f"\n   ⚠️ PROCEEDING ANYWAY - but ZIP will include warning about data integrity")
+            print(f"   The downloaded design might NOT be the original design from this order")
 
-            raise HTTPException(
-                status_code=500,
-                detail=f"Design data corruption: customization_option {order_item.customization_option_id} is shared by multiple orders. "
-                       f"Cannot determine which design belongs to this order. The order creation process failed to save a proper snapshot."
-            )
+            # Store this info to add to ZIP README
+            data_integrity_warning = f"""
+⚠️⚠️⚠️ DATA INTEGRITY WARNING ⚠️⚠️⚠️
+
+This design data is SHARED by {len(orders_using_this_option)} different orders.
+The customization_option_id ({order_item.customization_option_id}) is being reused across multiple orders.
+
+Orders sharing this design data:
+{chr(10).join([f"  - Order: {oid}, Item: {iid}" for oid, iid in orders_using_this_option[:10]])}
+{'  ... and more' if len(orders_using_this_option) > 10 else ''}
+
+THIS MEANS: The design in this ZIP might NOT be the original design from this specific order.
+It might be from a different order that placed later and overwrote the shared data.
+
+ROOT CAUSE: Order creation process failed to save proper design snapshots.
+
+RECOMMENDATION: Verify this design matches customer expectations before production.
+If incorrect, contact customer to re-submit their design.
+"""
+        else:
+            data_integrity_warning = ""
 
         # Get the customization option to find client_reference_id
         print(f"\nFetching customization_option {order_item.customization_option_id} from database...")
@@ -690,6 +708,10 @@ async def download_order_item_design_package(
 
     print(f"Total objects from ALL design areas: {len(all_objects)}")
 
+    # Initialize data_integrity_warning if not set
+    if 'data_integrity_warning' not in locals():
+        data_integrity_warning = ""
+
     try:
         # Create ZIP file in memory
         zip_buffer = io.BytesIO()
@@ -714,7 +736,7 @@ async def download_order_item_design_package(
 
 Product: {order_item.product_name}
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
+{data_integrity_warning}
 Contents:
 - print_ready/ : 🆕 PRINT-READY VECTOR SVG FILES - USE THESE FOR CLOTHING PRINTING
   * Complete composite SVG per design area (front, back, etc.)
