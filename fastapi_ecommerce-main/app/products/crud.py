@@ -451,6 +451,15 @@ async def get_customization_options_by_user(
     skip: int = 0,
     limit: int = 20
 ) -> List[models.CustomizationOption]:
+    # ⚠️ EMERGENCY FIX: Reduce limit to prevent MySQL sort buffer overflow
+    # If database has thousands of duplicates, even LIMIT 20 causes out of memory
+    emergency_limit = min(limit, 5)  # Never fetch more than 5 at once
+
+    print(f"\n🔍 FETCHING USER CUSTOMIZATION OPTIONS")
+    print(f"   User: {user_id}, Product: {product_id}, Variation: {variation_id}, Area: {design_area}")
+    print(f"   Emergency limit: {emergency_limit} (requested: {limit})")
+
+    # Build query - fetch ONLY latest record per design area to avoid duplicates
     query = select(models.CustomizationOption).options(
         selectinload(models.CustomizationOption.media)
     ).where(models.CustomizationOption.user_id == user_id)
@@ -464,10 +473,17 @@ async def get_customization_options_by_user(
     if design_area:
         query = query.where(models.CustomizationOption.design_area == design_area)
 
-    query = query.offset(skip).limit(limit).order_by(models.CustomizationOption.created_at.desc())
+    # Order by created_at DESC and apply emergency limit
+    query = query.order_by(models.CustomizationOption.created_at.desc()).limit(emergency_limit)
 
     result = await db.execute(query)
-    return list(result.scalars().all())
+    options = list(result.scalars().all())
+
+    print(f"   ✅ Fetched {len(options)} customization options")
+    for opt in options:
+        print(f"      - ID: {opt.id}, Area: {opt.design_area}, Created: {opt.created_at}")
+
+    return options
 
 
 async def create_customization_option(
