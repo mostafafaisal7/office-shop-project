@@ -475,11 +475,42 @@ async def create_customization_option(
     product_id: int,
     data: schemas.CustomizationOptionCreate
 ) -> models.CustomizationOption:
+    print(f"\n{'='*70}")
+    print(f"🔵 CREATE CUSTOMIZATION OPTION")
+    print(f"{'='*70}")
+    print(f"Product ID: {product_id}")
+    print(f"User ID: {data.user_id}")
+    print(f"Variation ID: {data.variation_id}")
+    print(f"Design Area: {data.design_area}")
+    print(f"Client Reference ID: {data.client_reference_id}")
+    print(f"Canvas Data Objects: {len(data.canvas_data.get('objects', [])) if data.canvas_data else 0}")
+
+    # ⚠️ CHECK: Does this client_reference_id + design_area already exist?
+    if data.client_reference_id and data.design_area:
+        existing_check = await db.execute(
+            select(models.CustomizationOption)
+            .where(
+                models.CustomizationOption.client_reference_id == data.client_reference_id,
+                models.CustomizationOption.design_area == data.design_area
+            )
+        )
+        existing = existing_check.scalars().all()
+
+        if existing:
+            print(f"⚠️⚠️⚠️ WARNING: {len(existing)} existing customization_option(s) found!")
+            print(f"   Same client_reference_id + design_area already exists!")
+            for ex in existing[:3]:
+                print(f"   - ID: {ex.id}, User: {ex.user_id}, Created: {ex.created_at}")
+            print(f"   This will cause DUPLICATES and DATA SHARING issues!")
+
     option = models.CustomizationOption(**data.model_dump())
     db.add(option)
     await db.commit()
     await db.refresh(option)
-    
+
+    print(f"✅ Created customization_option ID: {option.id}")
+    print(f"{'='*70}\n")
+
     # Re-fetch with media relationship loaded
     result = await db.execute(
         select(models.CustomizationOption)
@@ -494,11 +525,29 @@ async def update_customization_option(
     option: models.CustomizationOption,
     data: schemas.CustomizationOptionUpdate
 ) -> models.CustomizationOption:
-    for key, value in data.model_dump(exclude_unset=True).items():
+    print(f"\n{'='*70}")
+    print(f"🔶 UPDATE CUSTOMIZATION OPTION")
+    print(f"{'='*70}")
+    print(f"Option ID: {option.id}")
+    print(f"User ID: {option.user_id}")
+    print(f"Design Area: {option.design_area}")
+    print(f"Client Reference ID: {option.client_reference_id}")
+
+    # Show what's being updated
+    update_data = data.model_dump(exclude_unset=True)
+    print(f"Fields being updated: {list(update_data.keys())}")
+    if 'canvas_data' in update_data:
+        print(f"  - Canvas Data Objects: {len(update_data['canvas_data'].get('objects', []))}")
+
+    for key, value in update_data.items():
         setattr(option, key, value)
 
     await db.commit()
     await db.refresh(option)
+
+    print(f"✅ Updated customization_option ID: {option.id}")
+    print(f"{'='*70}\n")
+
     return option
 
 

@@ -464,7 +464,12 @@ async def download_order_item_design_package(
     customization_options = []  # Store for preview image extraction
 
     if order_item.customization_option_id:
-        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
+        print(f"\n{'='*70}")
+        print(f"🔍 FETCHING DESIGN DATA FOR ZIP DOWNLOAD")
+        print(f"{'='*70}")
+        print(f"Order ID: {order_id}")
+        print(f"Order Item ID: {item_id}")
+        print(f"customization_option_id: {order_item.customization_option_id}")
 
         # Import products models to access CustomizationOption
         from app.products import models as product_models
@@ -476,6 +481,17 @@ async def download_order_item_design_package(
         )
         main_option = result.scalar_one_or_none()
 
+        if not main_option:
+            print(f"❌ ERROR: customization_option_id {order_item.customization_option_id} NOT FOUND!")
+        else:
+            print(f"✅ Found main customization_option:")
+            print(f"   ID: {main_option.id}")
+            print(f"   User ID: {main_option.user_id}")
+            print(f"   Design Area: {main_option.design_area}")
+            print(f"   client_reference_id: {main_option.client_reference_id}")
+            print(f"   Created At: {main_option.created_at}")
+            print(f"   Canvas Objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
+
         if main_option and main_option.client_reference_id:
             # Fetch ALL customization options with the same client_reference_id
             # These represent all design areas (front, back, left, right) for this product/variation
@@ -485,16 +501,42 @@ async def download_order_item_design_package(
             )
             all_options = result.scalars().all()
 
-            print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
+            print(f"\n🔍 QUERY: All options with client_reference_id = {main_option.client_reference_id}")
+            print(f"   Found {len(all_options)} design areas:")
+
+            # ⚠️ CRITICAL: Show ALL options to detect duplicates and sharing
+            for idx, option in enumerate(all_options):
+                area_objects = option.canvas_data.get('objects', []) if option.canvas_data else []
+                print(f"   [{idx+1}] ID: {option.id}, User: {option.user_id}, Area: {option.design_area}, Objects: {len(area_objects)}, Created: {option.created_at}")
+
+            # Check for duplicates
+            areas = [opt.design_area for opt in all_options]
+            duplicates = [area for area in set(areas) if areas.count(area) > 1]
+            if duplicates:
+                print(f"\n   ⚠️⚠️⚠️ WARNING: DUPLICATE AREAS DETECTED: {duplicates}")
+                print(f"   This is causing the same design to appear multiple times in ZIP!")
+
+            # Check for user ID mismatches
+            users = set([opt.user_id for opt in all_options])
+            if len(users) > 1:
+                print(f"\n   ⚠️⚠️⚠️ WARNING: MULTIPLE USERS in same client_reference_id: {users}")
+                print(f"   This means users are SHARING designs - data corruption!")
 
             # Store all_options for later preview image extraction
             customization_options = all_options
 
             # Combine objects from all design areas
+            print(f"\n📦 Combining canvas objects from all areas:")
             for option in all_options:
-                area_objects = option.canvas_data.get('objects', [])
-                print(f"  - {option.design_area}: {len(area_objects)} objects")
+                area_objects = option.canvas_data.get('objects', []) if option.canvas_data else []
+                print(f"   - {option.design_area} (ID: {option.id}): {len(area_objects)} objects")
+                if area_objects:
+                    object_types = [obj.get('type') for obj in area_objects]
+                    print(f"     Types: {object_types}")
                 all_objects.extend(area_objects)
+
+            print(f"\n✅ Total combined: {len(all_objects)} objects")
+            print(f"{'='*70}\n")
         else:
             # Fallback: use just the main option's canvas_data
             if order_item.design_canvas_data:
