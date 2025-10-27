@@ -108,20 +108,15 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
         design_elements = None
         order_specific_customization_id = item.customization_option_id  # Will be replaced with snapshot ID
 
-        print(f"\n=== DEBUG CHECKOUT Item {index} ===")
-        print(f"customization_option_id from cart: {item.customization_option_id}")
-        print(f"customized_images from cart: {customized_images}")
+        print(f"\n=== Processing checkout item {index}: customization_option_id={item.customization_option_id} ===")
 
         if item.customization_option_id:
             try:
                 # Fetch customization details to get preview image URL and design data
                 customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
-                print(f"Fetching customization from: {customization_url}")
                 customization_data = await http_get(customization_url)
 
-                print(f"Customization data received: {customization_data is not None}")
                 if customization_data:
-                    print(f"Customization keys: {list(customization_data.keys())}")
 
                     # ⚡ FIX: Only use preview_url as fallback if cart has NO images
                     # Cart's customized_images array contains all views and is the source of truth
@@ -129,9 +124,6 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                         preview_url = customization_data["design_metadata"].get("preview_image_url")
                         if preview_url:
                             customized_images = [preview_url]
-                            print(f"Used preview image URL as fallback: {preview_url}")
-                    else:
-                        print(f"Using cart's customized_images ({len(customized_images)} images) - skipping preview_url")
 
                     # Extract design data for print-ready files
                     # ⚡ CRITICAL FIX: Make deep copies to ensure independent snapshots
@@ -140,40 +132,12 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                     design_canvas_data = copy.deepcopy(customization_data.get("canvas_data"))
                     design_elements = copy.deepcopy(customization_data.get("design_elements"))
 
-                    print(f"design_svg_data exists: {design_svg_data is not None}")
-                    print(f"design_canvas_data exists: {design_canvas_data is not None}")
-                    print(f"design_elements exists: {design_elements is not None}")
-
-                    if design_svg_data:
-                        print(f"Captured SVG data for order item (length: {len(design_svg_data)} characters)")
-                    if design_canvas_data:
-                        objects = design_canvas_data.get('objects', [])
-                        print(f"Captured canvas data with {len(objects)} objects")
-
-                        # ⚡ DEBUG: Show what's in the fetched data BEFORE creating snapshot
-                        print(f"📋 Objects fetched from customization_option_id {item.customization_option_id}:")
-                        for idx, obj in enumerate(objects):
-                            obj_type = obj.get('type', 'unknown')
-                            if obj_type in ['text', 'textbox', 'i-text', 'Text']:
-                                text_content = obj.get('text', 'N/A')
-                                print(f"   [{idx}] {obj_type} - text='{text_content}'")
-                            elif obj_type in ['image', 'Image']:
-                                src = obj.get('src', obj.get('savedImageUrl', 'N/A'))
-                                if isinstance(src, str) and len(src) > 80:
-                                    src = src[:80] + '...'
-                                print(f"   [{idx}] {obj_type} - src='{src}'")
-                            else:
-                                print(f"   [{idx}] {obj_type}")
-
-                    if design_elements:
-                        print(f"Captured {len(design_elements)} design elements for order item")
-
                     # ⚡ CRITICAL FIX: Create a NEW customization_option record in database as snapshot
                     # This ensures each order has its own immutable customization_option_id
                     # Even if user edits the original design later, this snapshot remains unchanged
 
                     try:
-                        # Add snapshot metadata to track this is an order snapshot
+                        # Add snapshot metadata
                         if design_canvas_data and isinstance(design_canvas_data, dict):
                             if 'metadata' not in design_canvas_data:
                                 design_canvas_data['metadata'] = {}
@@ -181,10 +145,8 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                             design_canvas_data['metadata']['snapshot_for_order'] = f"checkout_{int(time.time())}"
                             design_canvas_data['metadata']['original_customization_id'] = item.customization_option_id
                             design_canvas_data['metadata']['is_order_snapshot'] = True
-                            print(f"✅ Added snapshot metadata to design_canvas_data")
 
-                        # Create new customization_option record in database
-                        print(f"Creating permanent snapshot in database...")
+                        # Create permanent snapshot in database
                         snapshot_option = product_models.CustomizationOption(
                             user_id=customization_data.get("user_id"),
                             product_id=customization_data.get("product_id"),
@@ -204,37 +166,18 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
 
                         # Use the new snapshot ID for this order
                         order_specific_customization_id = snapshot_option.id
-
-                        print(f"✅ Created permanent snapshot in database:")
-                        print(f"   Original customization_id: {item.customization_option_id}")
-                        print(f"   New snapshot_id: {order_specific_customization_id}")
-                        print(f"   Canvas objects: {len(design_canvas_data.get('objects', [])) if design_canvas_data else 0}")
-                        print(f"   Design elements: {len(design_elements) if design_elements else 0}")
+                        print(f"✅ Snapshot created: {item.customization_option_id} → {order_specific_customization_id}")
 
                     except Exception as snapshot_error:
-                        print(f"⚠️ Failed to create database snapshot: {snapshot_error}")
-                        import traceback
-                        traceback.print_exc()
-                        print(f"   Falling back to original customization_id: {item.customization_option_id}")
+                        print(f"⚠️ Snapshot creation failed: {snapshot_error}")
                         # Continue with original ID if snapshot creation fails
 
                 else:
-                    print("WARNING: customization_data is None or empty!")
+                    print("⚠️ No customization data received")
 
             except Exception as e:
-                print(f"ERROR: Failed to fetch customization details for option {item.customization_option_id}: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"⚠️ Failed to fetch customization: {e}")
                 # Continue with existing customized_images
-        else:
-            print("No customization_option_id - skipping design data fetch")
-
-        print(f"Final values being set:")
-        print(f"  - customization_option_id: {order_specific_customization_id}")
-        print(f"  - design_svg_data: {design_svg_data is not None}")
-        print(f"  - design_canvas_data: {design_canvas_data is not None}")
-        print(f"  - design_elements: {design_elements is not None}")
-        print(f"=== END DEBUG CHECKOUT ===\n")
 
         # Prepare order item with discount information - matches OrderItemCreate schema
         order_item = {

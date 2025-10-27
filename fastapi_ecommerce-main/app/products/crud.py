@@ -464,7 +464,10 @@ async def get_customization_options_by_user(
     if design_area:
         query = query.where(models.CustomizationOption.design_area == design_area)
 
-    query = query.offset(skip).limit(limit).order_by(models.CustomizationOption.created_at.desc())
+    # ⚡ CRITICAL FIX: Order by updated_at DESC to get the LATEST version of the design
+    # When user updates a design, updated_at changes but created_at stays the same
+    # This ensures we get the most recent design data, not the first/oldest version
+    query = query.offset(skip).limit(limit).order_by(models.CustomizationOption.updated_at.desc())
 
     result = await db.execute(query)
     return list(result.scalars().all())
