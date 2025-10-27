@@ -750,44 +750,48 @@ async def upload_customer_image(
 ):
     """
     Upload an image for a product as a customer (for design previews).
-    Uses the same infrastructure as admin uploads but accessible to customers.
-    Saves the file in app/static/products/customer/ and creates a ProductMedia entry.
+    ⚠️ FIXED: Does NOT save to ProductMedia to prevent polluting product gallery.
+    Only saves file to disk and returns URL for use in customization/cart.
     """
     import logging
     logging.basicConfig(level=logging.INFO)
     logging.info(f"Customer upload called for product {product_id} by user {current_user.id}")
-    
+
     print(f"Customer upload called for product {product_id}")
     print("Current user:", current_user.id)
     print("File:", file.filename)
-    
-    # Create customer upload directory using same pattern as admin
-    customer_dir = os.path.join(UPLOAD_DIR, "customer")
-    os.makedirs(customer_dir, exist_ok=True)
-    
-    # Generate unique filename using same approach as admin
+
+    # ✅ FIX: Save to previews directory, NOT products directory
+    # This prevents preview images from showing in product gallery
+    preview_dir = os.path.join("app", "static", "previews", f"user_{current_user.id}")
+    os.makedirs(preview_dir, exist_ok=True)
+
+    # Generate unique filename
     file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "png"
-    filename = f"customer_{current_user.id}_{uuid4()}.{file_ext}"
-    file_path = os.path.join(customer_dir, filename)
-    print("Saving customer file to:", file_path)
+    filename = f"{uuid4()}.{file_ext}"
+    file_path = os.path.join(preview_dir, filename)
+    print("Saving customer preview to:", file_path)
 
     # Read file content once
     file_content = await file.read()
-    
-    # Save file to disk using same approach as admin
+
+    # Save file to disk
     with open(file_path, "wb") as f:
         f.write(file_content)
-    
-    # Save media record in DB using same approach as admin uploads but for customer
-    media_data = schemas.ProductMediaCreate(
-        file_path=f"/images/products/customer/{filename}",  # Store relative path
-        file_name=file.filename,
-        file_size=len(file_content),
-        media_type=schemas.MediaType.IMAGE,
-        mime_type=file.content_type,
-    )
-    
-    media = await service.create_product_media(db, product_id, media_data)
-    
-    # Convert to full URL for response using same conversion as admin
-    return convert_media_to_url([media])[0]
+
+    # ✅ FIX: Do NOT save to ProductMedia table
+    # Preview images should not appear in product gallery
+    # Just return the URL for use in customization/cart
+
+    file_url = f"/images/previews/user_{current_user.id}/{filename}"
+
+    print(f"✅ Saved customer preview (NOT to ProductMedia): {file_url}")
+
+    # Return URL in same format as before for compatibility
+    return {
+        "file_url": file_url,
+        "url": file_url,
+        "image_url": file_url,
+        "file_path": file_url,
+        "file_name": file.filename
+    }
