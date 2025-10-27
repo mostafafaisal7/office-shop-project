@@ -465,9 +465,27 @@ async def download_order_item_design_package(
     if order_item.design_canvas_data:
         objects = order_item.design_canvas_data.get('objects', [])
         print(f"   Canvas objects in order_item snapshot: {len(objects)}")
+
+        # Show what's actually in the objects
+        print(f"   📋 Canvas objects content:")
+        for idx, obj in enumerate(objects):
+            obj_type = obj.get('type', 'unknown')
+            if obj_type in ['text', 'textbox', 'i-text', 'Text']:
+                text_content = obj.get('text', 'N/A')
+                print(f"      [{idx}] {obj_type} - text='{text_content}'")
+            elif obj_type in ['image', 'Image']:
+                src = obj.get('src', obj.get('savedImageUrl', 'N/A'))
+                if isinstance(src, str) and len(src) > 80:
+                    src = src[:80] + '...'
+                print(f"      [{idx}] {obj_type} - src='{src}'")
+            else:
+                print(f"      [{idx}] {obj_type}")
+
         metadata = order_item.design_canvas_data.get('metadata', {})
         if metadata:
-            print(f"   Snapshot metadata: {metadata}")
+            print(f"   📦 Snapshot metadata: {metadata}")
+            if 'original_customization_id' in metadata:
+                print(f"   🔗 This snapshot was created from customization_option_id: {metadata['original_customization_id']}")
         else:
             print(f"   ⚠️ No metadata found - this might be an old order before the fix!")
     print(f"="*60)
