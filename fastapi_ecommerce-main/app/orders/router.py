@@ -493,36 +493,30 @@ async def download_order_item_design_package(
             print(f"   Canvas Objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
 
         if main_option and main_option.client_reference_id:
-            # ✅ FIX: Filter by user_id AND order creation time to prevent cross-contamination
-            # Get the order's creation time to find related customization options
-            order_result = await db.execute(
-                select(models.Order).where(models.Order.id == order_id)
-            )
-            order = order_result.scalar_one_or_none()
-
-            # Calculate time window: options created within 1 hour before order creation
-            from datetime import timedelta
-            time_window_start = order.created_at - timedelta(hours=1) if order else None
-            time_window_end = order.created_at + timedelta(minutes=5) if order else None
+            # ✅ FIX: Filter by user_id AND creation time window to prevent cross-contamination
+            # If client_reference_id is reused across sessions, we need to group by creation time
 
             print(f"\n🔒 SECURITY FILTER:")
-            print(f"   Order created at: {order.created_at if order else 'Unknown'}")
+            print(f"   client_reference_id: {main_option.client_reference_id}")
             print(f"   Filtering for user_id: {main_option.user_id}")
-            print(f"   Time window: {time_window_start} to {time_window_end}")
+            print(f"   Main option created: {main_option.created_at}")
 
-            # Fetch ALL customization options with the same client_reference_id
-            # ✅ CRITICAL FIX: Filter by user_id and creation time to prevent data leakage
+            # Fetch ALL customization options with the same client_reference_id AND user_id
+            # ✅ CRITICAL FIX: Also filter by creation time to group design areas from same session
+            # Design areas for one product should be created within minutes of each other
+            from datetime import timedelta
+            session_window_start = main_option.created_at - timedelta(minutes=30)
+            session_window_end = main_option.created_at + timedelta(minutes=30)
+
+            print(f"   Session time window: {session_window_start} to {session_window_end}")
+            print(f"   (Design areas created within 30 min of each other)")
+
             query = select(product_models.CustomizationOption).where(
                 product_models.CustomizationOption.client_reference_id == main_option.client_reference_id,
-                product_models.CustomizationOption.user_id == main_option.user_id
+                product_models.CustomizationOption.user_id == main_option.user_id,
+                product_models.CustomizationOption.created_at >= session_window_start,
+                product_models.CustomizationOption.created_at <= session_window_end
             )
-
-            # Add time filter if we have order creation time
-            if time_window_start and time_window_end:
-                query = query.where(
-                    product_models.CustomizationOption.created_at >= time_window_start,
-                    product_models.CustomizationOption.created_at <= time_window_end
-                )
 
             result = await db.execute(query)
             all_options = result.scalars().all()
