@@ -7,8 +7,8 @@ from app.core.config import DATABASE_URL
 # Async database for FastAPI
 database = Database(DATABASE_URL)
 
-# Async engine for FastAPI
-engine = create_async_engine(DATABASE_URL, echo=True)
+# Async engine for FastAPI (echo=False disables SQL query logging)
+engine = create_async_engine(DATABASE_URL, echo=False)
 async_session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 # Declarative base
