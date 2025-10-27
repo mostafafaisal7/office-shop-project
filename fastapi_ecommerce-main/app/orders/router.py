@@ -458,6 +458,20 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
+    # ⚡ DEBUG: Check which customization_option_id this order_item has
+    print(f"🔍 DEBUG: Order Item {item_id} details:")
+    print(f"   customization_option_id: {order_item.customization_option_id}")
+    print(f"   Has design_canvas_data: {order_item.design_canvas_data is not None}")
+    if order_item.design_canvas_data:
+        objects = order_item.design_canvas_data.get('objects', [])
+        print(f"   Canvas objects in order_item snapshot: {len(objects)}")
+        metadata = order_item.design_canvas_data.get('metadata', {})
+        if metadata:
+            print(f"   Snapshot metadata: {metadata}")
+        else:
+            print(f"   ⚠️ No metadata found - this might be an old order before the fix!")
+    print(f"="*60)
+
     # ⚡ SIMPLIFIED: Use ONLY the order_item's snapshot data
     # Order items contain design_canvas_data, design_svg_data, design_elements at order time
     # This is the CORRECT source - it's the snapshot when the order was placed
