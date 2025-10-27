@@ -119,6 +119,17 @@ export async function POST(request: NextRequest) {
 
     console.log('Processing checkout for', items.length, 'items');
 
+    console.log('\n' + '='.repeat(80));
+    console.log('🔍 FRONTEND CHECKOUT: Cart items customization IDs');
+    console.log('='.repeat(80));
+    items.forEach((item: any, index: number) => {
+      console.log(`[ITEM ${index + 1}]`);
+      console.log(`  - product_id: ${item.product_id}`);
+      console.log(`  - customization_option_id: ${item.customization_option_id}`);
+      console.log(`  - customized_images: ${item.customized_images ? `${Array.isArray(item.customized_images) ? item.customized_images.length : 1} image(s)` : 'NONE'}`);
+    });
+    console.log('='.repeat(80) + '\n');
+
     // Use user_id from request body or fallback
     let userId: number;
     if (user_id && typeof user_id === 'number') {
