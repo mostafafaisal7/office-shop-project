@@ -548,17 +548,63 @@ async def download_order_item_design_package(
     # Priority 2: Try customization_options (for multi-area support)
     # This runs if: design_elements failed validation OR doesn't exist
     if (not all_objects or len(all_objects) == 0) and order_item.customization_option_id:
-        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
+        print(f"\n{'='*60}")
+        print(f"FETCHING FROM customization_options (snapshot data was invalid)")
+        print(f"{'='*60}")
+        print(f"Order ID: {order_id}")
+        print(f"Order Item ID: {item_id}")
+        print(f"customization_option_id from order_item: {order_item.customization_option_id}")
 
         # Import products models to access CustomizationOption
         from app.products import models as product_models
 
+        # ⚠️ CRITICAL CHECK: Is this customization_option used by multiple orders?
+        # If yes, we cannot trust it - it might have been overwritten by another order
+        result = await db.execute(
+            select(models.OrderItem.order_id, models.OrderItem.id)
+            .where(models.OrderItem.customization_option_id == order_item.customization_option_id)
+        )
+        orders_using_this_option = result.fetchall()
+
+        print(f"\n⚠️ SECURITY CHECK: Is customization_option_id {order_item.customization_option_id} shared?")
+        print(f"   Found {len(orders_using_this_option)} order items using this customization_option:")
+        for order_id_check, item_id_check in orders_using_this_option[:5]:  # Show first 5
+            is_current = "← THIS ORDER" if order_id_check == order_id and item_id_check == item_id else ""
+            print(f"   - Order: {order_id_check}, Item: {item_id_check} {is_current}")
+
+        if len(orders_using_this_option) > 1:
+            print(f"\n❌ CRITICAL ISSUE: customization_option_id {order_item.customization_option_id} is used by {len(orders_using_this_option)} different order items!")
+            print(f"   This means the design data in customization_options table is SHARED")
+            print(f"   It may have been modified by other orders after this order was placed")
+            print(f"   Cannot trust this data - it might be from a different order!")
+            print(f"   THIS IS WHY ALL ORDERS GET THE SAME DESIGN!")
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Design data corruption: customization_option {order_item.customization_option_id} is shared by multiple orders. "
+                       f"Cannot determine which design belongs to this order. The order creation process failed to save a proper snapshot."
+            )
+
         # Get the customization option to find client_reference_id
+        print(f"\nFetching customization_option {order_item.customization_option_id} from database...")
         result = await db.execute(
             select(product_models.CustomizationOption)
             .where(product_models.CustomizationOption.id == order_item.customization_option_id)
         )
         main_option = result.scalar_one_or_none()
+
+        if not main_option:
+            print(f"❌ ERROR: customization_option {order_item.customization_option_id} not found in database!")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Customization option {order_item.customization_option_id} not found"
+            )
+
+        print(f"✅ Found customization_option:")
+        print(f"   ID: {main_option.id}")
+        print(f"   client_reference_id: {main_option.client_reference_id}")
+        print(f"   design_area: {main_option.design_area}")
+        print(f"   canvas_data objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
 
         if main_option and main_option.client_reference_id:
             # ✅ SECURITY FIX: First, get ALL customization_option_ids used in THIS specific order
