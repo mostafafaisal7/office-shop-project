@@ -143,12 +143,7 @@ useEffect(() => {
         delete canvasData.backgroundImage;
       }
 
-      // ✅ DEBUG: Log BEFORE sanitization to check savedImageUrl
-      console.log('💾 BEFORE sanitization:', canvasData.objects.map((o: any) => ({
-        type: o.type,
-        src: o.src?.substring(0, 50) + '...',
-        savedImageUrl: o.savedImageUrl?.substring(0, 50) + '...'
-      })));
+      // ✅ Sanitize canvas data before saving
 
       canvasData.objects = canvasData.objects.map((obj: any) => {
         // ✅ FIX: Fabric.js uses "Image" (capital I) for image type
@@ -158,12 +153,6 @@ useEffect(() => {
         }
         return obj;
       });
-
-      // ✅ DEBUG: Log AFTER sanitization to verify replacement
-      console.log('💾 AFTER sanitization:', canvasData.objects.map((o: any) => ({
-        type: o.type,
-        src: o.src?.substring(0, 50) + '...'
-      })));
 
       if (canvasData.objects && canvasData.objects.length > 0) {
         autoSaveDesign(canvasData, productImage);
@@ -277,9 +266,6 @@ useEffect(() => {
   const isProductChanged = currentProductKey !== lastProductKey && lastLoadedProductRef.current.productId !== null;
 
   if (isProductChanged) {
-    console.log('🔄 Product changed - clearing canvas to prevent data leak');
-    console.log('  Previous:', lastProductKey);
-    console.log('  Current:', currentProductKey);
     canvas.getObjects().forEach((obj: any) => {
       if (obj !== canvas.backgroundImage) canvas.remove(obj);
     });
@@ -305,7 +291,6 @@ useEffect(() => {
   }
 
   const loadSavedDesign = async () => {
-    console.log(`📂 [CANVAS LOAD] Starting design load for area: ${currentDesignArea}`);
     const loadStartTime = performance.now();
 
     try {
@@ -314,13 +299,10 @@ useEffect(() => {
       let designData = null;
 
       try {
-        console.log(`📂 [CANVAS LOAD] Loading design from storage...`);
         const loadDesignStartTime = performance.now();
 
         // Use the designStore's loadDesign which handles both localStorage and database
         designData = await loadDesign(productId, variationId, currentDesignArea);
-
-        console.log(`✅ [CANVAS LOAD] Design loaded in ${(performance.now() - loadDesignStartTime).toFixed(2)}ms`, designData ? `(${designData.canvas_data?.objects?.length || 0} objects)` : '(no design found)');
       } catch (err) {
         console.error('❌ [CANVAS LOAD] Failed to load design:', err);
       }
@@ -334,15 +316,12 @@ useEffect(() => {
       }
 
       // 3️⃣ Clear canvas except background
-      console.log(`🧹 [CANVAS LOAD] Clearing canvas objects...`);
       const clearStartTime = performance.now();
       canvas.getObjects().forEach((obj: any) => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
-      console.log(`✅ [CANVAS LOAD] Canvas cleared in ${(performance.now() - clearStartTime).toFixed(2)}ms`);
 
       if (designData?.canvas_data?.objects?.length > 0) {
-        console.log(`🎨 [CANVAS LOAD] Loading ${designData.canvas_data.objects.length} design objects...`);
         const loadJSONStartTime = performance.now();
 
         const fixedCanvasData = { ...designData.canvas_data };
@@ -362,8 +341,6 @@ useEffect(() => {
         });
 
         canvas.loadFromJSON(fixedCanvasData, async () => {
-          console.log(`✅ [CANVAS LOAD] JSON loaded in ${(performance.now() - loadJSONStartTime).toFixed(2)}ms`);
-
           // ✅ CRITICAL FIX: Restore custom properties after loadFromJSON
           // canvas.loadFromJSON recreates objects and loses custom properties
           canvas.getObjects().forEach((canvasObj: any, index: number) => {
@@ -375,21 +352,15 @@ useEffect(() => {
             }
           });
 
-          console.log(`🖼️  [CANVAS LOAD] Loading background image...`);
           const bgStartTime = performance.now();
           await loadBackgroundImage(productImage);
-          console.log(`✅ [CANVAS LOAD] Background loaded in ${(performance.now() - bgStartTime).toFixed(2)}ms`);
 
           // ⚡ OPTIMIZED: Removed redundant renderAll call
           // loadBackgroundImage already calls renderAll, no need to call it again
-          console.log(`🏁 [CANVAS LOAD] Total design load time: ${(performance.now() - loadStartTime).toFixed(2)}ms`);
         });
       } else {
-        console.log(`🖼️  [CANVAS LOAD] No design objects, loading only background...`);
         const bgStartTime = performance.now();
         await loadBackgroundImage(productImage);
-        console.log(`✅ [CANVAS LOAD] Background loaded in ${(performance.now() - bgStartTime).toFixed(2)}ms`);
-        console.log(`🏁 [CANVAS LOAD] Total design load time: ${(performance.now() - loadStartTime).toFixed(2)}ms`);
       }
     } catch (error) {
       console.error("❌ [CANVAS LOAD] Error loading saved design:", error);
@@ -596,9 +567,6 @@ useEffect(() => {
       if (!designJson.content) return;
       const originalImageUrl = designJson.content; // Store original URL
 
-      // ✅ DEBUG: Log image being added
-      console.log('🎨 Adding image with URL:', originalImageUrl?.substring(0, 50) + '...');
-
       loadImage(designJson.content, (img: FabricImage) => {
         // ✅ FIX: Set standard properties first
         img.set({
@@ -613,9 +581,6 @@ useEffect(() => {
         // ✅ CRITICAL FIX: Assign custom property directly (not via .set())
         // Fabric.js v6 requires direct assignment for custom properties to serialize
         (img as any).savedImageUrl = originalImageUrl;
-
-        // ✅ DEBUG: Confirm savedImageUrl stored
-        console.log('✅ savedImageUrl stored:', originalImageUrl?.substring(0, 50) + '...');
 
         canvas.add(img);
         canvas.setActiveObject(img);

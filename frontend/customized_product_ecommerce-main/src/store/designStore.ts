@@ -96,7 +96,6 @@ const saveToLocalStorageSync = (designs: Map<string, DesignData>) => {
   try {
     const designsArray = Array.from(designs.entries());
     localStorage.setItem(STORAGE_KEY, JSON.stringify(designsArray));
-    console.log(`✅ [STORAGE SYNC] Synchronous save completed successfully`);
   } catch (error) {
     console.error('❌ [STORAGE SYNC] Failed to save to localStorage:', error);
   }
@@ -175,7 +174,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesignToStorage: (canvasData: any, productImageUrl: string, syncSave: boolean = false) => {
-  console.log(`💾 [STORAGE] Starting save to localStorage (sync: ${syncSave})...`);
   const saveStartTime = performance.now();
 
   const state = get();
@@ -186,7 +184,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
   const variationIdKey = state.selectedVariation.variationId.toString();
   const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
-  console.log(`💾 [STORAGE] Design key: ${designKey}`);
 
   // --- sanitize blobs before saving ---
   const sanitizeCanvasData = (data: any) => {
@@ -214,10 +211,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return cleaned;
   };
 
-  console.log(`🧹 [STORAGE] Sanitizing canvas data...`);
   const sanitizeStartTime = performance.now();
   const cleanedCanvasData = sanitizeCanvasData(canvasData);
-  console.log(`✅ [STORAGE] Sanitized in ${(performance.now() - sanitizeStartTime).toFixed(2)}ms (${cleanedCanvasData?.objects?.length || 0} objects)`);
 
   const designData: DesignData = {
     design_id: generateDesignId(),
@@ -242,13 +237,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     design_elements: cleanedCanvasData?.objects || []
   };
 
-  console.log(`💾 [STORAGE] Updating design map...`);
   const updatedDesigns = new Map(state.savedDesigns);
   updatedDesigns.set(designKey, designData);
 
   set({ savedDesigns: updatedDesigns });
 
-  console.log(`💾 [STORAGE] Persisting to localStorage...`);
   const persistStartTime = performance.now();
 
   // ⚡ CRITICAL: Use synchronous save for view switching to prevent data loss
@@ -257,9 +250,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   } else {
     saveToLocalStorage(updatedDesigns);
   }
-
-  console.log(`✅ [STORAGE] Persisted in ${(performance.now() - persistStartTime).toFixed(2)}ms`);
-  console.log(`🏁 [STORAGE] Total save time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 
 },
 
@@ -275,7 +265,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesignFromStorage: (productId: string, variationId: string, area: string) => {
-  console.log(`📂 [STORAGE] Loading design from localStorage: ${productId}_${variationId}_${area}`);
   const loadStartTime = performance.now();
 
   const state = get();
@@ -283,11 +272,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const design = state.savedDesigns.get(designKey);
 
   if (design) {
-    console.log(`✅ [STORAGE] Design found in ${(performance.now() - loadStartTime).toFixed(2)}ms (${design.canvas_data?.objects?.length || 0} objects)`);
     return design;
   }
 
-  console.log(`⚠️  [STORAGE] No design found in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
   return null;
 },
 
@@ -455,13 +442,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string, syncSave: boolean = false) => {
-  console.log(`💾 [SAVE DESIGN] Starting save (sync: ${syncSave})...`);
   const saveStartTime = performance.now();
 
   // ⚡ CRITICAL: Save to localStorage FIRST
   // Use syncSave=true for critical operations (view switching) to prevent data loss
   get().saveDesignToStorage(canvasData, productImageUrl, syncSave);
-  console.log(`✅ [SAVE DESIGN] localStorage save in ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 
   // ⚡ OPTIMIZED: Defer database sync to not block the UI
   // Use setTimeout to push database sync to next event loop tick
@@ -469,21 +454,17 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const { isAuthenticated } = useAuthStore.getState();
 
   if (isAuthenticated) {
-    console.log(`🔄 [SAVE DESIGN] Deferring database sync for logged-in user...`);
-
     // Push to next tick so it doesn't block current operation
     setTimeout(async () => {
       const dbStartTime = performance.now();
       try {
         await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
-        console.log(`✅ [SAVE DESIGN] Database sync completed in ${(performance.now() - dbStartTime).toFixed(2)}ms`);
       } catch (error) {
         console.error('❌ [SAVE DESIGN] Database sync failed:', error);
       }
     }, 0);
   }
 
-  console.log(`🏁 [SAVE DESIGN] Total (non-blocking) time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
 }
 ,
 
@@ -495,34 +476,28 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     previewImageUrl?: string,
     svgData?: string
   ) => {
-    console.log(`💾 [SAVE & WAIT] Starting synchronous save to localStorage AND database...`);
     const saveStartTime = performance.now();
 
     // Save to localStorage first
     get().saveDesignToStorage(canvasData, productImageUrl, true);
-    console.log(`✅ [SAVE & WAIT] localStorage save completed`);
 
     // WAIT for database sync to complete
     const { useAuthStore } = await import('@/store/authStore');
     const { isAuthenticated } = useAuthStore.getState();
 
     if (isAuthenticated) {
-      console.log(`🔄 [SAVE & WAIT] Starting database sync (BLOCKING)...`);
       const dbStartTime = performance.now();
       try {
         await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
-        console.log(`✅ [SAVE & WAIT] Database sync completed in ${(performance.now() - dbStartTime).toFixed(2)}ms`);
       } catch (error) {
         console.error('❌ [SAVE & WAIT] Database sync failed:', error);
         throw error; // Re-throw to let caller know it failed
       }
     }
 
-    console.log(`🏁 [SAVE & WAIT] Total (BLOCKING) time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
   },
 
   loadDesign: async (productId: string, variationId: string, area: string) => {
-  console.log(`📂 [LOAD DESIGN] Starting load for ${productId}_${variationId}_${area}`);
   const loadStartTime = performance.now();
 
   // ⚡ OPTIMIZED: ALWAYS use localStorage first for instant load
@@ -530,7 +505,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const localDesign = get().loadDesignFromStorage(productId, variationId, area);
 
   if (localDesign) {
-    console.log(`✅ [LOAD DESIGN] Loaded from localStorage in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
     return localDesign;
   }
 
@@ -539,14 +513,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   const { useAuthStore } = await import('@/store/authStore');
   const { isAuthenticated } = useAuthStore.getState();
   if (isAuthenticated) {
-    console.log(`📂 [LOAD DESIGN] Not in localStorage, trying database...`);
     const dbStartTime = performance.now();
     const dbDesign = await get().loadDesignFromDatabase(productId, variationId, area);
-    console.log(`✅ [LOAD DESIGN] Database load took ${(performance.now() - dbStartTime).toFixed(2)}ms`);
     return dbDesign;
   }
 
-  console.log(`⚠️  [LOAD DESIGN] No design found in ${(performance.now() - loadStartTime).toFixed(2)}ms`);
   return null;
 }
 ,
@@ -676,7 +647,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const designData = await designApi.loadDesignWithNewFormat(productId, variationId, designArea);
 
       if (!designData || !designData.id) {
-        console.log('No design found to delete');
         return;
       }
 
@@ -687,7 +657,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const state = get();
       state.clearStoredDesign(productId, variationId.toString(), designArea);
 
-      console.log('✅ Design deleted from database and localStorage');
     } catch (error) {
       console.error('❌ Error deleting design:', error);
       throw error;

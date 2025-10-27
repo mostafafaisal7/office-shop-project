@@ -476,11 +476,9 @@ class DesignApiService {
 
       if (designs.length > 0) {
         const matchingDesign = designs[0]; // Take the first (most recent) design
-        console.log('✅ Design loaded successfully for current user:', matchingDesign);
         return matchingDesign;
       }
 
-      console.log('✅ No existing design found - starting with fresh canvas');
       return null;
     } catch (error) {
       console.error('Error loading design with new format:', error);
@@ -540,7 +538,6 @@ class DesignApiService {
         throw new Error(`Failed to delete design: ${response.status}`);
       }
 
-      console.log('✅ Design deleted successfully');
     } catch (error) {
       console.error('❌ Error deleting design:', error);
       throw error;
