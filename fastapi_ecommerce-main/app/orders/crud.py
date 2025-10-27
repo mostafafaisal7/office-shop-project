@@ -17,133 +17,6 @@ async def get_all_orders(db: AsyncSession) -> List[models.Order]:
 
 
 async def create_order(db: AsyncSession, order_data: schemas.OrderCreate) -> models.Order:
-    # ✅ FIX: Fetch and save complete design data from customization_options
-    # This prevents future orders from having the same data corruption issue
-
-    from app.products import models as product_models
-
-    # Process each item and fetch complete design data if customization exists
-    order_items = []
-    for item in order_data.items:
-        # Start with the data from frontend
-        design_svg_data = item.design_svg_data
-        design_canvas_data = item.design_canvas_data
-        design_elements = item.design_elements
-
-        # ✅ If item has customization_option_id, fetch complete design data
-        if item.customization_option_id:
-            print(f"\n{'='*60}")
-            print(f"ORDER CREATION: Fetching design data for customization_option_id: {item.customization_option_id}")
-            print(f"{'='*60}")
-
-            try:
-                # Fetch the customization option
-                result = await db.execute(
-                    select(product_models.CustomizationOption)
-                    .where(product_models.CustomizationOption.id == item.customization_option_id)
-                )
-                customization_option = result.scalar_one_or_none()
-
-                if customization_option:
-                    print(f"✅ Found customization_option:")
-                    print(f"   ID: {customization_option.id}")
-                    print(f"   design_area: {customization_option.design_area}")
-                    print(f"   client_reference_id: {customization_option.client_reference_id}")
-
-                    # ✅ CRITICAL: Fetch ALL design areas with same client_reference_id
-                    # This ensures we get front, back, left, right designs - all areas
-                    if customization_option.client_reference_id:
-                        result = await db.execute(
-                            select(product_models.CustomizationOption)
-                            .where(product_models.CustomizationOption.client_reference_id == customization_option.client_reference_id)
-                        )
-                        all_design_areas = result.scalars().all()
-
-                        print(f"✅ Found {len(all_design_areas)} design areas for this product:")
-
-                        # Combine objects from ALL design areas
-                        combined_objects = []
-                        for area_option in all_design_areas:
-                            area_objects = area_option.canvas_data.get('objects', []) if area_option.canvas_data else []
-                            print(f"   - {area_option.design_area}: {len(area_objects)} objects")
-                            combined_objects.extend(area_objects)
-
-                        print(f"✅ Total objects combined: {len(combined_objects)}")
-
-                        # ✅ VALIDATE: Check if combined objects have real design data
-                        has_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
-                                      for obj in combined_objects)
-                        has_real_images = any(
-                            obj.get('type', '').lower() == 'image' and
-                            (
-                                (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
-                                (obj.get('src') and
-                                 not obj.get('src', '').startswith('blob:') and
-                                 '/previews/' not in obj.get('src', ''))
-                            )
-                            for obj in combined_objects
-                        )
-
-                        print(f"   Data quality check: has_text={has_text}, has_real_images={has_real_images}")
-
-                        # ✅ Save complete snapshot to order_item
-                        if combined_objects:
-                            design_elements = combined_objects
-                            design_canvas_data = {
-                                'version': '5.3.0',
-                                'objects': combined_objects
-                            }
-                            print(f"✅ Saved complete design snapshot with {len(combined_objects)} objects")
-                            print(f"   Object types: {[obj.get('type') for obj in combined_objects[:5]]}")
-
-                            # ⚠️ WARN if data quality is poor
-                            if not has_text and not has_real_images:
-                                print(f"⚠️⚠️⚠️ WARNING: Design data has NO TEXT and NO REAL IMAGES!")
-                                print(f"   All images appear to be PREVIEW references, not uploaded design images")
-                                print(f"   This order's ZIP download will likely be incomplete")
-                                print(f"   User may not have uploaded actual design files!")
-                        else:
-                            print(f"⚠️ WARNING: No objects found in customization_options!")
-                    else:
-                        # Single area design
-                        area_objects = customization_option.canvas_data.get('objects', []) if customization_option.canvas_data else []
-                        if area_objects:
-                            design_elements = area_objects
-                            design_canvas_data = customization_option.canvas_data
-                            print(f"✅ Saved single-area design snapshot with {len(area_objects)} objects")
-                else:
-                    print(f"⚠️ WARNING: customization_option {item.customization_option_id} not found in database!")
-
-            except Exception as e:
-                print(f"❌ ERROR fetching design data: {str(e)}")
-                import traceback
-                traceback.print_exc()
-
-        # Create order item with complete design data
-        order_items.append(
-            models.OrderItem(
-                product_id=item.product_id,
-                product_name=item.product_name,
-                variation_id=item.variation_id,
-                customization_option_id=item.customization_option_id,
-                customized_images=item.customized_images,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                shipping_method_id=item.shipping_method_id,
-                # ✅ Use fetched complete design data (or fallback to frontend data)
-                design_svg_data=design_svg_data,
-                design_canvas_data=design_canvas_data,
-                design_elements=design_elements,
-                # Add discount fields
-                discount_rule_id=item.discount_rule_id,
-                original_unit_price=item.original_unit_price,
-                discount_percentage=item.discount_percentage,
-                discount_amount=item.discount_amount,
-                discount_type=item.discount_type
-            )
-        )
-
-    # Create order with processed items
     order = models.Order(
         user_id=order_data.user_id,
         guest_id=order_data.guest_id,
@@ -155,7 +28,29 @@ async def create_order(db: AsyncSession, order_data: schemas.OrderCreate) -> mod
         shipping_cost_breakdown=order_data.shipping_cost_breakdown,
         payment_method_id=order_data.payment_method_id,
         shipping_address_id=order_data.shipping_address_id,
-        items=order_items
+        items=[
+            models.OrderItem(
+                product_id=item.product_id,
+                product_name=item.product_name,
+                variation_id=item.variation_id,
+                customization_option_id=item.customization_option_id,
+                customized_images=item.customized_images,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                shipping_method_id=item.shipping_method_id,
+                # Add design data fields for customized products
+                design_svg_data=item.design_svg_data,
+                design_canvas_data=item.design_canvas_data,
+                design_elements=item.design_elements,
+                # Add discount fields
+                discount_rule_id=item.discount_rule_id,
+                original_unit_price=item.original_unit_price,
+                discount_percentage=item.discount_percentage,
+                discount_amount=item.discount_amount,
+                discount_type=item.discount_type
+            )
+            for item in order_data.items
+        ]
     )
 
     db.add(order)

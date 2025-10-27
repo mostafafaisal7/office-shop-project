@@ -458,186 +458,25 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    # ✅ MULTI-SOURCE APPROACH: Try multiple data sources to get complete design data
-    # Priority:
-    # 1. order_item.design_elements (complete snapshot at order time)
-    # 2. customization_options (multi-area support, but may be modified/deleted)
-    # 3. order_item.design_canvas_data (fallback single-area snapshot)
-
+    # ✅ SIMPLIFIED: Use v5.4 approach - fetch from customization_options
+    # Trust the database, no complex validation
     all_objects = []
-    customization_options = []  # Store for preview image extraction and print-ready SVG generation
+    customization_options = []  # Store for preview image extraction
 
-    print(f"\n{'='*60}")
-    print(f"Checking available data sources for order {order_id}, item {item_id}")
-    print(f"{'='*60}")
-    print(f"design_elements available: {bool(order_item.design_elements)}")
-    print(f"design_canvas_data available: {bool(order_item.design_canvas_data)}")
-    print(f"customization_option_id: {order_item.customization_option_id}")
-
-    # Priority 1: Try order_item.design_elements (most reliable snapshot)
-    if order_item.design_elements and len(order_item.design_elements) > 0:
-        print(f"\n✅ Checking design_elements from order_item snapshot")
-        print(f"   Found {len(order_item.design_elements)} elements")
-        print(f"   Element types: {[obj.get('type') for obj in order_item.design_elements]}")
-
-        # ✅ VALIDATION: Check if design_elements has meaningful data
-        has_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
-                       for obj in order_item.design_elements)
-
-        # Check for valid images - must have savedImageUrl or src that's NOT a preview
-        has_valid_images = any(
-            obj.get('type', '').lower() == 'image' and
-            (
-                # Has savedImageUrl that's not a blob
-                (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
-                # Has src that's not a blob AND not a preview (previews are generated, not design)
-                (obj.get('src') and
-                 not obj.get('src', '').startswith('blob:') and
-                 '/previews/' not in obj.get('src', ''))
-            )
-            for obj in order_item.design_elements
-        )
-
-        print(f"   Data validation: has_text={has_text}, has_valid_images={has_valid_images}")
-
-        # ✅ STRICT VALIDATION: Only use design_elements if it has REAL design data
-        # Removed "len > 2" loophole - having many preview-only images shouldn't pass
-        if has_text or has_valid_images:
-            print(f"✅ design_elements validation passed - using this data")
-            all_objects = order_item.design_elements
-        else:
-            print(f"⚠️ design_elements validation FAILED - data appears incomplete/invalid")
-            print(f"   Falling back to design_canvas_data...")
-            if order_item.design_canvas_data:
-                all_objects = order_item.design_canvas_data.get('objects', [])
-                print(f"   Found {len(all_objects)} objects in design_canvas_data")
-                if all_objects:
-                    print(f"   Types: {[obj.get('type') for obj in all_objects]}")
-                    # Validate design_canvas_data objects too
-                    for idx, obj in enumerate(all_objects[:3]):  # Show first 3 for debugging
-                        print(f"   Object {idx}: type={obj.get('type')}, "
-                              f"savedImageUrl={obj.get('savedImageUrl', 'N/A')[:50] if obj.get('savedImageUrl') else 'None'}, "
-                              f"src={obj.get('src', 'N/A')[:50] if obj.get('src') else 'None'}, "
-                              f"text={obj.get('text', 'N/A')[:30] if obj.get('text') else 'None'}")
-
-                    # ✅ VALIDATE design_canvas_data objects (same logic as design_elements)
-                    has_canvas_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
-                                         for obj in all_objects)
-                    has_canvas_valid_images = any(
-                        obj.get('type', '').lower() == 'image' and
-                        (
-                            (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
-                            (obj.get('src') and
-                             not obj.get('src', '').startswith('blob:') and
-                             '/previews/' not in obj.get('src', ''))
-                        )
-                        for obj in all_objects
-                    )
-
-                    print(f"   Canvas validation: has_text={has_canvas_text}, has_valid_images={has_canvas_valid_images}")
-
-                    # If canvas data is also invalid (only preview images, no real design)
-                    if not has_canvas_text and not has_canvas_valid_images:
-                        print(f"   ⚠️ design_canvas_data validation FAILED - only preview images, no real design")
-                        print(f"   Will try customization_options as fallback...")
-                        all_objects = []  # Clear so we try customization_options
-                else:
-                    print(f"   ⚠️ design_canvas_data.objects is EMPTY!")
-
-                # If still no valid data, will try customization_options below
-
-    # Priority 2: Try customization_options (for multi-area support)
-    # This runs if: design_elements failed validation OR doesn't exist
-    if (not all_objects or len(all_objects) == 0) and order_item.customization_option_id:
-        print(f"\n{'='*60}")
-        print(f"FETCHING FROM customization_options (snapshot data was invalid)")
-        print(f"{'='*60}")
-        print(f"Order ID: {order_id}")
-        print(f"Order Item ID: {item_id}")
-        print(f"customization_option_id from order_item: {order_item.customization_option_id}")
+    if order_item.customization_option_id:
+        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
 
         # Import products models to access CustomizationOption
         from app.products import models as product_models
 
-        # ⚠️ CRITICAL CHECK: Is this customization_option used by multiple orders?
-        # If yes, we cannot trust it - it might have been overwritten by another order
-        result = await db.execute(
-            select(models.OrderItem.order_id, models.OrderItem.id)
-            .where(models.OrderItem.customization_option_id == order_item.customization_option_id)
-        )
-        orders_using_this_option = result.fetchall()
-
-        print(f"\n⚠️ SECURITY CHECK: Is customization_option_id {order_item.customization_option_id} shared?")
-        print(f"   Found {len(orders_using_this_option)} order items using this customization_option:")
-        for order_id_check, item_id_check in orders_using_this_option[:5]:  # Show first 5
-            is_current = "← THIS ORDER" if order_id_check == order_id and item_id_check == item_id else ""
-            print(f"   - Order: {order_id_check}, Item: {item_id_check} {is_current}")
-
-        if len(orders_using_this_option) > 1:
-            print(f"\n⚠️ WARNING: customization_option_id {order_item.customization_option_id} is used by {len(orders_using_this_option)} different order items!")
-            print(f"   This means the design data in customization_options table is SHARED")
-            print(f"   It may have been modified by other orders after this order was placed")
-            print(f"   The design data might be from a different order!")
-            print(f"   THIS IS WHY ORDERS MAY GET WRONG DESIGNS!")
-            print(f"\n   ⚠️ PROCEEDING ANYWAY - but ZIP will include warning about data integrity")
-            print(f"   The downloaded design might NOT be the original design from this order")
-
-            # Store this info to add to ZIP README
-            data_integrity_warning = f"""
-⚠️⚠️⚠️ DATA INTEGRITY WARNING ⚠️⚠️⚠️
-
-This design data is SHARED by {len(orders_using_this_option)} different orders.
-The customization_option_id ({order_item.customization_option_id}) is being reused across multiple orders.
-
-Orders sharing this design data:
-{chr(10).join([f"  - Order: {oid}, Item: {iid}" for oid, iid in orders_using_this_option[:10]])}
-{'  ... and more' if len(orders_using_this_option) > 10 else ''}
-
-THIS MEANS: The design in this ZIP might NOT be the original design from this specific order.
-It might be from a different order that placed later and overwrote the shared data.
-
-ROOT CAUSE: Order creation process failed to save proper design snapshots.
-
-RECOMMENDATION: Verify this design matches customer expectations before production.
-If incorrect, contact customer to re-submit their design.
-"""
-        else:
-            data_integrity_warning = ""
-
         # Get the customization option to find client_reference_id
-        print(f"\nFetching customization_option {order_item.customization_option_id} from database...")
         result = await db.execute(
             select(product_models.CustomizationOption)
             .where(product_models.CustomizationOption.id == order_item.customization_option_id)
         )
         main_option = result.scalar_one_or_none()
 
-        if not main_option:
-            print(f"❌ ERROR: customization_option {order_item.customization_option_id} not found in database!")
-            raise HTTPException(
-                status_code=404,
-                detail=f"Customization option {order_item.customization_option_id} not found"
-            )
-
-        print(f"✅ Found customization_option:")
-        print(f"   ID: {main_option.id}")
-        print(f"   client_reference_id: {main_option.client_reference_id}")
-        print(f"   design_area: {main_option.design_area}")
-        print(f"   canvas_data objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
-
         if main_option and main_option.client_reference_id:
-            # ✅ SECURITY FIX: First, get ALL customization_option_ids used in THIS specific order
-            # This ensures we only include designs that belong to this order
-            result = await db.execute(
-                select(models.OrderItem.customization_option_id)
-                .where(
-                    models.OrderItem.order_id == order_id,
-                    models.OrderItem.customization_option_id.isnot(None)
-                )
-            )
-            order_customization_ids = set([row[0] for row in result.fetchall()])
-            print(f"Found {len(order_customization_ids)} customization options used in this order: {order_customization_ids}")
-
             # Fetch ALL customization options with the same client_reference_id
             # These represent all design areas (front, back, left, right) for this product/variation
             result = await db.execute(
@@ -646,60 +485,23 @@ If incorrect, contact customer to re-submit their design.
             )
             all_options = result.scalars().all()
 
-            # ✅ CRITICAL: Filter to ONLY include options that are used in THIS order
-            # This prevents downloading designs from other customers' orders
-            filtered_options = [opt for opt in all_options if opt.id in order_customization_ids]
+            print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
 
-            print(f"Found {len(all_options)} total design areas for client_reference_id: {main_option.client_reference_id}")
-            print(f"Filtered to {len(filtered_options)} design areas that belong to THIS order")
+            # Store all_options for later preview image extraction
+            customization_options = all_options
 
-            if filtered_options:
-                customization_options = filtered_options
-
-                # Combine objects from all design areas belonging to this order
-                for option in filtered_options:
-                    area_objects = option.canvas_data.get('objects', [])
-                    print(f"  - {option.design_area}: {len(area_objects)} objects")
-                    all_objects.extend(area_objects)
-
-                # ✅ VALIDATION: Check if customization_options gave us meaningful data
-                # If we only got 1-2 objects and they're just images/previews, data might be incomplete
-                if len(all_objects) <= 2:
-                    print(f"\n⚠️ WARNING: Only {len(all_objects)} objects from customization_options")
-                    print(f"   This might be incomplete data. Checking design_elements fallback...")
-
-                    if order_item.design_elements and len(order_item.design_elements) > len(all_objects):
-                        print(f"✅ design_elements has {len(order_item.design_elements)} elements (more complete)")
-                        print(f"   Switching to design_elements snapshot")
-                        all_objects = order_item.design_elements
-                        customization_options = []  # Clear since we're not using multi-area data
-                    else:
-                        print(f"   design_elements not available or not better. Using customization_options data.")
-            else:
-                print("⚠️ No filtered options found, falling back to order_item snapshot")
-                if order_item.design_elements and len(order_item.design_elements) > 0:
-                    all_objects = order_item.design_elements
-                elif order_item.design_canvas_data:
-                    all_objects = order_item.design_canvas_data.get('objects', [])
+            # Combine objects from all design areas
+            for option in all_options:
+                area_objects = option.canvas_data.get('objects', [])
+                print(f"  - {option.design_area}: {len(area_objects)} objects")
+                all_objects.extend(area_objects)
         else:
-            print("⚠️ No client_reference_id found, using order_item snapshot")
-            # Fallback: use design_elements first, then canvas_data
-            if order_item.design_elements and len(order_item.design_elements) > 0:
-                all_objects = order_item.design_elements
-            elif order_item.design_canvas_data:
+            # Fallback: use just the main option's canvas_data
+            if order_item.design_canvas_data:
                 all_objects = order_item.design_canvas_data.get('objects', [])
-
-    # Final fallback: if still no data, try whatever is available
-    if not all_objects or len(all_objects) == 0:
-        print("\n⚠️ FINAL FALLBACK: Trying any available data source...")
-        if order_item.design_canvas_data:
-            print("  Attempting design_canvas_data...")
-            all_objects = order_item.design_canvas_data.get('objects', [])
-            print(f"  Found {len(all_objects)} objects")
-        elif order_item.design_elements:
-            print("  Attempting design_elements (without validation)...")
-            all_objects = order_item.design_elements
-            print(f"  Found {len(all_objects)} objects")
+    elif order_item.design_canvas_data:
+        # Fallback: use order_item's saved canvas_data
+        all_objects = order_item.design_canvas_data.get('objects', [])
 
     if not all_objects:
         raise HTTPException(
@@ -708,10 +510,6 @@ If incorrect, contact customer to re-submit their design.
         )
 
     print(f"Total objects from ALL design areas: {len(all_objects)}")
-
-    # Initialize data_integrity_warning if not set
-    if 'data_integrity_warning' not in locals():
-        data_integrity_warning = ""
 
     try:
         # Create ZIP file in memory
@@ -737,7 +535,7 @@ If incorrect, contact customer to re-submit their design.
 
 Product: {order_item.product_name}
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-{data_integrity_warning}
+
 Contents:
 - print_ready/ : 🆕 PRINT-READY VECTOR SVG FILES - USE THESE FOR CLOTHING PRINTING
   * Complete composite SVG per design area (front, back, etc.)
@@ -1092,19 +890,12 @@ Use these files for production, printing, or design editing.
 
             # ✅ FIX: Include preview images from order_item.customized_images
             # These are the same preview images shown in the admin carousel
-            # BUT ONLY if we have valid design objects (text or images)
             preview_count = 0
             print(f"\n{'='*60}")
-            print("Checking preview images from order_item.customized_images")
+            print("Adding preview images from order_item.customized_images")
             print(f"{'='*60}")
 
-            # ⚠️ VALIDATION: Only include preview images if we have valid design objects
-            # If text_count=0 and image_count=0, customized_images might be stale/wrong data
-            if text_count == 0 and image_count == 0:
-                print(f"⚠️ WARNING: No valid design objects found (text_count={text_count}, image_count={image_count})")
-                print(f"   Skipping preview images from customized_images - likely stale/incorrect data")
-                print(f"   These previews may belong to a different/previous order")
-            elif order_item.customized_images:
+            if order_item.customized_images:
                 print(f"Found customized_images: {type(order_item.customized_images)}")
 
                 # Handle different formats (string, array, JSON string)
@@ -1209,23 +1000,7 @@ Use these files for production, printing, or design editing.
 
                 print(f"\n✅ Total preview images added: {preview_count}")
             else:
-                print("No customized_images found or skipped due to missing design data")
-
-            # ⚠️ CRITICAL VALIDATION: Check if we have ANY files to include
-            # If text_count=0, image_count=0, preview_count=0, ZIP would be almost empty (just README)
-            if text_count == 0 and image_count == 0 and preview_count == 0:
-                print(f"\n❌ CRITICAL ERROR: No design files to include in ZIP!")
-                print(f"   text_count={text_count}, image_count={image_count}, preview_count={preview_count}")
-                print(f"   Design data appears to be missing or corrupted")
-                print(f"   order_item.design_elements length: {len(order_item.design_elements) if order_item.design_elements else 0}")
-                print(f"   order_item.design_canvas_data: {bool(order_item.design_canvas_data)}")
-                if order_item.design_canvas_data:
-                    print(f"   design_canvas_data.objects length: {len(order_item.design_canvas_data.get('objects', []))}")
-
-                raise HTTPException(
-                    status_code=404,
-                    detail="No valid design data found for this order item. Design data may be corrupted or missing."
-                )
+                print("No customized_images found in order_item")
 
             # ✅ NEW: Generate print-ready composite SVG files per design area
             # These are vector files combining all text and images for printing on clothing
