@@ -147,7 +147,24 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                     if design_svg_data:
                         print(f"Captured SVG data for order item (length: {len(design_svg_data)} characters)")
                     if design_canvas_data:
-                        print(f"Captured canvas data with {len(design_canvas_data.get('objects', []))} objects")
+                        objects = design_canvas_data.get('objects', [])
+                        print(f"Captured canvas data with {len(objects)} objects")
+
+                        # ⚡ DEBUG: Show what's in the fetched data BEFORE creating snapshot
+                        print(f"📋 Objects fetched from customization_option_id {item.customization_option_id}:")
+                        for idx, obj in enumerate(objects):
+                            obj_type = obj.get('type', 'unknown')
+                            if obj_type in ['text', 'textbox', 'i-text', 'Text']:
+                                text_content = obj.get('text', 'N/A')
+                                print(f"   [{idx}] {obj_type} - text='{text_content}'")
+                            elif obj_type in ['image', 'Image']:
+                                src = obj.get('src', obj.get('savedImageUrl', 'N/A'))
+                                if isinstance(src, str) and len(src) > 80:
+                                    src = src[:80] + '...'
+                                print(f"   [{idx}] {obj_type} - src='{src}'")
+                            else:
+                                print(f"   [{idx}] {obj_type}")
+
                     if design_elements:
                         print(f"Captured {len(design_elements)} design elements for order item")
 
