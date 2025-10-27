@@ -70,6 +70,22 @@ async def create_order(db: AsyncSession, order_data: schemas.OrderCreate) -> mod
 
                         print(f"✅ Total objects combined: {len(combined_objects)}")
 
+                        # ✅ VALIDATE: Check if combined objects have real design data
+                        has_text = any(obj.get('type', '').lower() in ['text', 'i-text', 'textbox']
+                                      for obj in combined_objects)
+                        has_real_images = any(
+                            obj.get('type', '').lower() == 'image' and
+                            (
+                                (obj.get('savedImageUrl') and not obj.get('savedImageUrl', '').startswith('blob:')) or
+                                (obj.get('src') and
+                                 not obj.get('src', '').startswith('blob:') and
+                                 '/previews/' not in obj.get('src', ''))
+                            )
+                            for obj in combined_objects
+                        )
+
+                        print(f"   Data quality check: has_text={has_text}, has_real_images={has_real_images}")
+
                         # ✅ Save complete snapshot to order_item
                         if combined_objects:
                             design_elements = combined_objects
@@ -79,6 +95,13 @@ async def create_order(db: AsyncSession, order_data: schemas.OrderCreate) -> mod
                             }
                             print(f"✅ Saved complete design snapshot with {len(combined_objects)} objects")
                             print(f"   Object types: {[obj.get('type') for obj in combined_objects[:5]]}")
+
+                            # ⚠️ WARN if data quality is poor
+                            if not has_text and not has_real_images:
+                                print(f"⚠️⚠️⚠️ WARNING: Design data has NO TEXT and NO REAL IMAGES!")
+                                print(f"   All images appear to be PREVIEW references, not uploaded design images")
+                                print(f"   This order's ZIP download will likely be incomplete")
+                                print(f"   User may not have uploaded actual design files!")
                         else:
                             print(f"⚠️ WARNING: No objects found in customization_options!")
                     else:

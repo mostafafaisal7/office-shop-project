@@ -500,8 +500,9 @@ async def download_order_item_design_package(
 
         print(f"   Data validation: has_text={has_text}, has_valid_images={has_valid_images}")
 
-        # Only use design_elements if it has valid data
-        if has_text or has_valid_images or len(order_item.design_elements) > 2:
+        # ✅ STRICT VALIDATION: Only use design_elements if it has REAL design data
+        # Removed "len > 2" loophole - having many preview-only images shouldn't pass
+        if has_text or has_valid_images:
             print(f"✅ design_elements validation passed - using this data")
             all_objects = order_item.design_elements
         else:
