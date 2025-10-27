@@ -493,57 +493,110 @@ async def download_order_item_design_package(
             print(f"   Canvas Objects: {len(main_option.canvas_data.get('objects', [])) if main_option.canvas_data else 0}")
 
         if main_option and main_option.client_reference_id:
-            # Fetch ALL customization options with the same client_reference_id
-            # These represent all design areas (front, back, left, right) for this product/variation
-            result = await db.execute(
-                select(product_models.CustomizationOption)
-                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
+            # ✅ FIX: Filter by user_id AND order creation time to prevent cross-contamination
+            # Get the order's creation time to find related customization options
+            order_result = await db.execute(
+                select(models.Order).where(models.Order.id == order_id)
             )
+            order = order_result.scalar_one_or_none()
+
+            # Calculate time window: options created within 1 hour before order creation
+            from datetime import timedelta
+            time_window_start = order.created_at - timedelta(hours=1) if order else None
+            time_window_end = order.created_at + timedelta(minutes=5) if order else None
+
+            print(f"\n🔒 SECURITY FILTER:")
+            print(f"   Order created at: {order.created_at if order else 'Unknown'}")
+            print(f"   Filtering for user_id: {main_option.user_id}")
+            print(f"   Time window: {time_window_start} to {time_window_end}")
+
+            # Fetch ALL customization options with the same client_reference_id
+            # ✅ CRITICAL FIX: Filter by user_id and creation time to prevent data leakage
+            query = select(product_models.CustomizationOption).where(
+                product_models.CustomizationOption.client_reference_id == main_option.client_reference_id,
+                product_models.CustomizationOption.user_id == main_option.user_id
+            )
+
+            # Add time filter if we have order creation time
+            if time_window_start and time_window_end:
+                query = query.where(
+                    product_models.CustomizationOption.created_at >= time_window_start,
+                    product_models.CustomizationOption.created_at <= time_window_end
+                )
+
+            result = await db.execute(query)
             all_options = result.scalars().all()
 
-            print(f"\n🔍 QUERY: All options with client_reference_id = {main_option.client_reference_id}")
-            print(f"   Found {len(all_options)} design areas:")
+            print(f"\n🔍 QUERY RESULTS: Filtered options for this order")
+            print(f"   Found {len(all_options)} design areas (after security filtering):")
 
-            # ⚠️ CRITICAL: Show ALL options to detect duplicates and sharing
+            # Show all retrieved options
             for idx, option in enumerate(all_options):
                 area_objects = option.canvas_data.get('objects', []) if option.canvas_data else []
                 print(f"   [{idx+1}] ID: {option.id}, User: {option.user_id}, Area: {option.design_area}, Objects: {len(area_objects)}, Created: {option.created_at}")
 
-            # Check for duplicates
+            # Check for duplicates (same design area appearing multiple times)
             areas = [opt.design_area for opt in all_options]
             duplicates = [area for area in set(areas) if areas.count(area) > 1]
             if duplicates:
-                print(f"\n   ⚠️⚠️⚠️ WARNING: DUPLICATE AREAS DETECTED: {duplicates}")
-                print(f"   This is causing the same design to appear multiple times in ZIP!")
+                print(f"\n   ⚠️ WARNING: DUPLICATE AREAS DETECTED: {duplicates}")
+                print(f"   Removing duplicates - keeping only the most recent version of each area")
+                # Keep only the most recent version of each design area
+                seen_areas = {}
+                filtered_options = []
+                for option in sorted(all_options, key=lambda x: x.created_at, reverse=True):
+                    if option.design_area not in seen_areas:
+                        seen_areas[option.design_area] = True
+                        filtered_options.append(option)
+                all_options = filtered_options
+                print(f"   After deduplication: {len(all_options)} unique design areas")
 
-            # Check for user ID mismatches
+            # Verify all options belong to the same user (should always be true now due to filtering)
             users = set([opt.user_id for opt in all_options])
             if len(users) > 1:
-                print(f"\n   ⚠️⚠️⚠️ WARNING: MULTIPLE USERS in same client_reference_id: {users}")
-                print(f"   This means users are SHARING designs - data corruption!")
+                print(f"\n   🚨 CRITICAL ERROR: MULTIPLE USERS after filtering: {users}")
+                print(f"   This should never happen - filtering failed!")
+                # Fallback: use only options matching the main user
+                all_options = [opt for opt in all_options if opt.user_id == main_option.user_id]
+                print(f"   Emergency fallback applied - using {len(all_options)} options")
+            else:
+                print(f"\n   ✅ VERIFIED: All options belong to user {main_option.user_id}")
 
             # Store all_options for later preview image extraction
             customization_options = all_options
 
-            # Combine objects from all design areas
-            print(f"\n📦 Combining canvas objects from all areas:")
-            for option in all_options:
-                area_objects = option.canvas_data.get('objects', []) if option.canvas_data else []
-                print(f"   - {option.design_area} (ID: {option.id}): {len(area_objects)} objects")
-                if area_objects:
-                    object_types = [obj.get('type') for obj in area_objects]
-                    print(f"     Types: {object_types}")
-                all_objects.extend(area_objects)
+            # ✅ CRITICAL CHECK: Verify we found valid design data
+            if not all_options:
+                print(f"\n⚠️ WARNING: No customization options found after filtering!")
+                print(f"   Falling back to stored order_item.design_canvas_data")
+                if order_item.design_canvas_data:
+                    all_objects = order_item.design_canvas_data.get('objects', [])
+                    print(f"   ✅ Loaded {len(all_objects)} objects from stored canvas data")
+            else:
+                # Combine objects from all design areas
+                print(f"\n📦 Combining canvas objects from all areas:")
+                for option in all_options:
+                    area_objects = option.canvas_data.get('objects', []) if option.canvas_data else []
+                    print(f"   - {option.design_area} (ID: {option.id}): {len(area_objects)} objects")
+                    if area_objects:
+                        object_types = [obj.get('type') for obj in area_objects]
+                        print(f"     Types: {object_types}")
+                    all_objects.extend(area_objects)
 
-            print(f"\n✅ Total combined: {len(all_objects)} objects")
+                print(f"\n✅ Total combined: {len(all_objects)} objects")
             print(f"{'='*70}\n")
         else:
-            # Fallback: use just the main option's canvas_data
+            # No client_reference_id: use stored canvas_data
+            print(f"\n⚠️ No client_reference_id found")
+            print(f"   Falling back to stored order_item.design_canvas_data")
             if order_item.design_canvas_data:
                 all_objects = order_item.design_canvas_data.get('objects', [])
+                print(f"   ✅ Loaded {len(all_objects)} objects from stored canvas data")
     elif order_item.design_canvas_data:
         # Fallback: use order_item's saved canvas_data
+        print(f"\n📋 Using stored canvas data (no customization_option_id)")
         all_objects = order_item.design_canvas_data.get('objects', [])
+        print(f"   ✅ Loaded {len(all_objects)} objects from stored canvas data")
 
     if not all_objects:
         raise HTTPException(
