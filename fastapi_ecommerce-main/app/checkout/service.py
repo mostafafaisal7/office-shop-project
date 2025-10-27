@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 import copy
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
+from app.core.database import get_db
 from app.products import models as product_models
 
 # Replace with your real service URLs or use environment config

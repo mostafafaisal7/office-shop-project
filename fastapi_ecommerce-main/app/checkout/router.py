@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.checkout.schemas import CheckoutRequest, CheckoutResponse
 from app.checkout.service import process_checkout
-from app.database import get_db
+from app.core.database import get_db
 
 router = APIRouter()
 
