@@ -76,6 +76,7 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     setProductId,
     setCurrentDesignArea,
     saveDesign,
+    saveDesignAndWaitForDatabase,
     loadDesign,
     loadDesignFromStorage,
     syncStatus,
@@ -1111,16 +1112,28 @@ const handleNext = async () => {
   setIsGeneratingReviewPreviews(true);
 
   try {
-    console.log('🔹 Next clicked, generating review previews...');
+    console.log('🔹 Next clicked, saving ALL designs to database before proceeding...');
 
     const canvasData = fabricCanvas.toJSON();
     const variationId = selectedVariation?.variationId?.toString();
     if (!variationId) throw new Error('Variation not selected');
 
     const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
-    await saveDesign(canvasData, currentViewImage, undefined, undefined, true);
 
-    console.log('✅ Current design saved, generating review previews...');
+    // ⚡ CRITICAL FIX: Save ALL design areas to database and WAIT for completion
+    // This ensures designs are in database BEFORE user can add to cart
+    console.log('💾 Saving all design areas to database (BLOCKING)...');
+
+    // Save all available views to database
+    for (const view of availableViews) {
+      const designData = loadDesignFromStorage(productId, variationId, view.area);
+      if (designData && designData.canvas_data) {
+        console.log(`💾 Saving ${view.area} to database...`);
+        await saveDesignAndWaitForDatabase(designData.canvas_data, view.image);
+      }
+    }
+
+    console.log('✅ All designs saved to database, generating review previews...');
 
     // ⚡ OPTIMIZED: Use loadDesignFromStorage for review previews
     const allReviewPreviews = await previewGenerator.generatePreviewsForAllViews(

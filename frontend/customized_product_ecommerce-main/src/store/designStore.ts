@@ -487,6 +487,40 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 }
 ,
 
+  // ⚡ NEW: Force synchronous save to BOTH localStorage AND database
+  // Use this before adding to cart to ensure design is in database
+  saveDesignAndWaitForDatabase: async (
+    canvasData: any,
+    productImageUrl: string,
+    previewImageUrl?: string,
+    svgData?: string
+  ) => {
+    console.log(`💾 [SAVE & WAIT] Starting synchronous save to localStorage AND database...`);
+    const saveStartTime = performance.now();
+
+    // Save to localStorage first
+    get().saveDesignToStorage(canvasData, productImageUrl, true);
+    console.log(`✅ [SAVE & WAIT] localStorage save completed`);
+
+    // WAIT for database sync to complete
+    const { useAuthStore } = await import('@/store/authStore');
+    const { isAuthenticated } = useAuthStore.getState();
+
+    if (isAuthenticated) {
+      console.log(`🔄 [SAVE & WAIT] Starting database sync (BLOCKING)...`);
+      const dbStartTime = performance.now();
+      try {
+        await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
+        console.log(`✅ [SAVE & WAIT] Database sync completed in ${(performance.now() - dbStartTime).toFixed(2)}ms`);
+      } catch (error) {
+        console.error('❌ [SAVE & WAIT] Database sync failed:', error);
+        throw error; // Re-throw to let caller know it failed
+      }
+    }
+
+    console.log(`🏁 [SAVE & WAIT] Total (BLOCKING) time: ${(performance.now() - saveStartTime).toFixed(2)}ms`);
+  },
+
   loadDesign: async (productId: string, variationId: string, area: string) => {
   console.log(`📂 [LOAD DESIGN] Starting load for ${productId}_${variationId}_${area}`);
   const loadStartTime = performance.now();
