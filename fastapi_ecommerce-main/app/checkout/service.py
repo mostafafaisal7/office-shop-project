@@ -32,7 +32,16 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
     discount_breakdown = []
 
     # Calculate product costs, discounts, and total quantity
+    print(f"\n{'='*80}")
+    print(f"🛒 CHECKOUT: Processing {len(data.items)} cart items")
+    print(f"{'='*80}")
+
     for index, item in enumerate(data.items):
+        print(f"\n📦 [ITEM {index + 1}/{len(data.items)}] Starting processing...")
+        print(f"  - product_id: {item.product_id}")
+        print(f"  - cart_item_id: {item.cart_item_id}")
+        print(f"  - customization_option_id: {item.customization_option_id}")
+
         # Get product details
         product_url = f"{PRODUCT_SERVICE_URL}/{item.product_id}"
         try:
@@ -109,12 +118,29 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
         order_specific_customization_id = item.customization_option_id  # Will be replaced with snapshot ID
 
         if item.customization_option_id:
+            print(f"\n  🎨 [ITEM {index + 1}] Fetching customization data...")
+            print(f"      customization_option_id: {item.customization_option_id}")
             try:
                 # Fetch customization details to get preview image URL and design data
                 customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
+                print(f"      Fetching from URL: {customization_url}")
                 customization_data = await http_get(customization_url)
 
                 if customization_data:
+                    print(f"  ✅ [ITEM {index + 1}] Customization data retrieved successfully")
+                    print(f"      - user_id: {customization_data.get('user_id')}")
+                    print(f"      - product_id: {customization_data.get('product_id')}")
+                    print(f"      - design_area: {customization_data.get('design_area')}")
+                    print(f"      - canvas_data exists: {customization_data.get('canvas_data') is not None}")
+                    print(f"      - svg_data exists: {customization_data.get('svg_data') is not None}")
+                    print(f"      - design_elements exists: {customization_data.get('design_elements') is not None}")
+
+                    if customization_data.get('canvas_data'):
+                        objects_count = len(customization_data.get('canvas_data', {}).get('objects', []))
+                        print(f"      - canvas_data objects count: {objects_count}")
+                    if customization_data.get('design_elements'):
+                        elements_count = len(customization_data.get('design_elements', []))
+                        print(f"      - design_elements count: {elements_count}")
 
                     # ⚡ FIX: Only use preview_url as fallback if cart has NO images
                     # Cart's customized_images array contains all views and is the source of truth
@@ -126,9 +152,11 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
                     # Extract design data for print-ready files
                     # ⚡ CRITICAL FIX: Make deep copies to ensure independent snapshots
                     # This prevents any reference issues where multiple orders might point to the same object
+                    print(f"\n  📋 [ITEM {index + 1}] Making deep copies of design data...")
                     design_svg_data = copy.deepcopy(customization_data.get("svg_data"))
                     design_canvas_data = copy.deepcopy(customization_data.get("canvas_data"))
                     design_elements = copy.deepcopy(customization_data.get("design_elements"))
+                    print(f"  ✅ [ITEM {index + 1}] Deep copies created:")
 
                     # ⚡ CRITICAL FIX: Create a NEW customization_option record in database as snapshot
                     # This ensures each order has its own immutable customization_option_id
@@ -164,7 +192,8 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
 
                         # Use the new snapshot ID for this order
                         order_specific_customization_id = snapshot_option.id
-                        print(f"✅ Snapshot created: {item.customization_option_id} → {order_specific_customization_id}")
+                        print(f"  ✅ [ITEM {index + 1}] Snapshot created: {item.customization_option_id} → {order_specific_customization_id}")
+                        print(f"      Snapshot contains {len(design_canvas_data.get('objects', []))} objects" if design_canvas_data else "      No canvas data in snapshot")
 
                     except Exception as snapshot_error:
                         print(f"⚠️ Snapshot creation failed: {snapshot_error}")
@@ -192,6 +221,15 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
             "design_canvas_data": design_canvas_data,
             "design_elements": design_elements
         }
+
+        print(f"\n  📝 [ITEM {index + 1}] Order item created:")
+        print(f"      - product_name: {product['name']}")
+        print(f"      - customization_option_id: {order_specific_customization_id}")
+        print(f"      - customized_images count: {len(customized_images) if customized_images else 0}")
+        print(f"      - design_svg_data: {'YES' if design_svg_data else 'NO'}")
+        print(f"      - design_canvas_data: {'YES' if design_canvas_data else 'NO'}")
+        print(f"      - design_canvas_data objects: {len(design_canvas_data.get('objects', [])) if design_canvas_data else 0}")
+        print(f"      - design_elements: {'YES' if design_elements else 'NO'}")
         
         # Add discount fields if discount was applied
         if discount_info:

@@ -443,7 +443,11 @@ async def download_order_item_design_package(
     from urllib.parse import urlparse
     import json
 
-    print(f"\n=== Creating design package for order {order_id}, item {item_id} ===")
+    print(f"\n{'='*80}")
+    print(f"📦 ZIP DOWNLOAD: Creating design package")
+    print(f"{'='*80}")
+    print(f"  - order_id: {order_id}")
+    print(f"  - item_id: {item_id}")
 
     # Fetch the order item
     result = await db.execute(
@@ -458,6 +462,28 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
+    print(f"\n  ✅ Order item found:")
+    print(f"      - id: {order_item.id}")
+    print(f"      - product_id: {order_item.product_id}")
+    print(f"      - product_name: {order_item.product_name}")
+    print(f"      - customization_option_id: {order_item.customization_option_id}")
+    print(f"      - design_canvas_data exists: {order_item.design_canvas_data is not None}")
+    print(f"      - design_svg_data exists: {order_item.design_svg_data is not None}")
+    print(f"      - design_elements exists: {order_item.design_elements is not None}")
+
+    if order_item.design_canvas_data:
+        objects_count = len(order_item.design_canvas_data.get('objects', []))
+        print(f"      - design_canvas_data objects: {objects_count}")
+        if objects_count > 0:
+            print(f"      - First 3 object types: {[obj.get('type') for obj in order_item.design_canvas_data.get('objects', [])[:3]]}")
+
+    if order_item.design_elements:
+        print(f"      - design_elements count: {len(order_item.design_elements)}")
+
+    if order_item.customized_images:
+        images_count = len(order_item.customized_images) if isinstance(order_item.customized_images, list) else 1
+        print(f"      - customized_images count: {images_count}")
+
 
     # ⚡ SIMPLIFIED: Use ONLY the order_item's snapshot data
     # Order items contain design_canvas_data, design_svg_data, design_elements at order time
@@ -465,6 +491,7 @@ async def download_order_item_design_package(
     # We should NOT fetch from customization_options as that may have changed/deleted
 
     if not order_item.design_canvas_data:
+        print(f"  ❌ ERROR: No design_canvas_data found for this order item")
         raise HTTPException(
             status_code=404,
             detail="No design data available for this order item"
@@ -473,8 +500,19 @@ async def download_order_item_design_package(
     # Use the canvas data from the order item snapshot
     all_objects = order_item.design_canvas_data.get('objects', [])
 
-    print(f"Using design snapshot from order_item")
-    print(f"Total objects in design: {len(all_objects)}")
+    print(f"\n  📋 Using design snapshot from order_item:")
+    print(f"      - Total objects in design: {len(all_objects)}")
+    print(f"      - Object types: {[obj.get('type') for obj in all_objects]}")
+
+    # ⚡ DEBUG: Show a snippet of the canvas data to verify it's unique
+    if all_objects and len(all_objects) > 0:
+        first_obj = all_objects[0]
+        print(f"      - First object type: {first_obj.get('type')}")
+        if first_obj.get('type') in ['text', 'i-text', 'textbox']:
+            print(f"      - First object text (first 50 chars): {first_obj.get('text', '')[:50]}")
+        elif first_obj.get('type') == 'image':
+            src = first_obj.get('src', '') or first_obj.get('savedImageUrl', '')
+            print(f"      - First object src (last 50 chars): ...{src[-50:] if src else 'NO SRC'}")
 
     try:
         # Create ZIP file in memory
