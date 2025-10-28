@@ -860,13 +860,17 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
           if (canvasData && canvasData.objects && canvasData.objects.length > 0) {
             const currentViewImage = availableViews.find(v => v.area === activeView)?.image || '';
 
+            // ✅ FIX: Capture activeView BEFORE async call to prevent race condition
+            // Pass activeView as areaOverride so it's saved under the correct area key
+            const viewToSave = activeView; // Capture the current view before state changes
+
             // ⚡ CRITICAL FIX: Use synchronous localStorage save to prevent data loss
             // Pass syncSave=true to ensure immediate save, then database sync happens in background
-            saveDesign(canvasData, currentViewImage, undefined, undefined, true).catch(error => {
+            saveDesign(canvasData, currentViewImage, undefined, undefined, true, viewToSave).catch(error => {
               console.error('❌ [VIEW SWITCH] Background save failed:', error);
             });
 
-            console.log(`✅ [VIEW SWITCH] Design save initiated in ${(performance.now() - saveStartTime).toFixed(2)}ms (non-blocking)`);
+            console.log(`✅ [VIEW SWITCH] Design save initiated for "${viewToSave}" in ${(performance.now() - saveStartTime).toFixed(2)}ms (non-blocking)`);
           } else {
             console.log('⏭️  [VIEW SWITCH] No design objects to save, skipping');
           }

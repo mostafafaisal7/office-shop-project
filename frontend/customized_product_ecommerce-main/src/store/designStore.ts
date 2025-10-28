@@ -173,7 +173,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return { isValid: true };
   },
 
-  saveDesignToStorage: (canvasData: any, productImageUrl: string, syncSave: boolean = false) => {
+  saveDesignToStorage: (canvasData: any, productImageUrl: string, syncSave: boolean = false, areaOverride?: string) => {
   const saveStartTime = performance.now();
 
   const state = get();
@@ -183,7 +183,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   }
 
   const variationIdKey = state.selectedVariation.variationId.toString();
-  const designKey = generateDesignKey(state.productId, variationIdKey, state.currentDesignArea);
+  // ✅ FIX: Use areaOverride if provided to prevent race conditions during view switching
+  const designArea = areaOverride || state.currentDesignArea;
+  const designKey = generateDesignKey(state.productId, variationIdKey, designArea);
 
   // --- sanitize blobs before saving ---
   const sanitizeCanvasData = (data: any) => {
@@ -218,7 +220,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     design_id: generateDesignId(),
     product_id: parseInt(state.productId),
     variation_id: parseInt(variationIdKey),
-    design_area: state.currentDesignArea,
+    design_area: designArea, // ✅ FIX: Use explicit area instead of state.currentDesignArea
     canvas_data: {
       version: '5.3.0',
       objects: cleanedCanvasData?.objects || [],
@@ -315,7 +317,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     return Array.from(state.savedDesigns.values());
   },
 
-  saveDesignToDatabase: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string) => {
+  saveDesignToDatabase: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string, areaOverride?: string) => {
     const state = get();
     if (!state.productId) {
       throw new Error('Product ID is required to save design');
@@ -333,6 +335,9 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         set({ syncStatus: 'error' });
         throw new Error('Please select a product variation before saving your design');
       }
+
+      // ✅ FIX: Use areaOverride if provided to prevent race conditions
+      const designArea = areaOverride || state.currentDesignArea;
 
       // Generate key for tracking shared client reference ID (without design area)
       const sharedKey = generateSharedClientReferenceKey(state.productId, variationId.toString());
@@ -354,7 +359,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
             previewImageUrl,
             state.productId,
             variationId,
-            state.currentDesignArea
+            designArea
           );
         } catch (uploadError) {
           console.error('❌ Preview upload failed, continuing with data URL:', uploadError);
@@ -365,7 +370,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       const result = await designApi.saveDesignWithNewFormat(
         state.productId,
         variationId,
-        state.currentDesignArea,
+        designArea,
         canvasData,
         productImageUrl,
         existingClientReferenceId,
@@ -441,12 +446,13 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   },
 
-  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string, syncSave: boolean = false) => {
+  saveDesign: async (canvasData: any, productImageUrl: string, previewImageUrl?: string, svgData?: string, syncSave: boolean = false, areaOverride?: string) => {
   const saveStartTime = performance.now();
 
   // ⚡ CRITICAL: Save to localStorage FIRST
   // Use syncSave=true for critical operations (view switching) to prevent data loss
-  get().saveDesignToStorage(canvasData, productImageUrl, syncSave);
+  // ✅ FIX: Pass areaOverride to prevent race conditions during view switching
+  get().saveDesignToStorage(canvasData, productImageUrl, syncSave, areaOverride);
 
   // ⚡ OPTIMIZED: Defer database sync to not block the UI
   // Use setTimeout to push database sync to next event loop tick
@@ -458,7 +464,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     setTimeout(async () => {
       const dbStartTime = performance.now();
       try {
-        await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData);
+        // ✅ FIX: Pass areaOverride to database save to prevent race conditions
+        await get().saveDesignToDatabase(canvasData, productImageUrl, previewImageUrl, svgData, areaOverride);
       } catch (error) {
         console.error('❌ [SAVE DESIGN] Database sync failed:', error);
       }
