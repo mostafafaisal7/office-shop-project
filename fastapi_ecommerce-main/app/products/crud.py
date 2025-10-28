@@ -589,6 +589,136 @@ async def create_customization_snapshot(
     return result.scalar_one()
 
 
+async def create_combined_snapshot(
+    db: AsyncSession,
+    source_option_ids: list[int],
+    user_id: int
+) -> models.CustomizationOption:
+    """
+    Create a single combined snapshot from multiple customization options (multiple design areas).
+    This is used when a product has designs on multiple areas (front, back, etc.).
+    """
+    if not source_option_ids:
+        raise ValueError("At least one source customization option ID is required")
+
+    # Fetch all source customization options
+    result = await db.execute(
+        select(models.CustomizationOption)
+        .options(selectinload(models.CustomizationOption.media))
+        .where(models.CustomizationOption.id.in_(source_option_ids))
+    )
+    source_options = result.scalars().all()
+
+    if not source_options:
+        raise ValueError(f"No customization options found for IDs: {source_option_ids}")
+
+    # Verify user owns all source customizations
+    for option in source_options:
+        if option.user_id != user_id:
+            raise ValueError(f"User {user_id} does not own customization option {option.id}")
+
+    # Use the first option as the base
+    primary_option = source_options[0]
+
+    # Combine canvas_data from all areas
+    combined_canvas_data = {
+        "version": primary_option.canvas_data.get("version", "5.3.0") if isinstance(primary_option.canvas_data, dict) else "5.3.0",
+        "objects": [],
+        "background": primary_option.canvas_data.get("background") if isinstance(primary_option.canvas_data, dict) else "white",
+        "combined_areas": []  # Track which areas are included
+    }
+
+    # Combine design_elements from all areas
+    combined_design_elements = []
+
+    # Combine design_metadata
+    combined_metadata = primary_option.design_metadata.copy() if isinstance(primary_option.design_metadata, dict) else {}
+    combined_metadata.update({
+        'is_combined_snapshot': True,
+        'source_customization_ids': source_option_ids,
+        'snapshot_created_at': datetime.now(timezone.utc).isoformat(),
+        'areas': []
+    })
+
+    # Aggregate data from all source options
+    for option in source_options:
+        area = option.design_area.value if hasattr(option.design_area, 'value') else str(option.design_area)
+        combined_metadata['areas'].append(area)
+        combined_canvas_data['combined_areas'].append(area)
+
+        # Add canvas objects with area metadata
+        if option.canvas_data and isinstance(option.canvas_data, dict):
+            objects = option.canvas_data.get('objects', [])
+            for obj in objects:
+                # Add area metadata to each object
+                obj_copy = obj.copy() if isinstance(obj, dict) else obj
+                if isinstance(obj_copy, dict):
+                    obj_copy['design_area'] = area
+                combined_canvas_data['objects'].append(obj_copy)
+
+        # Add design elements with area metadata
+        if option.design_elements and isinstance(option.design_elements, list):
+            for element in option.design_elements:
+                element_copy = element.copy() if isinstance(element, dict) else element
+                if isinstance(element_copy, dict):
+                    element_copy['design_area'] = area
+                combined_design_elements.append(element_copy)
+
+    print(f"🔗 Combining {len(source_options)} design areas: {combined_metadata['areas']}")
+    print(f"   Total objects: {len(combined_canvas_data['objects'])}")
+    print(f"   Total elements: {len(combined_design_elements)}")
+
+    # Create the combined snapshot
+    combined_snapshot = models.CustomizationOption(
+        user_id=user_id,
+        product_id=primary_option.product_id,
+        variation_id=primary_option.variation_id,
+        design_area=primary_option.design_area,  # Use primary area or could be "combined"
+        canvas_data=combined_canvas_data,
+        svg_data=primary_option.svg_data,  # Use primary SVG or could combine later
+        design_metadata=combined_metadata,
+        design_elements=combined_design_elements,
+    )
+
+    db.add(combined_snapshot)
+    await db.commit()
+    await db.refresh(combined_snapshot)
+
+    # Copy media files from all source options
+    all_media = []
+    for option in source_options:
+        if option.media:
+            all_media.extend(option.media)
+
+    if all_media:
+        for media in all_media:
+            snapshot_media = models.CustomizationOptionMedia(
+                customization_option_id=combined_snapshot.id,
+                file_path=media.file_path,
+                file_name=media.file_name,
+                file_size=media.file_size,
+                media_type=media.media_type,
+                mime_type=media.mime_type,
+                alt_text=media.alt_text,
+                canvas_object_id=media.canvas_object_id,
+                layer_order=media.layer_order
+            )
+            db.add(snapshot_media)
+
+        await db.commit()
+
+    # Re-fetch with media relationship loaded
+    result = await db.execute(
+        select(models.CustomizationOption)
+        .options(selectinload(models.CustomizationOption.media))
+        .where(models.CustomizationOption.id == combined_snapshot.id)
+    )
+
+    print(f"✅ Created combined snapshot {combined_snapshot.id} from sources {source_option_ids}")
+
+    return result.scalar_one()
+
+
 # ==== Product Media ====
 async def create_product_media(
     db: AsyncSession,

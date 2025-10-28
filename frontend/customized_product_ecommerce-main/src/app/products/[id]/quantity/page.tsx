@@ -386,19 +386,39 @@ const handleAddToCart = async () => {
 
           previewImageArray = uploadedPreviews;
 
-          // Get customization ID from the primary view (front or first available)
-          const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
-          const liveCustomizationId = await getCustomizationOptionId(
-            productId,
-            selectedVariation.variationId,
-            primaryView.area
-          );
+          // 🔒 CREATE SNAPSHOTS: Create snapshots for ALL design areas (front, back, etc.)
+          const authToken = localStorage.getItem('access_token');
+          const snapshotIds: number[] = [];
 
-          // 🔒 CREATE SNAPSHOT: Create an immutable snapshot of the design before adding to cart
-          if (liveCustomizationId) {
+          console.log(`🔒 Creating snapshots for ${availableViews.length} views...`);
+
+          for (const view of availableViews) {
             try {
-              console.log(`🔒 Creating snapshot of customization ${liveCustomizationId}...`);
-              const authToken = localStorage.getItem('access_token');
+              // Check if this view has design data
+              const designData = loadDesignFromStorage(
+                productId,
+                selectedVariation.variationId.toString(),
+                view.area
+              );
+
+              if (!designData || !designData.canvas_data || !designData.canvas_data.objects || designData.canvas_data.objects.length === 0) {
+                console.log(`⏭️  Skipping ${view.area} - no design data`);
+                continue;
+              }
+
+              // Get the live customization ID for this area
+              const liveCustomizationId = await getCustomizationOptionId(
+                productId,
+                selectedVariation.variationId,
+                view.area
+              );
+
+              if (!liveCustomizationId) {
+                console.warn(`⚠️  No customization ID found for ${view.area}`);
+                continue;
+              }
+
+              console.log(`🔒 Creating snapshot for ${view.area} (customization ${liveCustomizationId})...`);
 
               const snapshotResponse = await fetch(`${API_CONFIG.BASE_URL}/products/options/${liveCustomizationId}/snapshot`, {
                 method: 'POST',
@@ -410,19 +430,51 @@ const handleAddToCart = async () => {
 
               if (snapshotResponse.ok) {
                 const snapshotData = await snapshotResponse.json();
-                customizationId = snapshotData.id;
-                console.log(`✅ Snapshot created: ${liveCustomizationId} → ${customizationId}`);
+                snapshotIds.push(snapshotData.id);
+                console.log(`✅ Snapshot created for ${view.area}: ${liveCustomizationId} → ${snapshotData.id}`);
               } else {
                 const errorText = await snapshotResponse.text();
-                console.error('Failed to create snapshot:', snapshotResponse.status, errorText);
-                console.error('Using live customization ID as fallback');
-                customizationId = liveCustomizationId;
+                console.error(`❌ Failed to create snapshot for ${view.area}:`, snapshotResponse.status, errorText);
+                // Use live ID as fallback for this area
+                snapshotIds.push(liveCustomizationId);
               }
             } catch (error) {
-              console.error('Error creating snapshot:', error);
-              // Fallback to live customization ID if snapshot creation fails
-              customizationId = liveCustomizationId;
+              console.error(`❌ Error creating snapshot for ${view.area}:`, error);
             }
+          }
+
+          // If we have multiple snapshots, combine them into one
+          if (snapshotIds.length > 1) {
+            console.log(`🔗 Combining ${snapshotIds.length} snapshots into one...`);
+            try {
+              const combinedResponse = await fetch(`${API_CONFIG.BASE_URL}/products/options/snapshot/combined`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${authToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(snapshotIds),
+              });
+
+              if (combinedResponse.ok) {
+                const combinedData = await combinedResponse.json();
+                customizationId = combinedData.id;
+                console.log(`✅ Combined snapshot created: ${snapshotIds.join(' + ')} → ${customizationId}`);
+              } else {
+                const errorText = await combinedResponse.text();
+                console.error('❌ Failed to create combined snapshot:', combinedResponse.status, errorText);
+                console.warn('Using first snapshot ID as fallback');
+                customizationId = snapshotIds[0];
+              }
+            } catch (error) {
+              console.error('❌ Error creating combined snapshot:', error);
+              console.warn('Using first snapshot ID as fallback');
+              customizationId = snapshotIds[0];
+            }
+          } else if (snapshotIds.length === 1) {
+            // Only one snapshot, use it directly
+            customizationId = snapshotIds[0];
+            console.log(`✅ Single area snapshot created: ${customizationId}`);
           }
 
           console.log('🎨 All design previews generated and uploaded:', previewImageArray.length, 'images');

@@ -748,6 +748,33 @@ async def create_customization_snapshot(
         raise HTTPException(status_code=500, detail="Failed to create snapshot")
 
 
+@router.post("/options/snapshot/combined", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED)
+async def create_combined_customization_snapshot(
+    option_ids: list[int],
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create a single combined snapshot from multiple customization options (multiple design areas).
+    This is used when a product has designs on multiple areas (front, back, etc.).
+
+    Body: list of customization_option_ids to combine
+    """
+    try:
+        user_id = current_user['id']
+        combined_snapshot = await service.crud.create_combined_snapshot(db, option_ids, user_id)
+
+        # Convert media paths to full URLs
+        combined_snapshot = convert_customization_option_media(combined_snapshot)
+
+        return combined_snapshot
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error creating combined snapshot: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create combined snapshot")
+
+
 @router.post("/{product_id}/options", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_customization_option(product_id: int, data: schemas.CustomizationOptionCreate, db: AsyncSession = Depends(get_db)):
     return await service.create_customization_option(db, product_id, data)
