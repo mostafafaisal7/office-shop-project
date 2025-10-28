@@ -43,12 +43,13 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
   const [isCalculatingDiscount, setIsCalculatingDiscount] = useState(false);
 
   // Reset view index when availableViews changes to prevent out-of-bounds issues
+  // ONLY run when availableViews.length changes, not on every currentViewIndex change
   useEffect(() => {
-    if (currentViewIndex >= availableViews.length) {
+    if (availableViews.length > 0 && currentViewIndex >= availableViews.length) {
+      console.log(`⚠️ [RESET] currentViewIndex ${currentViewIndex} >= availableViews.length ${availableViews.length}, resetting to 0`);
       setCurrentViewIndex(0);
-      console.log('⚠️ Reset currentViewIndex to 0 (was out of bounds)');
     }
-  }, [availableViews, currentViewIndex]);
+  }, [availableViews.length]); // Only depend on length, not the full array or currentViewIndex
 
   useEffect(() => {
     (async () => {
@@ -246,8 +247,11 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
         views,
         loadDesignFromStorage
       );
-      
-      console.log('Generated previews:', allPreviews);
+
+      console.log(`✅ [PREVIEW GEN] Generated ${Object.keys(allPreviews).length} previews:`, Object.keys(allPreviews).map(area => `${area}=${allPreviews[area].substring(allPreviews[area].length - 30)}`));
+      console.log(`🔍 [PREVIEW GEN] Views array areas:`, views.map(v => v.area));
+      console.log(`🔍 [PREVIEW GEN] Preview keys:`, Object.keys(allPreviews));
+
       setPreviewImages(allPreviews);
     } catch (error) {
       console.error('Error generating preview images:', error);
@@ -273,17 +277,26 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
   };
 
   const nextImage = () => {
-    setCurrentViewIndex((prev) => (prev + 1) % availableViews.length);
+    const newIndex = (currentViewIndex + 1) % availableViews.length;
+    console.log(`📍 [NAV] Next clicked: ${currentViewIndex} → ${newIndex} (view: ${availableViews[currentViewIndex]?.area} → ${availableViews[newIndex]?.area})`);
+    setCurrentViewIndex(newIndex);
   };
 
   const prevImage = () => {
-    setCurrentViewIndex((prev) => (prev - 1 + availableViews.length) % availableViews.length);
+    const newIndex = (currentViewIndex - 1 + availableViews.length) % availableViews.length;
+    console.log(`📍 [NAV] Prev clicked: ${currentViewIndex} → ${newIndex} (view: ${availableViews[currentViewIndex]?.area} → ${availableViews[newIndex]?.area})`);
+    setCurrentViewIndex(newIndex);
   };
 
   const getCurrentPreviewImage = () => {
     if (availableViews.length === 0) return '';
     const currentView = availableViews[currentViewIndex];
-    return previewImages[currentView.area] || currentView.image;
+    if (!currentView) {
+      console.error(`❌ [PREVIEW] currentViewIndex ${currentViewIndex} is out of bounds! availableViews.length=${availableViews.length}`);
+      return '';
+    }
+    const previewUrl = previewImages[currentView.area] || currentView.image;
+    return previewUrl;
   };
 
   const updateQuantity = (size: string, change: number) => {
