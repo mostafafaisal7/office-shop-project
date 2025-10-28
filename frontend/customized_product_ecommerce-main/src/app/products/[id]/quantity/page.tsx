@@ -27,7 +27,7 @@ interface SizeQuantity {
 
 export default function QuantityPage({ params, searchParams }: QuantityPageProps) {
   const router = useRouter();
-  const { selectedVariation, loadDesign, setSelectedVariation, getCustomizationOptionId } = useDesignStore();
+  const { selectedVariation, loadDesign, setSelectedVariation, getCustomizationOptionId, clearClientReferenceCache } = useDesignStore();
   const { addItemsFromQuantityPage, items: cartItems } = useCartStore();
   const [currentProduct, setCurrentProduct] = useState<any>(null);
   const [sizeQuantities, setSizeQuantities] = useState<SizeQuantity[]>([]);
@@ -424,6 +424,11 @@ const handleAddToCart = async () => {
       })),
       customizationId
     );
+
+    // Clear client reference cache to ensure next order creates fresh customization options
+    if (selectedVariation?.variationId) {
+      clearClientReferenceCache(productId, selectedVariation.variationId);
+    }
 
     console.log('Added to cart:', itemsToAdd);
     router.push('/cart');

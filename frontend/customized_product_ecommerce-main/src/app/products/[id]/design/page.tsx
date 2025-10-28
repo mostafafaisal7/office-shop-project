@@ -68,17 +68,18 @@ export default function DesignPage({ params, searchParams }: DesignPageProps) {
     // Return the relative URL as is (will be served by Next.js from public directory)
     return imageUrl;
   };
-  const { 
-    setDesignJson, 
-    selectedObject, 
-    selectedVariation, 
-    setProductId, 
+  const {
+    setDesignJson,
+    selectedObject,
+    selectedVariation,
+    setProductId,
     setCurrentDesignArea,
     saveDesign,
     loadDesign,
     syncStatus,
     setSelectedVariation,
-    getCustomizationOptionId
+    getCustomizationOptionId,
+    clearClientReferenceCache
   } = useDesignStore();
   const { addItemFromProductPage } = useCartStore();
   const { isAuthenticated } = useAuthStore();
@@ -1396,7 +1397,12 @@ const handleReviewViewChange = async (area: string) => {
             mainPreviewImage, // Use the saved or fallback preview image
             customizationId // Use the fetched customization ID
           );
-          
+
+          // Clear client reference cache to ensure next order creates fresh customization options
+          if (currentVariation?.id) {
+            clearClientReferenceCache(unwrappedParams.id, currentVariation.id);
+          }
+
           // Redirect to cart page
           router.push('/cart');
         } catch (error) {
@@ -1412,6 +1418,12 @@ const handleReviewViewChange = async (area: string) => {
             currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '',
             undefined // No customization ID in fallback
           );
+
+          // Clear client reference cache to ensure next order creates fresh customization options
+          if (currentVariation?.id) {
+            clearClientReferenceCache(unwrappedParams.id, currentVariation.id);
+          }
+
           router.push('/cart');
         }
       }

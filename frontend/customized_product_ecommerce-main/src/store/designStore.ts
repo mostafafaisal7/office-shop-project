@@ -61,6 +61,7 @@ interface DesignState {
   getCustomizationOptionId: (productId: string, variationId: number, designArea: string) => Promise<number | null>;
   deleteDesignFromDatabase: (productId: string, variationId: number, designArea: string) => Promise<void>;
   generateAndSaveAllPreviews: (productId: string, variationId: number, availableViews: {area: string, image: string}[]) => Promise<{[area: string]: string}>;
+  clearClientReferenceCache: (productId?: string, variationId?: number) => void;
 }
 
 const STORAGE_KEY = 'ecommerce_designs';
@@ -604,6 +605,23 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   }
 
   return previews;
+},
+
+clearClientReferenceCache: (productId?: string, variationId?: number) => {
+  const state = get();
+
+  if (productId && variationId) {
+    // Clear cache for specific product+variation
+    const sharedKey = generateSharedClientReferenceKey(productId, variationId.toString());
+    const updatedCache = new Map(state.clientReferenceIds);
+    updatedCache.delete(sharedKey);
+    set({ clientReferenceIds: updatedCache });
+    console.log(`Cleared client reference cache for product ${productId}, variation ${variationId}`);
+  } else {
+    // Clear entire cache
+    set({ clientReferenceIds: new Map() });
+    console.log('Cleared entire client reference cache');
+  }
 },
 
 }));
