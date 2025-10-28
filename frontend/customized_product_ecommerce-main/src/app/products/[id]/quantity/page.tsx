@@ -42,6 +42,14 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
   const [discountInfo, setDiscountInfo] = useState<DiscountResponse | null>(null);
   const [isCalculatingDiscount, setIsCalculatingDiscount] = useState(false);
 
+  // Reset view index when availableViews changes to prevent out-of-bounds issues
+  useEffect(() => {
+    if (currentViewIndex >= availableViews.length) {
+      setCurrentViewIndex(0);
+      console.log('⚠️ Reset currentViewIndex to 0 (was out of bounds)');
+    }
+  }, [availableViews, currentViewIndex]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -146,12 +154,16 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
             currentVariation.media.forEach((media: any) => {
               // Only include media where design is true and area exists
               if (media.design === true && media.area && media.file_path) {
+                // If area already exists, log a warning (shouldn't happen but let's catch it)
+                if (areaMap.has(media.area)) {
+                  console.warn(`⚠️ Duplicate area "${media.area}" found in variation media. Using latest.`);
+                }
                 areaMap.set(media.area, media.file_path);
               }
             });
           }
-          
-          console.log('Found design areas for selected variation:', Array.from(areaMap.keys()));
+
+          console.log(`🔍 Found ${areaMap.size} design areas for product ${productId}, variation ${currentVariation?.id}:`, Array.from(areaMap.keys()));
           
           // Convert map to array and sort by common order
           const areaOrder = ['front', 'back', 'left', 'right'];
@@ -169,8 +181,15 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
           });
           
           setAvailableViews(views);
-          console.log('Available views:', views);
-          
+          console.log(`✅ Built availableViews array with ${views.length} views:`, views.map(v => v.area).join(', '));
+
+          // Validate no duplicate areas in final array
+          const areaNames = views.map(v => v.area);
+          const duplicates = areaNames.filter((area, index) => areaNames.indexOf(area) !== index);
+          if (duplicates.length > 0) {
+            console.error(`❌ DUPLICATE AREAS IN VIEWS ARRAY:`, duplicates);
+          }
+
           if (views.length > 0) {
             // Generate preview images for all views
             await generatePreviewImages(unwrappedParams.id, views);
