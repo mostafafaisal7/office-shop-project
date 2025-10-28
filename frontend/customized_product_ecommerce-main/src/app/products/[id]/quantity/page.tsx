@@ -9,6 +9,7 @@ import { useCartStore } from '@/store/cartStore';
 import { previewGenerator } from '@/utils/previewGenerator';
 import { uploadPreviewToBackend } from '@/utils/uploadPreviewToBackend';
 import SizeChartModal from '@/components/product/SizeChartModal';
+import { API_CONFIG } from '@/config/api';
 
 interface QuantityPageProps {
   params: Promise<{
@@ -399,7 +400,7 @@ const handleAddToCart = async () => {
               console.log(`🔒 Creating snapshot of customization ${liveCustomizationId}...`);
               const authToken = localStorage.getItem('access_token');
 
-              const snapshotResponse = await fetch(`http://127.0.0.1:8000/products/options/${liveCustomizationId}/snapshot`, {
+              const snapshotResponse = await fetch(`${API_CONFIG.BASE_URL}/products/options/${liveCustomizationId}/snapshot`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${authToken}`,
@@ -412,7 +413,9 @@ const handleAddToCart = async () => {
                 customizationId = snapshotData.id;
                 console.log(`✅ Snapshot created: ${liveCustomizationId} → ${customizationId}`);
               } else {
-                console.error('Failed to create snapshot, using live customization ID as fallback');
+                const errorText = await snapshotResponse.text();
+                console.error('Failed to create snapshot:', snapshotResponse.status, errorText);
+                console.error('Using live customization ID as fallback');
                 customizationId = liveCustomizationId;
               }
             } catch (error) {
