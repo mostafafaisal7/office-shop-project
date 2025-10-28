@@ -387,7 +387,7 @@ const handleAddToCart = async () => {
           previewImageArray = uploadedPreviews;
 
           // 🔒 CREATE SNAPSHOTS: Create snapshots for ALL design areas (front, back, etc.)
-          const authToken = localStorage.getItem('access_token');
+          const authToken = localStorage.getItem('customer_access_token');  // ✅ Use correct token key
           const snapshotIds: number[] = [];
 
           console.log(`🔒 Creating snapshots for ${availableViews.length} views...`);
