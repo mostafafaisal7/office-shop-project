@@ -323,14 +323,35 @@ async def process_checkout(data: CheckoutRequest, db: AsyncSession) -> CheckoutR
 
     # Remove only the ordered cart items (selective deletion)
     try:
-        headers = {}
-        if data.guest_id:
-            headers["guest_id"] = data.guest_id
-
         cart_item_ids = [item.cart_item_id for item in data.items]
-        await http_delete(f"{CART_SERVICE_URL}/delete/bulk", data={"item_ids": cart_item_ids}, headers=headers)
-    except Exception:
-        pass  # Silent fail - cart cleanup is not critical
+        print(f"\n🗑️  Deleting {len(cart_item_ids)} cart items: {cart_item_ids}")
+
+        # Delete cart items directly from database using user_id or guest_id
+        # This is more reliable than making an HTTP call which requires auth
+        if data.user_id:
+            # Delete for authenticated user
+            from app.cart import models as cart_models
+            delete_stmt = cart_models.CartItem.__table__.delete().where(
+                cart_models.CartItem.id.in_(cart_item_ids),
+                cart_models.CartItem.user_id == data.user_id
+            )
+            await db.execute(delete_stmt)
+            await db.commit()
+            print(f"✅ Deleted {len(cart_item_ids)} cart items for user {data.user_id}")
+        elif data.guest_id:
+            # Delete for guest user
+            from app.cart import models as cart_models
+            delete_stmt = cart_models.CartItem.__table__.delete().where(
+                cart_models.CartItem.id.in_(cart_item_ids),
+                cart_models.CartItem.guest_id == data.guest_id
+            )
+            await db.execute(delete_stmt)
+            await db.commit()
+            print(f"✅ Deleted {len(cart_item_ids)} cart items for guest {data.guest_id}")
+    except Exception as e:
+        print(f"⚠️  Failed to delete cart items: {e}")
+        # Don't fail checkout if cart cleanup fails
+        pass
 
     # Create order summary
     order_summary = OrderSummary(
