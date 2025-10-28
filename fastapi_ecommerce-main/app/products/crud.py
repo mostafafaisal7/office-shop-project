@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
+from datetime import datetime, timezone
 from app.products import models, schemas
 
 
@@ -511,6 +512,81 @@ async def delete_customization_option(
 ):
     await db.delete(option)
     await db.commit()
+
+
+async def create_customization_snapshot(
+    db: AsyncSession,
+    source_option_id: int,
+    user_id: int
+) -> models.CustomizationOption:
+    """
+    Create an immutable snapshot/copy of an existing customization option.
+    This is used when adding items to cart to ensure design data doesn't change.
+    """
+    # Fetch the source customization option
+    result = await db.execute(
+        select(models.CustomizationOption)
+        .options(selectinload(models.CustomizationOption.media))
+        .where(models.CustomizationOption.id == source_option_id)
+    )
+    source_option = result.scalar_one_or_none()
+
+    if not source_option:
+        raise ValueError(f"Customization option {source_option_id} not found")
+
+    # Verify user owns the source customization
+    if source_option.user_id != user_id:
+        raise ValueError(f"User {user_id} does not own customization option {source_option_id}")
+
+    # Create a deep copy of the customization option
+    snapshot = models.CustomizationOption(
+        user_id=user_id,
+        product_id=source_option.product_id,
+        variation_id=source_option.variation_id,
+        design_area=source_option.design_area,
+        canvas_data=source_option.canvas_data.copy() if isinstance(source_option.canvas_data, dict) else source_option.canvas_data,
+        svg_data=source_option.svg_data,
+        design_metadata={
+            **source_option.design_metadata,
+            'is_snapshot': True,
+            'source_customization_id': source_option_id,
+            'snapshot_created_at': datetime.now(timezone.utc).isoformat()
+        } if isinstance(source_option.design_metadata, dict) else source_option.design_metadata,
+        design_elements=source_option.design_elements.copy() if isinstance(source_option.design_elements, list) else source_option.design_elements,
+    )
+
+    db.add(snapshot)
+    await db.commit()
+    await db.refresh(snapshot)
+
+    # Copy media files if any
+    if source_option.media:
+        for media in source_option.media:
+            snapshot_media = models.CustomizationOptionMedia(
+                customization_option_id=snapshot.id,
+                file_path=media.file_path,
+                file_name=media.file_name,
+                file_size=media.file_size,
+                media_type=media.media_type,
+                mime_type=media.mime_type,
+                alt_text=media.alt_text,
+                canvas_object_id=media.canvas_object_id,
+                layer_order=media.layer_order
+            )
+            db.add(snapshot_media)
+
+        await db.commit()
+
+    # Re-fetch with media relationship loaded
+    result = await db.execute(
+        select(models.CustomizationOption)
+        .options(selectinload(models.CustomizationOption.media))
+        .where(models.CustomizationOption.id == snapshot.id)
+    )
+
+    print(f"✅ Created snapshot {snapshot.id} from source {source_option_id}")
+
+    return result.scalar_one()
 
 
 # ==== Product Media ====

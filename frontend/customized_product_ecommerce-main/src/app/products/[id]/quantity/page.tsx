@@ -339,10 +339,10 @@ const handleAddToCart = async () => {
             break;
           }
         }
-        
+
         if (hasAnyDesign) {
           console.log('🎨 Found design data, generating previews for ALL views...');
-          
+
           // Generate and upload previews for ALL views with design data
           const uploadedPreviews: string[] = [];
           for (const view of availableViews) {
@@ -371,7 +371,7 @@ const handleAddToCart = async () => {
                 );
                 console.log(`✅ Generated background-only preview for ${view.area}`);
               }
-              
+
               // Upload preview to backend
               const uploadedPreviewUrl = await uploadPreviewToBackend(previewDataUrl, 'previews');
               uploadedPreviews.push(uploadedPreviewUrl);
@@ -382,17 +382,46 @@ const handleAddToCart = async () => {
               uploadedPreviews.push(view.image);
             }
           }
-          
+
           previewImageArray = uploadedPreviews;
-          
+
           // Get customization ID from the primary view (front or first available)
           const primaryView = availableViews.find(v => v.area === 'front') || availableViews[0];
-          customizationId = await getCustomizationOptionId(
+          const liveCustomizationId = await getCustomizationOptionId(
             productId,
             selectedVariation.variationId,
             primaryView.area
-          ) || undefined;
-          
+          );
+
+          // 🔒 CREATE SNAPSHOT: Create an immutable snapshot of the design before adding to cart
+          if (liveCustomizationId) {
+            try {
+              console.log(`🔒 Creating snapshot of customization ${liveCustomizationId}...`);
+              const authToken = localStorage.getItem('access_token');
+
+              const snapshotResponse = await fetch(`http://127.0.0.1:8000/products/options/${liveCustomizationId}/snapshot`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${authToken}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (snapshotResponse.ok) {
+                const snapshotData = await snapshotResponse.json();
+                customizationId = snapshotData.id;
+                console.log(`✅ Snapshot created: ${liveCustomizationId} → ${customizationId}`);
+              } else {
+                console.error('Failed to create snapshot, using live customization ID as fallback');
+                customizationId = liveCustomizationId;
+              }
+            } catch (error) {
+              console.error('Error creating snapshot:', error);
+              // Fallback to live customization ID if snapshot creation fails
+              customizationId = liveCustomizationId;
+            }
+          }
+
           console.log('🎨 All design previews generated and uploaded:', previewImageArray.length, 'images');
         } else {
           // No design data found, use original product images as fallback
@@ -402,14 +431,14 @@ const handleAddToCart = async () => {
       } catch (error) {
         console.error('Error generating or uploading previews:', error);
         // Gracefully handle error - use original product images as fallback
-        previewImageArray = availableViews.length > 0 
+        previewImageArray = availableViews.length > 0
           ? availableViews.map(view => view.image)
           : [currentProduct.media?.[0]?.file_path || ''];
       }
     } else {
       // Guests or non-designed products - use original product images
       console.log('📷 Non-designed product or guest user, using original product images');
-      previewImageArray = availableViews.length > 0 
+      previewImageArray = availableViews.length > 0
         ? availableViews.map(view => view.image)
         : [currentProduct.media?.[0]?.file_path || ''];
     }

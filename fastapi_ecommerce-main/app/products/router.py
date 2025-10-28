@@ -716,11 +716,36 @@ async def get_customization_option(option_id: int, db: AsyncSession = Depends(ge
     option = await service.crud.get_customization_option(db, option_id)
     if not option:
         raise HTTPException(status_code=404, detail="Customization option not found")
-    
+
     # Convert media paths to full URLs
     option = convert_customization_option_media(option)
-    
+
     return option
+
+
+@router.post("/options/{option_id}/snapshot", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED)
+async def create_customization_snapshot(
+    option_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create an immutable snapshot/copy of an existing customization option.
+    This is used when adding items to cart to ensure design data doesn't change.
+    """
+    try:
+        user_id = current_user['id']
+        snapshot = await service.crud.create_customization_snapshot(db, option_id, user_id)
+
+        # Convert media paths to full URLs
+        snapshot = convert_customization_option_media(snapshot)
+
+        return snapshot
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error creating snapshot: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create snapshot")
 
 
 @router.post("/{product_id}/options", response_model=schemas.CustomizationOptionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
