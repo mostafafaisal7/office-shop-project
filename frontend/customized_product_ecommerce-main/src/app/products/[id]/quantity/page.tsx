@@ -42,15 +42,6 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
   const [discountInfo, setDiscountInfo] = useState<DiscountResponse | null>(null);
   const [isCalculatingDiscount, setIsCalculatingDiscount] = useState(false);
 
-  // Reset view index when availableViews changes to prevent out-of-bounds issues
-  // ONLY run when availableViews.length changes, not on every currentViewIndex change
-  useEffect(() => {
-    if (availableViews.length > 0 && currentViewIndex >= availableViews.length) {
-      console.log(`⚠️ [RESET] currentViewIndex ${currentViewIndex} >= availableViews.length ${availableViews.length}, resetting to 0`);
-      setCurrentViewIndex(0);
-    }
-  }, [availableViews.length]); // Only depend on length, not the full array or currentViewIndex
-
   useEffect(() => {
     (async () => {
       try {
@@ -190,6 +181,15 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
           if (duplicates.length > 0) {
             console.error(`❌ DUPLICATE AREAS IN VIEWS ARRAY:`, duplicates);
           }
+
+          // Reset view index if it would be out of bounds with new views array
+          setCurrentViewIndex(prevIndex => {
+            if (prevIndex >= views.length && views.length > 0) {
+              console.log(`⚠️ [RESET] View index ${prevIndex} out of bounds, resetting to 0 (views.length=${views.length})`);
+              return 0;
+            }
+            return prevIndex;
+          });
 
           if (views.length > 0) {
             // Generate preview images for all views
