@@ -25,6 +25,10 @@ interface CheckoutPayload {
     quantity: number;
     customization_option_id?: number;
     customized_images?: string[] | null;
+    // Design data (snapshot from cart)
+    design_canvas_data?: any;
+    design_svg_data?: string;
+    design_elements?: any[];
   }[];
   shipping_method_id: number;
   shipping_address_id: string;
@@ -210,6 +214,10 @@ export async function POST(request: NextRequest) {
         quantity: item.quantity,
         customization_option_id: item.customization_option_id,
         customized_images: customizedImages,
+        // Include design data (snapshot from cart)
+        design_canvas_data: item.design_canvas_data,
+        design_svg_data: item.design_svg_data,
+        design_elements: item.design_elements,
       };
 
       console.log(`Generated checkout item ${index}:`, checkoutItem);

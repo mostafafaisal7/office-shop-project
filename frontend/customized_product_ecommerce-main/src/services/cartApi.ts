@@ -1,7 +1,8 @@
 // Helper function to get customer token
 const getCustomerToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('customer_access_token');
+  // Check both possible token keys (customer_access_token and accessToken)
+  return localStorage.getItem('customer_access_token') || localStorage.getItem('accessToken');
 };
 
 export interface CartApiItem {

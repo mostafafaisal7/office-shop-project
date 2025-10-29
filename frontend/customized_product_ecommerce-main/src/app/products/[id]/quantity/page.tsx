@@ -402,19 +402,73 @@ const handleAddToCart = async () => {
       } catch (error) {
         console.error('Error generating or uploading previews:', error);
         // Gracefully handle error - use original product images as fallback
-        previewImageArray = availableViews.length > 0 
+        previewImageArray = availableViews.length > 0
           ? availableViews.map(view => view.image)
           : [currentProduct.media?.[0]?.file_path || ''];
       }
     } else {
       // Guests or non-designed products - use original product images
       console.log('📷 Non-designed product or guest user, using original product images');
-      previewImageArray = availableViews.length > 0 
+      previewImageArray = availableViews.length > 0
         ? availableViews.map(view => view.image)
         : [currentProduct.media?.[0]?.file_path || ''];
     }
 
-    // Add items to cart with all preview images as array
+    // Collect ALL design data from all areas to pass to cart (just like design page does)
+    let designData = undefined;
+    if (customizationId && selectedVariation?.variationId) {
+      try {
+        console.log('📦 Fetching ALL design areas for cart...');
+
+        // Fetch all design areas for this product+variation
+        const allDesigns = [];
+        for (const view of availableViews) {
+          const designForArea = await loadDesign(
+            productId,
+            selectedVariation.variationId.toString(),
+            view.area
+          );
+          if (designForArea && designForArea.canvas_data) {
+            allDesigns.push(designForArea);
+          }
+        }
+
+        // Combine canvas data from all areas
+        if (allDesigns.length > 0) {
+          const combined_objects = [];
+          const combined_elements = [];
+
+          for (const design of allDesigns) {
+            if (design.canvas_data?.objects) {
+              combined_objects.push(...design.canvas_data.objects);
+            }
+            if (design.design_elements) {
+              combined_elements.push(...design.design_elements);
+            }
+          }
+
+          designData = {
+            canvas_data: {
+              version: '5.3.0',
+              objects: combined_objects,
+              background: allDesigns[0].canvas_data?.background || '#f3f4f6'
+            },
+            svg_data: undefined,
+            design_elements: combined_elements.length > 0 ? combined_elements : undefined
+          };
+
+          console.log('✅ Collected design data for cart:', {
+            total_objects: combined_objects.length,
+            total_elements: combined_elements.length,
+            areas: allDesigns.length
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching design data for cart:', error);
+      }
+    }
+
+    // Add items to cart with all preview images as array AND design data
     await addItemsFromQuantityPage(
       productId,
       currentProduct.name,
@@ -422,7 +476,8 @@ const handleAddToCart = async () => {
         ...item,
         image: previewImageArray.length === 1 ? previewImageArray[0] : previewImageArray // Pass as array if multiple, string if single
       })),
-      customizationId
+      customizationId,
+      designData // Pass the combined design data
     );
 
     // Clear client reference cache to ensure next order creates fresh customization options

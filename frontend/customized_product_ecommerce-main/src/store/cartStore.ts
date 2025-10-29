@@ -54,7 +54,7 @@ interface CartStore {
   getTotalQuantity: () => number;
   getTotalPrice: () => number;
   getUniqueProductCount: () => number;
-  addItemsFromQuantityPage: (productId: string, productName: string, sizeQuantities: any[], customizationId?: number) => Promise<void>;
+  addItemsFromQuantityPage: (productId: string, productName: string, sizeQuantities: any[], customizationId?: number, designData?: { canvas_data?: any, svg_data?: string, design_elements?: any[] }) => Promise<void>;
   addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string, customizationId?: number, designData?: { canvas_data?: any, svg_data?: string, design_elements?: any[] }) => Promise<void>;
 }
 
@@ -310,7 +310,8 @@ export const useCartStore = create<CartStore>()(
       
       // Sync with server
       syncWithServer: async () => {
-        const { isAuthenticated } = useAuth.getState();
+        // Use checkAuthentication() for consistent auth detection (handles hydration timing issues)
+        const isAuthenticated = checkAuthentication();
         console.log('🔄 syncWithServer called, isAuthenticated:', isAuthenticated);
         if (!isAuthenticated) {
           console.log('🔄 Not authenticated, skipping server sync');
@@ -622,10 +623,10 @@ export const useCartStore = create<CartStore>()(
       },
       
       // Legacy methods for backward compatibility
-      addItemsFromQuantityPage: async (productId, productName, sizeQuantities, customizationId) => {
+      addItemsFromQuantityPage: async (productId, productName, sizeQuantities, customizationId, designData) => {
         // Only process items with quantity > 0
         const validItems = sizeQuantities.filter((sq: any) => sq.quantity > 0);
-        
+
         for (const sq of validItems) {
           const item: Omit<CartItem, 'id'> = {
             productId,
@@ -636,8 +637,12 @@ export const useCartStore = create<CartStore>()(
             price: Number(sq.price) || 0, // temporary, will be updated after sync
             customDesign: !!customizationId,
             customizationId: customizationId,
+            // Add design data (snapshot from design time)
+            design_canvas_data: designData?.canvas_data,
+            design_svg_data: designData?.svg_data,
+            design_elements: designData?.design_elements,
           };
-          
+
           try {
             await get().addItem(item);
 
