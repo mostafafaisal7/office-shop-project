@@ -131,6 +131,21 @@ async def list_cart(db: AsyncSession, user_id: Optional[int] = None, guest_id: O
             'image': product_image,  # Add image data
         })
 
+    # 🔍 DEBUG: Log what we're returning
+    print(f"\n=== CART SERVICE: list_cart RESPONSE DEBUG ===")
+    print(f"Returning {len(enriched_items)} cart items for user_id={user_id}, guest_id={guest_id}")
+    for idx, cart_item in enumerate(enriched_items):
+        print(f"\nItem {idx}:")
+        print(f"  - DB id: {cart_item.get('id')}")
+        print(f"  - product_name: {cart_item.get('product_name')}")
+        print(f"  - customization_id: {cart_item.get('customization_id')}")
+        print(f"  - design_canvas_data: {cart_item.get('design_canvas_data') is not None}")
+        if cart_item.get('design_canvas_data'):
+            print(f"     objects count: {len(cart_item.get('design_canvas_data', {}).get('objects', []))}")
+        print(f"  - design_svg_data: {cart_item.get('design_svg_data') is not None}")
+        print(f"  - design_elements: {cart_item.get('design_elements') is not None}")
+    print(f"=== END CART SERVICE list_cart DEBUG ===\n")
+
     return enriched_items
 
 

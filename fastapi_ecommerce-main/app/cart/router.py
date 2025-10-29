@@ -131,8 +131,19 @@ async def delete_multiple_cart_items(
     guest_id: Optional[str] = Header(None),
 ):
     user_id = current_user.id if current_user else None
+
+    print(f"\n=== CART BULK DELETE DEBUG ===")
+    print(f"  - current_user: {current_user}")
+    print(f"  - user_id: {user_id}")
+    print(f"  - guest_id: {guest_id}")
+    print(f"  - item_ids to delete: {data.item_ids}")
+
+    # ✅ FIX: If user is authenticated, allow deletion even without guest_id
     if not user_id and not guest_id:
-        raise HTTPException(status_code=400, detail="Guest ID is required for unauthenticated access")
+        print(f"  ❌ ERROR: Neither user_id nor guest_id provided")
+        raise HTTPException(status_code=400, detail="User authentication or guest ID is required")
+
+    print(f"=== END CART BULK DELETE DEBUG ===\n")
 
     return await service.delete_cart_items_bulk(
         db=db,
