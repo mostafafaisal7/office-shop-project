@@ -61,13 +61,24 @@ interface CartStore {
 // Helper function to generate or get guest ID
 export const getOrCreateGuestId = (): string => {
   if (typeof window === 'undefined') return 'guest-' + Date.now();
-  
+
   let guestId = localStorage.getItem('guest_id');
   if (!guestId) {
     guestId = 'guest-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('guest_id', guestId);
   }
   return guestId;
+};
+
+// ✅ Helper function to reliably check authentication (handles hydration timing issues)
+const checkAuthentication = (): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  // Check both auth store and token to handle Zustand hydration timing issues
+  const authStoreAuthenticated = useAuth.getState().isAuthenticated;
+  const hasToken = !!localStorage.getItem('customer_access_token');
+
+  return authStoreAuthenticated || hasToken;
 };
 
 
@@ -118,15 +129,18 @@ export const useCartStore = create<CartStore>()(
       addItem: async (item) => {
         console.log('🔧 addItem called with:', item);
 
-        const { isAuthenticated } = useAuth.getState();
+        // ✅ FIX: Use reliable authentication check (handles hydration timing issues)
+        const isAuthenticated = checkAuthentication();
+
+        console.log('🔧 isAuthenticated:', isAuthenticated);
+
         // ✅ FIX: Include customizationId in ID for custom designs to prevent overwriting
         // Custom designs with different customization IDs should be separate cart items
         const id = item.customizationId
           ? `${item.productId}-${item.size || 'default'}-${item.color || 'default'}-custom-${item.customizationId}`
           : `${item.productId}-${item.size || 'default'}-${item.color || 'default'}`;
         const existingItem = get().items.find(i => i.id === id);
-        
-        console.log('🔧 isAuthenticated:', isAuthenticated);
+
         console.log('🔧 Generated ID:', id);
         console.log('🔧 Existing item:', existingItem);
         
