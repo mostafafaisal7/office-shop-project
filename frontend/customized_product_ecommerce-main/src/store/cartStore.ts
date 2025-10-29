@@ -458,7 +458,9 @@ export const useCartStore = create<CartStore>()(
       mergeGuestCart: async () => {
         const guestItems = get().items.filter(item => item.isGuest);
         if (guestItems.length === 0) return;
-        
+
+        console.log('🔄 Merging guest cart items:', guestItems.length);
+
         for (const guestItem of guestItems) {
           try {
             const apiItem: Omit<CartApiItem, 'id' | 'user_id'> = {
@@ -470,9 +472,22 @@ export const useCartStore = create<CartStore>()(
               color: guestItem.color,
               customization_id: guestItem.customizationId,
               customized_images: guestItem.image ? (Array.isArray(guestItem.image) ? guestItem.image : [guestItem.image]) : null, // ✅ Handle both string and array formats for guest merge
+              // ✅ FIX: Include design data when merging guest cart to server
+              design_canvas_data: guestItem.design_canvas_data,
+              design_svg_data: guestItem.design_svg_data,
+              design_elements: guestItem.design_elements,
             };
-            
+
+            console.log('🔄 Merging guest item to server:');
+            console.log('  - Product:', guestItem.name);
+            console.log('  - Customization ID:', guestItem.customizationId);
+            console.log('  - design_canvas_data:', guestItem.design_canvas_data ? 'Present' : 'None');
+            if (guestItem.design_canvas_data) {
+              console.log('    objects count:', guestItem.design_canvas_data.objects?.length || 0);
+            }
+
             await cartApi.addItem(apiItem);
+            console.log('  ✅ Guest item merged successfully');
           } catch (error) {
             console.error('Failed to merge guest item:', error);
           }
