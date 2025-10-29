@@ -131,9 +131,19 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
 
                         # Fetch all customization options with the same client_reference_id
                         all_areas_url = f"{PRODUCT_SERVICE_URL}/options?client_reference_id={client_reference_id}"
-                        all_areas_data = await http_get(all_areas_url)
+                        print(f"All areas URL: {all_areas_url}")
 
-                        if all_areas_data and isinstance(all_areas_data, list):
+                        try:
+                            all_areas_data = await http_get(all_areas_url)
+                            print(f"All areas response type: {type(all_areas_data)}")
+                            print(f"All areas response: {all_areas_data}")
+                        except Exception as fetch_error:
+                            print(f"❌ ERROR fetching all areas: {fetch_error}")
+                            import traceback
+                            traceback.print_exc()
+                            all_areas_data = None
+
+                        if all_areas_data and isinstance(all_areas_data, list) and len(all_areas_data) > 0:
                             print(f"Found {len(all_areas_data)} design areas")
 
                             # Combine canvas objects from all design areas
@@ -183,12 +193,22 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                             design_svg_data = customization_data.get("svg_data")
                             design_canvas_data = customization_data.get("canvas_data")
                             design_elements = customization_data.get("design_elements")
+                            print(f"   Fallback - svg_data exists: {design_svg_data is not None}")
+                            print(f"   Fallback - canvas_data exists: {design_canvas_data is not None}")
+                            print(f"   Fallback - design_elements exists: {design_elements is not None}")
+                            if design_canvas_data:
+                                print(f"   Fallback - canvas objects: {len(design_canvas_data.get('objects', []))}")
                     else:
                         print("⚠️ No client_reference_id found, using single option data")
                         # Fallback to single option data
                         design_svg_data = customization_data.get("svg_data")
                         design_canvas_data = customization_data.get("canvas_data")
                         design_elements = customization_data.get("design_elements")
+                        print(f"   No client_ref - svg_data exists: {design_svg_data is not None}")
+                        print(f"   No client_ref - canvas_data exists: {design_canvas_data is not None}")
+                        print(f"   No client_ref - design_elements exists: {design_elements is not None}")
+                        if design_canvas_data:
+                            print(f"   No client_ref - canvas objects: {len(design_canvas_data.get('objects', []))}")
 
                     print(f"design_svg_data exists: {design_svg_data is not None}")
                     print(f"design_canvas_data exists: {design_canvas_data is not None}")
