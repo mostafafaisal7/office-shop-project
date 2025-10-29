@@ -554,7 +554,11 @@ useEffect(() => {
             variation_id: null,
             quantity: item.quantity,
             customization_option_id: item.customizationId || 187, // Use default customization option ID if none exists
-            customized_images: item.image ? (Array.isArray(item.image) ? item.image : [item.image]) : null
+            customized_images: item.image ? (Array.isArray(item.image) ? item.image : [item.image]) : null,
+            // ✅ Include design data (snapshot from cart)
+            design_canvas_data: item.design_canvas_data,
+            design_svg_data: item.design_svg_data,
+            design_elements: item.design_elements
           };
         }),
         shipping_method_id: parseInt(selectedShippingMethodId), // Convert to integer

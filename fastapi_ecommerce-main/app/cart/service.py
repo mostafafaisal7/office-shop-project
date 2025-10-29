@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 async def add_to_cart(
     db: AsyncSession, item_data: schemas.CartItemCreate, user_id: Optional[int] = None, guest_id: Optional[str] = None
 ):
+    print(f"\n=== CART SERVICE: add_to_cart DEBUG ===")
+    print(f"Received item_data:")
+    print(f"  - product_id: {item_data.product_id}")
+    print(f"  - customization_id: {item_data.customization_id}")
+    print(f"  - customized_images: {item_data.customized_images}")
+    print(f"  - design_canvas_data: {item_data.design_canvas_data is not None}")
+    if item_data.design_canvas_data:
+        print(f"     objects count: {len(item_data.design_canvas_data.get('objects', []))}")
+    print(f"  - design_svg_data: {item_data.design_svg_data is not None}")
+    print(f"  - design_elements: {item_data.design_elements is not None}")
+
     # ✅ Fetch product details to ensure price is correct
     product_url = f"{BASE_URL}/products/{item_data.product_id}"
     product_data = await http_get(product_url)
@@ -26,24 +37,26 @@ async def add_to_cart(
     item_data_dict["product_name"] = product_data["name"]
     item_data_dict["product_price"] = product_data["base_price"]  # Products have base_price, not price
 
+    print(f"After model_dump, design_canvas_data in dict: {item_data_dict.get('design_canvas_data') is not None}")
+
     # ✅ Ensure image field always has a fallback value - get product/variation image
     if not item_data.customized_images:  # Only set fallback if no custom images
         fallback_image = None
-        
+
         # Try to get variation image first if size/color specified
         if hasattr(item_data, 'size') and item_data.size and product_data.get('variations'):
             for variation in product_data.get('variations', []):
                 variation_attrs = variation.get('attributes', {})
-                if (variation_attrs.get('size') == item_data.size or 
+                if (variation_attrs.get('size') == item_data.size or
                     variation_attrs.get('Size') == item_data.size):
                     if variation.get('media') and len(variation['media']) > 0:
                         fallback_image = variation['media'][0].get('file_path')
                         break
-        
+
         # Fallback to product default image
         if not fallback_image and product_data.get('media') and len(product_data['media']) > 0:
             fallback_image = product_data['media'][0].get('file_path')
-        
+
         # Store as single image string (not array) for non-customized items
         if fallback_image:
             item_data_dict["customized_images"] = [fallback_image]
@@ -52,6 +65,12 @@ async def add_to_cart(
         item = models.CartItem(**item_data_dict, user_id=user_id, guest_id=None)
     else:
         item = models.CartItem(**item_data_dict, user_id=None, guest_id=guest_id)
+
+    print(f"Created CartItem model:")
+    print(f"  - design_canvas_data: {item.design_canvas_data is not None}")
+    print(f"  - design_svg_data: {item.design_svg_data is not None}")
+    print(f"  - design_elements: {item.design_elements is not None}")
+    print(f"=== END CART SERVICE DEBUG ===\n")
 
     return await crud.add_cart_item(db, item)
 
@@ -101,8 +120,13 @@ async def list_cart(db: AsyncSession, user_id: Optional[int] = None, guest_id: O
             'size': item.size,
             'color': getattr(item, 'color', None),
             'customization_id': getattr(item, 'customization_id', None),
-            
+
             'customized_images': getattr(item, 'customized_images', None),
+
+            # ✅ Include design data (snapshot from cart)
+            'design_canvas_data': getattr(item, 'design_canvas_data', None),
+            'design_svg_data': getattr(item, 'design_svg_data', None),
+            'design_elements': getattr(item, 'design_elements', None),
 
             'image': product_image,  # Add image data
         })
