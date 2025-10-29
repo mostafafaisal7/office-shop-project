@@ -438,11 +438,14 @@ export const useCartStore = create<CartStore>()(
             });
             
             // Generate preview images asynchronously for items with customizations
-            const itemsWithCustomizations = serverItems.filter(item => item.customizationId);
-            
+            // BUT: Skip items that already have preview images from customized_images
+            const itemsWithCustomizations = serverItems.filter(item =>
+              item.customizationId && !item.image  // Only generate if no preview images exist
+            );
+
             if (itemsWithCustomizations.length > 0) {
-              console.log(`Starting preview generation for ${itemsWithCustomizations.length} customized items`);
-              
+              console.log(`Starting preview generation for ${itemsWithCustomizations.length} customized items (without existing previews)`);
+
               // Generate previews in parallel but limit concurrency to avoid overwhelming the system
               const generatePreviewsInBatches = async (items: CartItem[], batchSize: number = 3) => {
                 for (let i = 0; i < items.length; i += batchSize) {
@@ -460,10 +463,10 @@ export const useCartStore = create<CartStore>()(
                   );
                 }
               };
-              
+
               // Generate previews in batches
               await generatePreviewsInBatches(itemsWithCustomizations);
-              
+
               console.log('Completed preview generation for all customized items');
             }
             
