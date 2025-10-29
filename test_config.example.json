@@ -1,0 +1,33 @@
+{
+  "backend_url": "http://localhost:8000",
+  "frontend_url": "http://localhost:3000",
+  "user_email": "test@example.com",
+  "admin_email": "admin@example.com",
+  "test_product": {
+    "product_id": 1,
+    "variation_id": 1,
+    "sizes": [
+      {
+        "size": "M",
+        "quantity": 2,
+        "price": 25.00
+      },
+      {
+        "size": "L",
+        "quantity": 1,
+        "price": 27.00
+      }
+    ]
+  },
+  "design": {
+    "canvas_width": 800,
+    "canvas_height": 600,
+    "test_text": "TEST DESIGN",
+    "design_area": "front"
+  },
+  "checkout": {
+    "shipping_method_id": 1,
+    "shipping_address_id": "test_address_1",
+    "payment_method_id": 1
+  }
+}
