@@ -458,51 +458,25 @@ async def download_order_item_design_package(
             detail=f"Order item {item_id} not found in order {order_id}"
         )
 
-    # ✅ FIX: Fetch ALL customization options for this product/variation
-    # User might have designed on multiple areas (front, back, left, right)
-    # Each area has separate canvas_data - we need to combine them all
+    # ✅ FIX: Use design data stored in order_item at checkout time
+    # This data was captured as a snapshot when the order was placed,
+    # ensuring it remains unchanged even if the user creates new designs later
+    # (Just like how customized_images works - it's a snapshot from order time)
     all_objects = []
-    customization_options = []  # ✅ Store for preview image extraction
 
-    if order_item.customization_option_id:
-        print(f"Fetching all design areas for customization option: {order_item.customization_option_id}")
+    print(f"\n{'='*60}")
+    print(f"Using design data stored in order_item (captured at checkout)")
+    print(f"This ensures we get the exact design from THIS order, not from database CustomizationOptions")
+    print(f"{'='*60}\n")
 
-        # Import products models to access CustomizationOption
-        from app.products import models as product_models
-
-        # Get the customization option to find client_reference_id
-        result = await db.execute(
-            select(product_models.CustomizationOption)
-            .where(product_models.CustomizationOption.id == order_item.customization_option_id)
-        )
-        main_option = result.scalar_one_or_none()
-
-        if main_option and main_option.client_reference_id:
-            # Fetch ALL customization options with the same client_reference_id
-            # These represent all design areas (front, back, left, right) for this product/variation
-            result = await db.execute(
-                select(product_models.CustomizationOption)
-                .where(product_models.CustomizationOption.client_reference_id == main_option.client_reference_id)
-            )
-            all_options = result.scalars().all()
-
-            print(f"Found {len(all_options)} design areas for client_reference_id: {main_option.client_reference_id}")
-
-            # ✅ Store all_options for later preview image extraction
-            customization_options = all_options
-
-            # Combine objects from all design areas
-            for option in all_options:
-                area_objects = option.canvas_data.get('objects', [])
-                print(f"  - {option.design_area}: {len(area_objects)} objects")
-                all_objects.extend(area_objects)
-        else:
-            # Fallback: use just the main option's canvas_data
-            if order_item.design_canvas_data:
-                all_objects = order_item.design_canvas_data.get('objects', [])
-    elif order_item.design_canvas_data:
-        # Fallback: use order_item's saved canvas_data
+    if order_item.design_canvas_data:
+        # Use the combined canvas data that was captured during checkout
+        # The checkout service already fetched ALL design areas and combined them
         all_objects = order_item.design_canvas_data.get('objects', [])
+        print(f"✅ Loaded {len(all_objects)} objects from order_item.design_canvas_data")
+        print(f"   (This includes ALL design areas from checkout time)")
+    else:
+        print("⚠️ No design_canvas_data in order_item")
 
     if not all_objects:
         raise HTTPException(

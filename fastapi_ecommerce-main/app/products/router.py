@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from app.products import schemas, service, crud, models
 from app.core.database import get_db
@@ -437,6 +438,22 @@ async def delete_media(media_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ====== Customization Option ====== #
+@router.get("/options", response_model=List[schemas.CustomizationOptionResponse])
+async def get_customization_options_by_reference(
+    client_reference_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get customization options by client_reference_id (for fetching all design areas)"""
+    if not client_reference_id:
+        raise HTTPException(status_code=400, detail="client_reference_id is required")
+
+    result = await db.execute(
+        select(models.CustomizationOption)
+        .where(models.CustomizationOption.client_reference_id == client_reference_id)
+    )
+    return list(result.scalars().all())
+
+
 @router.get("/{product_id}/options", response_model=List[schemas.CustomizationOptionResponse])
 async def get_customization_options(product_id: int, db: AsyncSession = Depends(get_db)):
     return await service.crud.get_customization_options_by_product(db, product_id)

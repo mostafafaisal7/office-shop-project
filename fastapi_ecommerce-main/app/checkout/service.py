@@ -120,10 +120,75 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
                             customized_images.append(preview_url)
                             print(f"Added preview image URL to order item: {preview_url}")
 
-                    # Extract design data for print-ready files
-                    design_svg_data = customization_data.get("svg_data")
-                    design_canvas_data = customization_data.get("canvas_data")
-                    design_elements = customization_data.get("design_elements")
+                    # ✅ NEW: Fetch ALL design areas for this product/variation
+                    # Just like customized_images captures all preview images,
+                    # we need to capture all design areas' canvas data
+                    client_reference_id = customization_data.get("client_reference_id")
+
+                    if client_reference_id:
+                        print(f"Found client_reference_id: {client_reference_id}")
+                        print(f"Fetching ALL design areas with this client_reference_id...")
+
+                        # Fetch all customization options with the same client_reference_id
+                        all_areas_url = f"{PRODUCT_SERVICE_URL}/options?client_reference_id={client_reference_id}"
+                        all_areas_data = await http_get(all_areas_url)
+
+                        if all_areas_data and isinstance(all_areas_data, list):
+                            print(f"Found {len(all_areas_data)} design areas")
+
+                            # Combine canvas objects from all design areas
+                            combined_objects = []
+                            combined_elements = []
+                            combined_svg_parts = []
+
+                            for area_data in all_areas_data:
+                                area_name = area_data.get("design_area", "unknown")
+                                print(f"  - Processing area: {area_name}")
+
+                                # Collect canvas objects from this area
+                                if area_data.get("canvas_data") and area_data["canvas_data"].get("objects"):
+                                    area_objects = area_data["canvas_data"]["objects"]
+                                    combined_objects.extend(area_objects)
+                                    print(f"    Added {len(area_objects)} canvas objects from {area_name}")
+
+                                # Collect design elements from this area
+                                if area_data.get("design_elements"):
+                                    combined_elements.extend(area_data["design_elements"])
+                                    print(f"    Added {len(area_data['design_elements'])} design elements from {area_name}")
+
+                                # Collect SVG data from this area
+                                if area_data.get("svg_data"):
+                                    combined_svg_parts.append(f"<!-- {area_name.upper()} VIEW -->\n{area_data['svg_data']}")
+
+                            # Create combined canvas data with all objects from all areas
+                            design_canvas_data = {
+                                "version": "5.3.0",
+                                "objects": combined_objects,
+                                "background": customization_data.get("canvas_data", {}).get("background", "#f3f4f6")
+                            }
+
+                            # Combine design elements
+                            design_elements = combined_elements if combined_elements else None
+
+                            # Combine SVG data (separated by area comments)
+                            design_svg_data = "\n\n".join(combined_svg_parts) if combined_svg_parts else None
+
+                            print(f"✅ COMBINED DATA:")
+                            print(f"   Total canvas objects: {len(combined_objects)}")
+                            print(f"   Total design elements: {len(combined_elements)}")
+                            print(f"   SVG parts: {len(combined_svg_parts)}")
+                        else:
+                            print("⚠️ Could not fetch all areas, using single option data")
+                            # Fallback to single option data
+                            design_svg_data = customization_data.get("svg_data")
+                            design_canvas_data = customization_data.get("canvas_data")
+                            design_elements = customization_data.get("design_elements")
+                    else:
+                        print("⚠️ No client_reference_id found, using single option data")
+                        # Fallback to single option data
+                        design_svg_data = customization_data.get("svg_data")
+                        design_canvas_data = customization_data.get("canvas_data")
+                        design_elements = customization_data.get("design_elements")
 
                     print(f"design_svg_data exists: {design_svg_data is not None}")
                     print(f"design_canvas_data exists: {design_canvas_data is not None}")
