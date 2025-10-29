@@ -78,7 +78,17 @@ const checkAuthentication = (): boolean => {
   const authStoreAuthenticated = useAuth.getState().isAuthenticated;
   const hasToken = !!localStorage.getItem('customer_access_token');
 
-  return authStoreAuthenticated || hasToken;
+  // 🔍 DEBUG: Log what we're checking
+  console.log('🔍 checkAuthentication() debug:');
+  console.log('  - authStore.isAuthenticated:', authStoreAuthenticated);
+  console.log('  - hasToken (customer_access_token):', hasToken);
+  console.log('  - All localStorage keys:', Object.keys(localStorage));
+  console.log('  - useAuth state:', useAuth.getState());
+
+  const result = authStoreAuthenticated || hasToken;
+  console.log('  - FINAL result:', result);
+
+  return result;
 };
 
 
