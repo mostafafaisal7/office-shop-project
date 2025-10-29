@@ -151,27 +151,71 @@ class CartApiService {
 
   // Get user's cart with customization details
   async getCartWithCustomizations(): Promise<CartApiResponse> {
-    return this.makeRequest('/cart/with-customizations');
+    console.log('🌐 ============ cartApi.getCartWithCustomizations CALLED ============');
+    console.log('🌐 Timestamp:', new Date().toISOString());
+
+    const result = await this.makeRequest('/cart/with-customizations');
+
+    console.log('🌐 getCartWithCustomizations response:', {
+      success: result.success,
+      hasData: !!result.data,
+      itemCount: Array.isArray(result.data) ? result.data.length : 'N/A'
+    });
+
+    if (result.success && Array.isArray(result.data)) {
+      console.log('🌐 Cart items from server:', result.data.map((item: any) => ({
+        id: item.id,
+        product_id: item.product_id,
+        size: item.size,
+        quantity: item.quantity,
+        customization_id: item.customization_id
+      })));
+    }
+
+    console.log('🌐 ============ cartApi.getCartWithCustomizations COMPLETED ============');
+
+    return result;
   }
 
   // Add item to server cart
   async addItem(item: Omit<CartApiItem, 'id' | 'user_id'>): Promise<CartApiResponse> {
+    console.log('🌐 ============ cartApi.addItem CALLED ============');
+    console.log('🌐 Timestamp:', new Date().toISOString());
+
     // Get user ID from useAuth hook
     const { useAuth } = await import('@/hooks/useAuth');
     const { user } = useAuth.getState();
     const userId = user?.id ? parseInt(user.id) : null;
-    
+
     const payload = {
       ...item,
       user_id: userId,
     };
-    
-    console.log('Adding item to cart with payload:', payload);
-    
-    return this.makeRequest('/cart', {
+
+    console.log('🌐 Adding item to cart with payload:', {
+      user_id: payload.user_id,
+      product_id: payload.product_id,
+      product_name: payload.product_name,
+      quantity: payload.quantity,
+      size: payload.size,
+      customization_id: payload.customization_id,
+      hasDesignData: !!payload.design_canvas_data,
+      hasCustomizedImages: !!payload.customized_images
+    });
+
+    const result = await this.makeRequest('/cart', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+
+    console.log('🌐 addItem response:', {
+      success: result.success,
+      hasData: !!result.data,
+      serverId: result.data?.id
+    });
+    console.log('🌐 ============ cartApi.addItem COMPLETED ============');
+
+    return result;
   }
 
   // Update item quantity

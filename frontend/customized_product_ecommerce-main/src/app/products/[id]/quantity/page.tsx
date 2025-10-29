@@ -318,11 +318,28 @@ export default function QuantityPage({ params, searchParams }: QuantityPageProps
 
 const handleAddToCart = async () => {
   try {
+    console.log('🚀 ============ HANDLE ADD TO CART STARTED ============');
+    console.log('🚀 Timestamp:', new Date().toISOString());
+    console.log('🚀 Product ID:', productId);
+    console.log('🚀 Product Name:', currentProduct?.name);
+    console.log('🚀 Selected Variation:', selectedVariation);
+
     const itemsToAdd = sizeQuantities.filter(sq => sq.quantity > 0);
+
+    console.log('🚀 Total sizeQuantities:', sizeQuantities.length);
+    console.log('🚀 Items to add (quantity > 0):', itemsToAdd.length);
+    console.log('🚀 Items details:', itemsToAdd.map(item => ({
+      size: item.size,
+      quantity: item.quantity,
+      price: item.price
+    })));
+
     if (itemsToAdd.length === 0) return;
 
     let customizationId: number | undefined = undefined;
     let previewImageArray: string[] = [];
+
+    console.log('🚀 Checking for designs in available views:', availableViews.length);
 
     if (selectedVariation?.variationId && availableViews.length > 0) {
       try {
@@ -469,6 +486,16 @@ const handleAddToCart = async () => {
     }
 
     // Add items to cart with all preview images as array AND design data
+    console.log('🚀 ========== BEFORE CALLING addItemsFromQuantityPage ==========');
+    console.log('🚀 Customization ID:', customizationId);
+    console.log('🚀 Preview images count:', previewImageArray.length);
+    console.log('🚀 Preview images:', previewImageArray);
+    console.log('🚀 Design data exists:', !!designData);
+    console.log('🚀 Items to pass to addItemsFromQuantityPage:', itemsToAdd.map(item => ({
+      ...item,
+      image: previewImageArray.length === 1 ? previewImageArray[0] : previewImageArray
+    })));
+
     await addItemsFromQuantityPage(
       productId,
       currentProduct.name,
@@ -480,12 +507,14 @@ const handleAddToCart = async () => {
       designData // Pass the combined design data
     );
 
+    console.log('🚀 ========== AFTER addItemsFromQuantityPage COMPLETED ==========');
+
     // Clear client reference cache to ensure next order creates fresh customization options
     if (selectedVariation?.variationId) {
       clearClientReferenceCache(productId, selectedVariation.variationId);
     }
 
-    console.log('Added to cart:', itemsToAdd);
+    console.log('🚀 Navigating to cart...');
     router.push('/cart');
 
   } catch (error) {

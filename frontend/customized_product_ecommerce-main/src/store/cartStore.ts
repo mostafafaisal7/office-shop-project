@@ -142,7 +142,18 @@ export const useCartStore = create<CartStore>()(
       
       // Add item with hybrid approach
       addItem: async (item) => {
-        console.log('🔧 addItem called with:', item);
+        console.log('🔧 ============ addItem CALLED ============');
+        console.log('🔧 Timestamp:', new Date().toISOString());
+        console.log('🔧 Current cart items count:', get().items.length);
+        console.log('🔧 Item received:', {
+          productId: item.productId,
+          name: item.name,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price,
+          customizationId: item.customizationId,
+          hasDesignData: !!item.design_canvas_data
+        });
 
         // ✅ FIX: Use reliable authentication check (handles hydration timing issues)
         const isAuthenticated = checkAuthentication();
@@ -157,7 +168,14 @@ export const useCartStore = create<CartStore>()(
         const existingItem = get().items.find(i => i.id === id);
 
         console.log('🔧 Generated ID:', id);
-        console.log('🔧 Existing item:', existingItem);
+        console.log('🔧 Existing item found:', !!existingItem);
+        if (existingItem) {
+          console.log('🔧 Existing item details:', {
+            id: existingItem.id,
+            quantity: existingItem.quantity,
+            serverId: existingItem.serverId
+          });
+        }
         
         // Create item for storage
         const itemForStorage: CartItem = {
@@ -227,27 +245,37 @@ export const useCartStore = create<CartStore>()(
         if (existingItem) {
           // Update existing item quantity
           const newQuantity = existingItem.quantity + item.quantity;
+          console.log('🔧 Updating existing item quantity from', existingItem.quantity, 'to', newQuantity);
+
           if (isAuthenticated && existingItem.serverId) {
             try {
+              console.log('🔧 Updating quantity on server for serverId:', existingItem.serverId);
               await cartApi.updateQuantity(existingItem.serverId, newQuantity);
+              console.log('🔧 ✅ Server quantity updated successfully');
             } catch (error) {
-              console.error('Failed to update server quantity:', error);
+              console.error('🔧 ❌ Failed to update server quantity:', error);
             }
           }
-          
+
           set((state) => ({
-            items: state.items.map(i => 
-              i.id === id 
+            items: state.items.map(i =>
+              i.id === id
                 ? { ...i, quantity: newQuantity }
                 : i
             )
           }));
+          console.log('🔧 ✅ Existing item quantity updated in state');
         } else {
           // Add new item
+          console.log('🔧 Adding NEW item to cart state');
           set((state) => ({
             items: [...state.items, itemForStorage]
           }));
+          console.log('🔧 ✅ New item added to state');
         }
+
+        console.log('🔧 Final cart items count:', get().items.length);
+        console.log('🔧 ============ addItem COMPLETED ============');
       },
       
       // Remove item with hybrid approach
@@ -311,35 +339,61 @@ export const useCartStore = create<CartStore>()(
       
       // Sync with server
       syncWithServer: async () => {
+        console.log('🔄 ============ syncWithServer CALLED ============');
+        console.log('🔄 Timestamp:', new Date().toISOString());
+        console.log('🔄 Current cart items count BEFORE sync:', get().items.length);
+        console.log('🔄 Current cart items BEFORE sync:', get().items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          size: item.size,
+          quantity: item.quantity,
+          customizationId: item.customizationId,
+          serverId: item.serverId
+        })));
+
         // Use checkAuthentication() for consistent auth detection (handles hydration timing issues)
         const isAuthenticated = checkAuthentication();
-        console.log('🔄 syncWithServer called, isAuthenticated:', isAuthenticated);
+        console.log('🔄 isAuthenticated:', isAuthenticated);
         if (!isAuthenticated) {
-          console.log('🔄 Not authenticated, skipping server sync');
+          console.log('🔄 ❌ Not authenticated, skipping server sync');
+          console.log('🔄 ============ syncWithServer COMPLETED (NO AUTH) ============');
           return;
         }
-        
+
+        console.log('🔄 Setting sync flags...');
         set({ isSyncing: true, isGeneratingPreviews: true });
-        
+
         try {
+          console.log('🔄 Calling cartApi.getCartWithCustomizations()...');
           // Use getCartWithCustomizations to get preview images directly
           const response = await cartApi.getCartWithCustomizations();
+          console.log('🔄 API response received:', {
+            success: response.success,
+            hasData: !!response.data,
+            dataType: Array.isArray(response.data) ? 'array' : typeof response.data
+          });
           if (response.success) {
+            console.log('🔄 ✅ API response successful');
             // Handle different response structures - server might return array directly or wrapped in data
             let serverData: CartApiItemWithCustomizations[] = [];
-            
+
             if (Array.isArray(response.data)) {
               serverData = response.data;
+              console.log('🔄 Server data is array, length:', serverData.length);
             } else if (response.data && Array.isArray(response.data.items)) {
               serverData = response.data.items;
+              console.log('🔄 Server data has items array, length:', serverData.length);
             } else if (response.data && typeof response.data === 'object') {
               // If it's an object but not an array, try to extract items
               const dataKeys = Object.keys(response.data);
               const itemsKey = dataKeys.find(key => Array.isArray(response.data[key]));
               if (itemsKey) {
                 serverData = response.data[itemsKey];
+                console.log('🔄 Found items in key', itemsKey, ', length:', serverData.length);
               }
             }
+
+            console.log('🔄 Processing', serverData.length, 'items from server');
             
             // Convert server data to cart items
             // Convert server data to cart items with robust price parsing
@@ -429,19 +483,34 @@ export const useCartStore = create<CartStore>()(
             });
 
 
-            
+
+            console.log('🔄 Converted', serverItems.length, 'server items to cart items');
+            console.log('🔄 Server items:', serverItems.map(item => ({
+              id: item.id,
+              productId: item.productId,
+              size: item.size,
+              quantity: item.quantity,
+              customizationId: item.customizationId,
+              serverId: item.serverId,
+              hasImage: !!item.image
+            })));
+
             // Update state with items (without preview images yet)
-            set({ 
-              items: serverItems, 
+            console.log('🔄 Updating state with server items...');
+            set({
+              items: serverItems,
               lastSyncTime: Date.now(),
-              isSyncing: false 
+              isSyncing: false
             });
-            
+            console.log('🔄 ✅ State updated with', serverItems.length, 'items');
+
             // Generate preview images asynchronously for items with customizations
             // BUT: Skip items that already have preview images from customized_images
             const itemsWithCustomizations = serverItems.filter(item =>
               item.customizationId && !item.image  // Only generate if no preview images exist
             );
+
+            console.log('🔄 Items needing preview generation:', itemsWithCustomizations.length);
 
             if (itemsWithCustomizations.length > 0) {
               console.log(`Starting preview generation for ${itemsWithCustomizations.length} customized items (without existing previews)`);
@@ -471,14 +540,18 @@ export const useCartStore = create<CartStore>()(
             }
             
             set({ isGeneratingPreviews: false });
+            console.log('🔄 ============ syncWithServer COMPLETED SUCCESSFULLY ============');
+            console.log('🔄 Final cart items count:', get().items.length);
           } else {
             // If sync fails, just continue with current items
-            console.warn('Cart sync failed, continuing with local cart:', response.message);
+            console.warn('🔄 ❌ Cart sync failed, continuing with local cart:', response.message);
             set({ isSyncing: false, isGeneratingPreviews: false });
+            console.log('🔄 ============ syncWithServer COMPLETED (FAILED) ============');
           }
         } catch (error) {
-          console.warn('Failed to sync with server, continuing with local cart:', error);
+          console.warn('🔄 ❌ Failed to sync with server, continuing with local cart:', error);
           set({ isSyncing: false, isGeneratingPreviews: false });
+          console.log('🔄 ============ syncWithServer COMPLETED (ERROR) ============');
           // Don't throw error - just continue with local cart
         }
       },
@@ -628,11 +701,27 @@ export const useCartStore = create<CartStore>()(
       
       // Legacy methods for backward compatibility
       addItemsFromQuantityPage: async (productId, productName, sizeQuantities, customizationId, designData) => {
+        console.log('📦 ============ addItemsFromQuantityPage CALLED ============');
+        console.log('📦 Timestamp:', new Date().toISOString());
+        console.log('📦 Product ID:', productId);
+        console.log('📦 Product Name:', productName);
+        console.log('📦 Customization ID:', customizationId);
+        console.log('📦 Design data exists:', !!designData);
+        console.log('📦 SizeQuantities received:', sizeQuantities);
+        console.log('📦 Current cart items count BEFORE:', get().items.length);
+
         // Only process items with quantity > 0
         const validItems = sizeQuantities.filter((sq: any) => sq.quantity > 0);
 
+        console.log('📦 Valid items (quantity > 0):', validItems.length);
+        console.log('📦 Valid items details:', validItems);
+
         // Add all items first (without syncing after each one)
-        for (const sq of validItems) {
+        console.log('📦 ========== STARTING LOOP TO ADD ITEMS ==========');
+        for (let i = 0; i < validItems.length; i++) {
+          const sq = validItems[i];
+          console.log(`📦 Loop iteration ${i + 1}/${validItems.length} - Processing size: ${sq.size}`);
+
           const item: Omit<CartItem, 'id'> = {
             productId,
             name: productName,
@@ -648,21 +737,57 @@ export const useCartStore = create<CartStore>()(
             design_elements: designData?.design_elements,
           };
 
+          console.log(`📦 Item ${i + 1} to be added:`, {
+            productId: item.productId,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+            customizationId: item.customizationId,
+            hasDesignData: !!item.design_canvas_data
+          });
+
+          console.log(`📦 Cart items count BEFORE addItem ${i + 1}:`, get().items.length);
+
           try {
             await get().addItem(item);
+            console.log(`📦 ✅ Item ${i + 1} added successfully`);
+            console.log(`📦 Cart items count AFTER addItem ${i + 1}:`, get().items.length);
           } catch (error) {
-            console.error('Error adding item to cart:', error);
+            console.error(`📦 ❌ Error adding item ${i + 1} to cart:`, error);
             throw new Error('Unable to add item to cart.');
           }
         }
 
+        console.log('📦 ========== FINISHED ADDING ALL ITEMS ==========');
+        console.log('📦 Cart items count BEFORE sync:', get().items.length);
+        console.log('📦 Cart items:', get().items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          size: item.size,
+          quantity: item.quantity,
+          customizationId: item.customizationId
+        })));
+
         // Sync with server ONCE after all items are added to get correct prices
+        console.log('📦 ========== CALLING syncWithServer ==========');
         try {
           await get().syncWithServer();
+          console.log('📦 ✅ syncWithServer completed successfully');
+          console.log('📦 Cart items count AFTER sync:', get().items.length);
+          console.log('📦 Cart items AFTER sync:', get().items.map(item => ({
+            id: item.id,
+            productId: item.productId,
+            size: item.size,
+            quantity: item.quantity,
+            customizationId: item.customizationId,
+            serverId: item.serverId
+          })));
         } catch (error) {
-          console.error('Error syncing with server:', error);
+          console.error('📦 ❌ Error syncing with server:', error);
           // Continue even if sync fails - items are already in local cart
         }
+
+        console.log('📦 ============ addItemsFromQuantityPage COMPLETED ============');
       },
 
       
