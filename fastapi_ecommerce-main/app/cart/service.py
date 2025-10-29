@@ -15,10 +15,11 @@ async def add_to_cart(
     db: AsyncSession, item_data: schemas.CartItemCreate, user_id: Optional[int] = None, guest_id: Optional[str] = None
 ):
     import time
+    from datetime import datetime
     start_time = time.time()
 
     print(f"\n=== CART SERVICE: add_to_cart DEBUG ===")
-    print(f"Timestamp: {time.strftime('%H:%M:%S.%f')[:-3]}")
+    print(f"Timestamp: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
     print(f"Received item_data:")
     print(f"  - product_id: {item_data.product_id}")
     print(f"  - size: {item_data.size}")
