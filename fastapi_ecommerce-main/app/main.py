@@ -39,9 +39,11 @@ app = FastAPI(title="eCommerce API", lifespan=lifespan)
 # -----------------------------
 # Global CORS middleware
 # -----------------------------
+from app.core.config import ALLOWED_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend dev URLs
+    allow_origins=ALLOWED_ORIGINS,  # Load from environment variable
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

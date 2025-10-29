@@ -1,6 +1,9 @@
-const API_BASE_URL = typeof window === 'undefined' 
-  ? 'http://127.0.0.1:8000' // Server-side: direct connection
-  : '/api'; // Client-side: use Next.js proxy
+// Use environment variable for API URL
+// Server-side: direct connection to backend
+// Client-side: use Next.js proxy
+const API_BASE_URL = typeof window === 'undefined'
+  ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000')
+  : '/api';
 
 export interface ApiProduct {
   id: number;

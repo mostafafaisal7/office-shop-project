@@ -15,8 +15,11 @@ export const uploadPreviewToBackend = async (
     formData.append('file', file);
     formData.append('upload_type', uploadType);
 
+    // Use environment variable for API URL
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
     // Upload to backend FastAPI endpoint
-    const response = await fetch('http://127.0.0.1:8000/uploads/image', {
+    const response = await fetch(`${API_URL}/uploads/image`, {
       method: 'POST',
       body: formData,
     });

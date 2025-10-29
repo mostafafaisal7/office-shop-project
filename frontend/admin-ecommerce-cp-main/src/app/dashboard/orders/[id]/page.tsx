@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+
+// Use environment variable for API URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 import {
   Card,
   Row,
@@ -207,9 +210,9 @@ export default function OrderDetailsPage() {
                 // Convert relative URLs to full URLs
                 if (!rawCustomUrl.startsWith('http')) {
                   if (rawCustomUrl.startsWith('/static/')) {
-                    imageUrl = `http://127.0.0.1:8000${rawCustomUrl}`;
+                    imageUrl = `${API_BASE_URL}${rawCustomUrl}`;
                   } else if (rawCustomUrl.startsWith('/images/')) {
-                    imageUrl = `http://127.0.0.1:8000/static/products/${rawCustomUrl.replace('/images/products/', '')}`;
+                    imageUrl = `${API_BASE_URL}/static/products/${rawCustomUrl.replace('/images/products/', '')}`;
                   } else {
                     imageUrl = rawCustomUrl;
                   }
@@ -237,10 +240,10 @@ export default function OrderDetailsPage() {
           if (rawImageUrl && !rawImageUrl.startsWith('http')) {
             if (rawImageUrl.startsWith('/images/')) {
               // Convert /images/products/xyz to full URL
-              imageUrl = `http://127.0.0.1:8000/static/products/${rawImageUrl.replace('/images/products/', '')}`;
+              imageUrl = `${API_BASE_URL}/static/products/${rawImageUrl.replace('/images/products/', '')}`;
             } else if (rawImageUrl.startsWith('/static/')) {
               // Already a static path, add base URL
-              imageUrl = `http://127.0.0.1:8000${rawImageUrl}`;
+              imageUrl = `${API_BASE_URL}${rawImageUrl}`;
             } else {
               imageUrl = rawImageUrl;
             }
@@ -289,9 +292,9 @@ export default function OrderDetailsPage() {
           let rawImageUrl = record.variation_details.media[0].file_path;
           if (rawImageUrl && !rawImageUrl.startsWith('http')) {
             if (rawImageUrl.startsWith('/images/')) {
-              finalImages = `http://127.0.0.1:8000/static/products/${rawImageUrl.replace('/images/products/', '')}`;
+              finalImages = `${API_BASE_URL}/static/products/${rawImageUrl.replace('/images/products/', '')}`;
             } else if (rawImageUrl.startsWith('/static/')) {
-              finalImages = `http://127.0.0.1:8000${rawImageUrl}`;
+              finalImages = `${API_BASE_URL}${rawImageUrl}`;
             } else {
               finalImages = rawImageUrl;
             }

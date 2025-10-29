@@ -7,8 +7,11 @@ export async function uploadProductMedia(file: File, productId: number, token: s
   const formData = new FormData();
   formData.append("file", file); // Make sure 'file' matches backend
 
+  // Use environment variable for API URL
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
   // Use customer upload endpoint that uses same infrastructure as admin
-  const response = await fetch(`http://127.0.0.1:8000/products/${productId}/customer-upload`, {
+  const response = await fetch(`${API_URL}/products/${productId}/customer-upload`, {
     method: "POST",
     body: formData,
     headers: {

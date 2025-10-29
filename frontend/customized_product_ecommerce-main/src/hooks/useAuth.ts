@@ -37,10 +37,15 @@ interface AuthActions {
 
 type AuthStore = AuthState & AuthActions;
 
+// Use environment variable for API URL
+const API_URL = typeof window !== 'undefined'
+  ? (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000')
+  : (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000');
+
 // Customer auth service
 const customerAuthService = {
   async login(credentials: LoginRequest) {
-    const response = await fetch('http://127.0.0.1:8000/auth/customer/login', {
+    const response = await fetch(`${API_URL}/auth/customer/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,7 +62,7 @@ const customerAuthService = {
   },
 
   async verifyOtp(userId: number, otp: string) {
-    const response = await fetch('http://127.0.0.1:8000/auth/customer/login/verify-otp', {
+    const response = await fetch(`${API_URL}/auth/customer/login/verify-otp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -76,7 +81,7 @@ const customerAuthService = {
   async logout() {
     const token = localStorage.getItem('customer_access_token');
     if (token) {
-      await fetch('http://127.0.0.1:8000/auth/logout', {
+      await fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -92,7 +97,7 @@ const customerAuthService = {
       throw new Error('No access token');
     }
 
-    const response = await fetch('http://127.0.0.1:8000/users/me', {
+    const response = await fetch(`${API_URL}/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
