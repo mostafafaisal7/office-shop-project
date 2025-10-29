@@ -631,6 +631,7 @@ export const useCartStore = create<CartStore>()(
         // Only process items with quantity > 0
         const validItems = sizeQuantities.filter((sq: any) => sq.quantity > 0);
 
+        // Add all items first (without syncing after each one)
         for (const sq of validItems) {
           const item: Omit<CartItem, 'id'> = {
             productId,
@@ -649,14 +650,18 @@ export const useCartStore = create<CartStore>()(
 
           try {
             await get().addItem(item);
-
-            // Immediately sync with server to get the correct price
-            await get().syncWithServer();
-
           } catch (error) {
             console.error('Error adding item to cart:', error);
             throw new Error('Unable to add item to cart.');
           }
+        }
+
+        // Sync with server ONCE after all items are added to get correct prices
+        try {
+          await get().syncWithServer();
+        } catch (error) {
+          console.error('Error syncing with server:', error);
+          // Continue even if sync fails - items are already in local cart
         }
       },
 
