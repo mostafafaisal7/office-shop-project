@@ -152,9 +152,18 @@ export const useCartStore = create<CartStore>()(
               color: item.color,
               customization_id: item.customizationId,
               customized_images: item.image ? (Array.isArray(item.image) ? item.image : [item.image]) : null, // ✅ Handle both string and array formats
+              // ✅ Include design data (snapshot from design time)
+              design_canvas_data: item.design_canvas_data,
+              design_svg_data: item.design_svg_data,
+              design_elements: item.design_elements,
             };
-            
-            console.log('🔧 Sending to backend with customized_images:', apiItem.customized_images);
+
+            console.log('🔧 Sending to backend:');
+            console.log('  - customized_images:', apiItem.customized_images);
+            console.log('  - design_canvas_data:', apiItem.design_canvas_data ? 'Present' : 'None');
+            if (apiItem.design_canvas_data) {
+              console.log('    objects count:', apiItem.design_canvas_data.objects?.length || 0);
+            }
 
             const response = await cartApi.addItem(apiItem);
             if (response.success && response.data) {
@@ -381,6 +390,10 @@ export const useCartStore = create<CartStore>()(
                 customizationId: apiItem.customization_id,
                 serverId: apiItem.id,
                 isGuest: false,
+                // ✅ Include design data from server (snapshot from cart)
+                design_canvas_data: (apiItem as any).design_canvas_data,
+                design_svg_data: (apiItem as any).design_svg_data,
+                design_elements: (apiItem as any).design_elements,
               };
             });
 
