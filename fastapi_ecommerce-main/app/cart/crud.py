@@ -26,6 +26,49 @@ async def get_cart_item_by_id(db: AsyncSession, cart_item_id: int) -> Optional[m
     return result.scalar_one_or_none()
 
 
+async def find_existing_cart_item(
+    db: AsyncSession,
+    user_id: Optional[int] = None,
+    guest_id: Optional[str] = None,
+    product_id: int = None,
+    size: Optional[str] = None,
+    customization_id: Optional[int] = None
+) -> Optional[models.CartItem]:
+    """
+    Find existing cart item by unique attributes to prevent duplicates.
+
+    A cart item is considered duplicate if it has same:
+    - user_id (or guest_id)
+    - product_id
+    - size
+    - customization_id
+    """
+    stmt = select(models.CartItem).where(models.CartItem.product_id == product_id)
+
+    # Filter by user or guest
+    if user_id is not None:
+        stmt = stmt.where(models.CartItem.user_id == user_id)
+    elif guest_id is not None:
+        stmt = stmt.where(models.CartItem.guest_id == guest_id)
+    else:
+        return None
+
+    # Filter by size (handle None properly)
+    if size is not None:
+        stmt = stmt.where(models.CartItem.size == size)
+    else:
+        stmt = stmt.where(models.CartItem.size.is_(None))
+
+    # Filter by customization_id (handle None properly)
+    if customization_id is not None:
+        stmt = stmt.where(models.CartItem.customization_id == customization_id)
+    else:
+        stmt = stmt.where(models.CartItem.customization_id.is_(None))
+
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def update_cart_item_quantity(db: AsyncSession, cart_item_id: int, quantity: int) -> Optional[models.CartItem]:
     cart_item = await get_cart_item_by_id(db, cart_item_id)
     if cart_item:

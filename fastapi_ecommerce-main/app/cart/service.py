@@ -14,9 +14,15 @@ logger = logging.getLogger(__name__)
 async def add_to_cart(
     db: AsyncSession, item_data: schemas.CartItemCreate, user_id: Optional[int] = None, guest_id: Optional[str] = None
 ):
+    import time
+    start_time = time.time()
+
     print(f"\n=== CART SERVICE: add_to_cart DEBUG ===")
+    print(f"Timestamp: {time.strftime('%H:%M:%S.%f')[:-3]}")
     print(f"Received item_data:")
     print(f"  - product_id: {item_data.product_id}")
+    print(f"  - size: {item_data.size}")
+    print(f"  - quantity: {item_data.quantity}")
     print(f"  - customization_id: {item_data.customization_id}")
     print(f"  - customized_images: {item_data.customized_images}")
     print(f"  - design_canvas_data: {item_data.design_canvas_data is not None}")
@@ -25,9 +31,57 @@ async def add_to_cart(
     print(f"  - design_svg_data: {item_data.design_svg_data is not None}")
     print(f"  - design_elements: {item_data.design_elements is not None}")
 
+    # 🔍 CRITICAL: Check for existing cart item to prevent duplicates
+    query_start = time.time()
+    existing_item = await crud.find_existing_cart_item(
+        db=db,
+        user_id=user_id,
+        guest_id=guest_id,
+        product_id=item_data.product_id,
+        size=item_data.size,
+        customization_id=item_data.customization_id
+    )
+    query_time = (time.time() - query_start) * 1000
+    print(f"  ⏱️  Query existing item: {query_time:.2f}ms")
+
+    if existing_item:
+        print(f"  ✅ FOUND EXISTING ITEM (id={existing_item.id})")
+        print(f"     Current quantity: {existing_item.quantity}")
+        print(f"     Adding quantity: {item_data.quantity}")
+
+        # Update quantity instead of creating duplicate
+        update_start = time.time()
+        existing_item.quantity += item_data.quantity
+
+        # Update design data if provided (user might have updated the design)
+        if item_data.design_canvas_data is not None:
+            existing_item.design_canvas_data = item_data.design_canvas_data
+        if item_data.design_svg_data is not None:
+            existing_item.design_svg_data = item_data.design_svg_data
+        if item_data.design_elements is not None:
+            existing_item.design_elements = item_data.design_elements
+        if item_data.customized_images is not None:
+            existing_item.customized_images = item_data.customized_images
+
+        await db.commit()
+        await db.refresh(existing_item)
+        update_time = (time.time() - update_start) * 1000
+
+        print(f"     New quantity: {existing_item.quantity}")
+        print(f"  ⏱️  Update existing item: {update_time:.2f}ms")
+        print(f"  ⏱️  Total time: {(time.time() - start_time) * 1000:.2f}ms")
+        print(f"=== END CART SERVICE DEBUG ===\n")
+
+        return existing_item
+
+    print(f"  ℹ️  No existing item found, creating new cart item")
+
     # ✅ Fetch product details to ensure price is correct
+    fetch_start = time.time()
     product_url = f"{BASE_URL}/products/{item_data.product_id}"
     product_data = await http_get(product_url)
+    fetch_time = (time.time() - fetch_start) * 1000
+    print(f"  ⏱️  Fetch product data: {fetch_time:.2f}ms")
 
     if not product_data:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -61,6 +115,7 @@ async def add_to_cart(
         if fallback_image:
             item_data_dict["customized_images"] = [fallback_image]
 
+    insert_start = time.time()
     if user_id is not None:
         item = models.CartItem(**item_data_dict, user_id=user_id, guest_id=None)
     else:
@@ -70,9 +125,14 @@ async def add_to_cart(
     print(f"  - design_canvas_data: {item.design_canvas_data is not None}")
     print(f"  - design_svg_data: {item.design_svg_data is not None}")
     print(f"  - design_elements: {item.design_elements is not None}")
+
+    result = await crud.add_cart_item(db, item)
+    insert_time = (time.time() - insert_start) * 1000
+    print(f"  ⏱️  Insert new item: {insert_time:.2f}ms")
+    print(f"  ⏱️  Total time: {(time.time() - start_time) * 1000:.2f}ms")
     print(f"=== END CART SERVICE DEBUG ===\n")
 
-    return await crud.add_cart_item(db, item)
+    return result
 
 
 
