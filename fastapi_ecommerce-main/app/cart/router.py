@@ -10,7 +10,7 @@ from app.common.schemas import CurrentUser
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.CartItemResponse)
+@router.post("", response_model=schemas.CartItemResponse)
 async def add_to_cart(
     item_data: schemas.CartItemCreate,
     db: AsyncSession = Depends(get_db),
@@ -19,11 +19,11 @@ async def add_to_cart(
 ):
     if not current_user and not guest_id:
         raise HTTPException(status_code=400, detail="Guest ID is required for unauthenticated access")
-    
+
     return await service.add_to_cart(db=db, item_data=item_data, user_id=current_user.id if current_user else None, guest_id=guest_id)
 
 
-@router.get("/", response_model=List[schemas.CartItemResponse])
+@router.get("", response_model=List[schemas.CartItemResponse])
 async def list_cart(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[CurrentUser] = Depends(get_current_user_optional),

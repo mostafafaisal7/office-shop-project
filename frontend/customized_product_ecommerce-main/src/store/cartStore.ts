@@ -295,8 +295,9 @@ export const useCartStore = create<CartStore>()(
       
       // Clear cart with hybrid approach
       clearCart: async () => {
-        const { isAuthenticated } = useAuth.getState();
-        
+        // Use checkAuthentication() for consistent auth detection (handles hydration timing issues)
+        const isAuthenticated = checkAuthentication();
+
         if (isAuthenticated) {
           try {
             await cartApi.clearCart();
@@ -304,7 +305,7 @@ export const useCartStore = create<CartStore>()(
             console.error('Failed to clear server cart:', error);
           }
         }
-        
+
         set({ items: [] });
       },
       

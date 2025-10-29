@@ -12,6 +12,7 @@ interface GroupedCartItem {
   image?: string | string[]; // Can be single image or array of images
   color?: string;
   customDesign?: boolean;
+  customizationId?: number; // Track customization ID for unique designs
   sizes: Array<{
     size: string;
     quantity: number;
@@ -52,12 +53,17 @@ useEffect(() => {
   loadCart();
 }, [initializeCart]);
   // Group cart items by product and color
+  // NOTE: Custom designs should NOT be grouped together as each is unique
   const groupedItems = useMemo(() => {
     const groups: { [key: string]: GroupedCartItem } = {};
-    
+
     cartItems.forEach(item => {
-      const groupKey = `${item.productId}-${item.color || 'default'}`;
-      
+      // Include customizationId in group key if item has custom design
+      // This prevents grouping different custom designs together
+      const groupKey = item.customizationId
+        ? `${item.productId}-${item.color || 'default'}-custom-${item.customizationId}`
+        : `${item.productId}-${item.color || 'default'}`;
+
       if (!groups[groupKey]) {
         groups[groupKey] = {
           productId: item.productId,
@@ -65,23 +71,24 @@ useEffect(() => {
           image: item.image,
           color: item.color,
           customDesign: item.customDesign,
+          customizationId: item.customizationId, // Store customization ID
           sizes: [],
           totalQuantity: 0,
           totalPrice: 0
         };
       }
-      
+
       groups[groupKey].sizes.push({
         size: item.size || 'One Size',
         quantity: item.quantity,
         price: item.price,
         itemId: item.id
       });
-      
+
       groups[groupKey].totalQuantity += item.quantity;
       groups[groupKey].totalPrice += item.price * item.quantity;
     });
-    
+
     // Sort sizes within each group
     Object.values(groups).forEach(group => {
       group.sizes.sort((a, b) => {
@@ -94,7 +101,7 @@ useEffect(() => {
         return aIndex - bIndex;
       });
     });
-    
+
     return Object.values(groups);
   }, [cartItems]);
 
@@ -229,7 +236,7 @@ useEffect(() => {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             {groupedItems.map((group, groupIndex) => (
-              <div key={`${group.productId}-${group.color || 'default'}`} className="bg-white rounded-lg shadow-sm p-6">
+              <div key={group.customizationId ? `${group.productId}-${group.color || 'default'}-custom-${group.customizationId}` : `${group.productId}-${group.color || 'default'}`} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-start gap-4">
                   {/* Product Image with PreviewCarousel */}
                   <div className="flex-shrink-0 relative">

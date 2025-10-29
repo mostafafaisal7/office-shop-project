@@ -54,6 +54,11 @@ const LeftSidebar = ({ onAddText, onImageUpload, onImageClick }: LeftSidebarProp
         const res = await fetch(`${API_FETCH_USER_IMAGES}${query}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
+        // Only process if response is OK
+        if (!res.ok) {
+          console.warn('Failed to fetch user images:', res.status);
+          return;
+        }
         const data = await res.json();
         if (data?.images) setUploadedImages(data.images);
       } catch (err) {
