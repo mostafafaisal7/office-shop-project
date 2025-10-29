@@ -1,6 +1,6 @@
 # checkout/schemas.py
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
 class CheckoutItem(BaseModel):
@@ -10,6 +10,9 @@ class CheckoutItem(BaseModel):
     quantity: int
     customization_option_id: Optional[int] = None
     customized_images: Optional[List[str]] = None
+    design_canvas_data: Optional[Dict[str, Any]] = None
+    design_svg_data: Optional[str] = None
+    design_elements: Optional[List[Dict[str, Any]]] = None
 
 class CheckoutRequest(BaseModel):
     user_id: Optional[int] = None  # null for guest

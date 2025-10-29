@@ -19,3 +19,8 @@ class CartItem(Base, TimestampMixin, UserTrackingMixin):
 
     customization_id = Column(Integer, nullable=True)  # stores user's selections like text, color, size
     customized_images = Column(JSON, nullable=True)  # stores array of preview image URLs
+
+    # Design data for print-ready files (snapshot from design time)
+    design_canvas_data = Column(JSON, nullable=True)  # Complete Fabric.js canvas data from all design areas
+    design_svg_data = Column(Text, nullable=True)  # SVG data for print-ready designs
+    design_elements = Column(JSON, nullable=True)  # Simplified design elements list

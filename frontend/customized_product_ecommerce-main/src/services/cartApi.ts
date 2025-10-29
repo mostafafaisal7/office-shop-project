@@ -15,6 +15,11 @@ export interface CartApiItem {
   color?: string;
   customization_id?: number;
   customized_images?: string[] | null; // Add support for preview image URLs
+
+  // Design data (snapshot from design time - just like customized_images)
+  design_canvas_data?: any;
+  design_svg_data?: string;
+  design_elements?: any[];
 }
 
 export interface CartApiItemWithCustomizations {

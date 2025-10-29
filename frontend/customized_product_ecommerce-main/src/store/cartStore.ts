@@ -21,6 +21,11 @@ export interface CartItem {
   serverId?: number; // Server-side cart item ID
   isGuest?: boolean; // Track if item is from guest session
   tempCustomizationData?: any; // Temporary storage for guest users
+
+  // Design data (snapshot from design time - just like customized_images)
+  design_canvas_data?: any; // Complete Fabric.js canvas data from all design areas
+  design_svg_data?: string; // SVG data for print-ready designs
+  design_elements?: any[]; // Simplified design elements list
 }
 
 interface CartStore {
@@ -50,7 +55,7 @@ interface CartStore {
   getTotalPrice: () => number;
   getUniqueProductCount: () => number;
   addItemsFromQuantityPage: (productId: string, productName: string, sizeQuantities: any[], customizationId?: number) => Promise<void>;
-  addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string, customizationId?: number) => Promise<void>;
+  addItemFromProductPage: (productId: string, productName: string, quantity: number, price: number, size?: string, color?: string, image?: string, customizationId?: number, designData?: { canvas_data?: any, svg_data?: string, design_elements?: any[] }) => Promise<void>;
 }
 
 // Helper function to generate or get guest ID
@@ -590,7 +595,7 @@ export const useCartStore = create<CartStore>()(
       },
 
       
-      addItemFromProductPage: async (productId, productName, quantity, price, size, color, image, customizationId) => {
+      addItemFromProductPage: async (productId, productName, quantity, price, size, color, image, customizationId, designData) => {
         // Debug logging
         console.log('🛒 CartStore addItemFromProductPage Debug:');
         console.log('- Product ID:', productId);
@@ -601,6 +606,7 @@ export const useCartStore = create<CartStore>()(
         console.log('- Color:', color);
         console.log('- Image passed:', image);
         console.log('- Customization ID:', customizationId);
+        console.log('- Design Data:', designData ? 'Provided' : 'None');
         
         // ✅ Ensure image fallback for non-customized items
         let finalImage = image;
@@ -645,9 +651,16 @@ export const useCartStore = create<CartStore>()(
           price: Number(price) || 0,
           customDesign: !!customizationId,
           customizationId: customizationId,
+          // Add design data (snapshot from design time)
+          design_canvas_data: designData?.canvas_data,
+          design_svg_data: designData?.svg_data,
+          design_elements: designData?.design_elements,
         };
 
-        console.log('- Final item object with image:', item);
+        console.log('- Final item object with image and design data:', item);
+        if (designData) {
+          console.log('- Design canvas objects:', designData.canvas_data?.objects?.length || 0);
+        }
 
         try {
           await get().addItem(item);

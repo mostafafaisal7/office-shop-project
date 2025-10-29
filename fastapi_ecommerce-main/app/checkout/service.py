@@ -93,147 +93,45 @@ async def process_checkout(data: CheckoutRequest) -> CheckoutResponse:
         subtotal += price
         total_quantity += item.quantity
 
-        # Extract preview image URLs and design data from customization details
+        # ✅ SIMPLE FIX: Use design data directly from cart item (passed from frontend)
+        # Just like how customized_images comes from cart, design data also comes from cart
+        # The frontend already has all the canvas data when adding to cart
         customized_images = item.customized_images or []
-        design_svg_data = None
-        design_canvas_data = None
-        design_elements = None
+        design_svg_data = item.design_svg_data
+        design_canvas_data = item.design_canvas_data
+        design_elements = item.design_elements
 
         print(f"\n=== DEBUG CHECKOUT Item {index} ===")
         print(f"customization_option_id: {item.customization_option_id}")
+        print(f"✅ Using design data from cart item (snapshot from add-to-cart time):")
+        print(f"   - customized_images: {len(customized_images) if customized_images else 0} images")
+        print(f"   - design_canvas_data: {design_canvas_data is not None}")
+        if design_canvas_data:
+            print(f"   - canvas objects: {len(design_canvas_data.get('objects', []))}")
+        print(f"   - design_svg_data: {design_svg_data is not None}")
+        print(f"   - design_elements: {design_elements is not None}")
 
-        if item.customization_option_id:
+        # Backward compatibility: fetch preview URL if cart didn't have it
+        if item.customization_option_id and not customized_images:
             try:
-                # Fetch customization details to get preview image URL and design data
                 customization_url = f"{PRODUCT_SERVICE_URL}/options/{item.customization_option_id}"
-                print(f"Fetching customization from: {customization_url}")
+                print(f"⚠️ Fallback: Fetching preview URL from: {customization_url}")
                 customization_data = await http_get(customization_url)
 
-                print(f"Customization data received: {customization_data is not None}")
-                if customization_data:
-                    print(f"Customization keys: {list(customization_data.keys())}")
-
-                    # Extract preview image URL
-                    if customization_data.get("design_metadata"):
-                        preview_url = customization_data["design_metadata"].get("preview_image_url")
-                        if preview_url and preview_url not in customized_images:
-                            customized_images.append(preview_url)
-                            print(f"Added preview image URL to order item: {preview_url}")
-
-                    # ✅ NEW: Fetch ALL design areas for this product/variation
-                    # Just like customized_images captures all preview images,
-                    # we need to capture all design areas' canvas data
-                    client_reference_id = customization_data.get("client_reference_id")
-
-                    if client_reference_id:
-                        print(f"Found client_reference_id: {client_reference_id}")
-                        print(f"Fetching ALL design areas with this client_reference_id...")
-
-                        # Fetch all customization options with the same client_reference_id
-                        all_areas_url = f"{PRODUCT_SERVICE_URL}/options?client_reference_id={client_reference_id}"
-                        print(f"All areas URL: {all_areas_url}")
-
-                        try:
-                            all_areas_data = await http_get(all_areas_url)
-                            print(f"All areas response type: {type(all_areas_data)}")
-                            print(f"All areas response: {all_areas_data}")
-                        except Exception as fetch_error:
-                            print(f"❌ ERROR fetching all areas: {fetch_error}")
-                            import traceback
-                            traceback.print_exc()
-                            all_areas_data = None
-
-                        if all_areas_data and isinstance(all_areas_data, list) and len(all_areas_data) > 0:
-                            print(f"Found {len(all_areas_data)} design areas")
-
-                            # Combine canvas objects from all design areas
-                            combined_objects = []
-                            combined_elements = []
-                            combined_svg_parts = []
-
-                            for area_data in all_areas_data:
-                                area_name = area_data.get("design_area", "unknown")
-                                print(f"  - Processing area: {area_name}")
-
-                                # Collect canvas objects from this area
-                                if area_data.get("canvas_data") and area_data["canvas_data"].get("objects"):
-                                    area_objects = area_data["canvas_data"]["objects"]
-                                    combined_objects.extend(area_objects)
-                                    print(f"    Added {len(area_objects)} canvas objects from {area_name}")
-
-                                # Collect design elements from this area
-                                if area_data.get("design_elements"):
-                                    combined_elements.extend(area_data["design_elements"])
-                                    print(f"    Added {len(area_data['design_elements'])} design elements from {area_name}")
-
-                                # Collect SVG data from this area
-                                if area_data.get("svg_data"):
-                                    combined_svg_parts.append(f"<!-- {area_name.upper()} VIEW -->\n{area_data['svg_data']}")
-
-                            # Create combined canvas data with all objects from all areas
-                            design_canvas_data = {
-                                "version": "5.3.0",
-                                "objects": combined_objects,
-                                "background": customization_data.get("canvas_data", {}).get("background", "#f3f4f6")
-                            }
-
-                            # Combine design elements
-                            design_elements = combined_elements if combined_elements else None
-
-                            # Combine SVG data (separated by area comments)
-                            design_svg_data = "\n\n".join(combined_svg_parts) if combined_svg_parts else None
-
-                            print(f"✅ COMBINED DATA:")
-                            print(f"   Total canvas objects: {len(combined_objects)}")
-                            print(f"   Total design elements: {len(combined_elements)}")
-                            print(f"   SVG parts: {len(combined_svg_parts)}")
-                        else:
-                            print("⚠️ Could not fetch all areas, using single option data")
-                            # Fallback to single option data
-                            design_svg_data = customization_data.get("svg_data")
-                            design_canvas_data = customization_data.get("canvas_data")
-                            design_elements = customization_data.get("design_elements")
-                            print(f"   Fallback - svg_data exists: {design_svg_data is not None}")
-                            print(f"   Fallback - canvas_data exists: {design_canvas_data is not None}")
-                            print(f"   Fallback - design_elements exists: {design_elements is not None}")
-                            if design_canvas_data:
-                                print(f"   Fallback - canvas objects: {len(design_canvas_data.get('objects', []))}")
-                    else:
-                        print("⚠️ No client_reference_id found, using single option data")
-                        # Fallback to single option data
-                        design_svg_data = customization_data.get("svg_data")
-                        design_canvas_data = customization_data.get("canvas_data")
-                        design_elements = customization_data.get("design_elements")
-                        print(f"   No client_ref - svg_data exists: {design_svg_data is not None}")
-                        print(f"   No client_ref - canvas_data exists: {design_canvas_data is not None}")
-                        print(f"   No client_ref - design_elements exists: {design_elements is not None}")
-                        if design_canvas_data:
-                            print(f"   No client_ref - canvas objects: {len(design_canvas_data.get('objects', []))}")
-
-                    print(f"design_svg_data exists: {design_svg_data is not None}")
-                    print(f"design_canvas_data exists: {design_canvas_data is not None}")
-                    print(f"design_elements exists: {design_elements is not None}")
-
-                    if design_svg_data:
-                        print(f"Captured SVG data for order item (length: {len(design_svg_data)} characters)")
-                    if design_canvas_data:
-                        print(f"Captured canvas data with {len(design_canvas_data.get('objects', []))} objects")
-                    if design_elements:
-                        print(f"Captured {len(design_elements)} design elements for order item")
-                else:
-                    print("WARNING: customization_data is None or empty!")
-
+                if customization_data and customization_data.get("design_metadata"):
+                    preview_url = customization_data["design_metadata"].get("preview_image_url")
+                    if preview_url:
+                        customized_images.append(preview_url)
+                        print(f"   Added fallback preview image URL: {preview_url}")
             except Exception as e:
-                print(f"ERROR: Failed to fetch customization details for option {item.customization_option_id}: {e}")
-                import traceback
-                traceback.print_exc()
-                # Continue with existing customized_images
-        else:
-            print("No customization_option_id - skipping design data fetch")
+                print(f"   ERROR fetching fallback preview: {e}")
 
-        print(f"Final values being set:")
+        print(f"Final order item values:")
+        print(f"  - customized_images: {len(customized_images) if customized_images else 0}")
         print(f"  - design_svg_data: {design_svg_data is not None}")
         print(f"  - design_canvas_data: {design_canvas_data is not None}")
+        if design_canvas_data:
+            print(f"  - canvas objects: {len(design_canvas_data.get('objects', []))}")
         print(f"  - design_elements: {design_elements is not None}")
         print(f"=== END DEBUG CHECKOUT ===\n")
 

@@ -1386,6 +1386,57 @@ const handleReviewViewChange = async (area: string) => {
             console.log('📦 STANDARD PRODUCT: Using variation/product image:', mainPreviewImage);
           }
           
+          // ✅ Fetch and combine ALL design areas (just like how previews work)
+          let designData = undefined;
+          if (customizationId && selectedVariation?.variationId) {
+            try {
+              console.log('📦 Fetching ALL design areas for cart...');
+
+              // Fetch all design areas for this product+variation
+              const allDesigns = [];
+              for (const view of availableViews) {
+                const designForArea = await loadDesign(
+                  unwrappedParams.id,
+                  selectedVariation.variationId.toString(),
+                  view.area
+                );
+                if (designForArea && designForArea.canvas_data) {
+                  allDesigns.push(designForArea);
+                  console.log(`  - Loaded ${view.area}: ${designForArea.canvas_data.objects?.length || 0} objects`);
+                }
+              }
+
+              // Combine canvas data from all areas
+              if (allDesigns.length > 0) {
+                const combined_objects = [];
+                const combined_elements = [];
+
+                for (const design of allDesigns) {
+                  if (design.canvas_data?.objects) {
+                    combined_objects.push(...design.canvas_data.objects);
+                  }
+                  if (design.design_elements) {
+                    combined_elements.push(...design.design_elements);
+                  }
+                }
+
+                designData = {
+                  canvas_data: {
+                    version: '5.3.0',
+                    objects: combined_objects,
+                    background: allDesigns[0].canvas_data?.background || '#f3f4f6'
+                  },
+                  svg_data: undefined, // SVG generation can be done server-side if needed
+                  design_elements: combined_elements.length > 0 ? combined_elements : undefined
+                };
+
+                console.log(`✅ Combined design data: ${combined_objects.length} total objects from ${allDesigns.length} areas`);
+              }
+            } catch (error) {
+              console.error('Error fetching design data for cart:', error);
+            }
+          }
+
           // Add to cart with default quantity of 1
           await addItemFromProductPage(
             unwrappedParams.id,
@@ -1395,7 +1446,8 @@ const handleReviewViewChange = async (area: string) => {
             currentVariation?.attributes?.size,
             currentVariation?.attributes?.color,
             mainPreviewImage, // Use the saved or fallback preview image
-            customizationId // Use the fetched customization ID
+            customizationId, // Use the fetched customization ID
+            designData // Pass combined design data (snapshot from design time)
           );
 
           // Clear client reference cache to ensure next order creates fresh customization options
@@ -1416,7 +1468,8 @@ const handleReviewViewChange = async (area: string) => {
             currentVariation?.attributes?.size,
             currentVariation?.attributes?.color,
             currentVariation?.media?.[0]?.file_path || currentProduct.media?.[0]?.file_path || '',
-            undefined // No customization ID in fallback
+            undefined, // No customization ID in fallback
+            undefined // No design data in fallback
           );
 
           // Clear client reference cache to ensure next order creates fresh customization options
