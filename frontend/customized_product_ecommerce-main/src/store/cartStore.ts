@@ -783,7 +783,11 @@ export const useCartStore = create<CartStore>()(
             serverId: item.serverId
           })));
         } catch (error) {
-          console.error('📦 ❌ Error syncing with server:', error);
+          console.error('📦 ❌ CRITICAL: Error syncing with server:', error);
+          console.error('📦 ❌ Error name:', (error as Error).name);
+          console.error('📦 ❌ Error message:', (error as Error).message);
+          console.error('📦 ❌ Error stack:', (error as Error).stack);
+          console.log('📦 ⚠️  Continuing with local cart (items already added to backend)');
           // Continue even if sync fails - items are already in local cart
         }
 

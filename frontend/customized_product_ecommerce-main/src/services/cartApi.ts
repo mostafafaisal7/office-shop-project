@@ -75,12 +75,13 @@ const API_BASE_URL = typeof window === 'undefined'
 
 class CartApiService {
   private async makeRequest(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<CartApiResponse> {
+    const startTime = performance.now();
     try {
       const token = getCustomerToken();
-      
+
       // If no token available, return early for cart operations
       if (!token) {
         console.log('Cart API: No authentication token available');
@@ -89,9 +90,10 @@ class CartApiService {
           message: 'No authentication token available',
         };
       }
-      
+
       console.log('Cart API: Making request to:', `${API_BASE_URL}${endpoint}`);
-      
+      console.log('Cart API: Request started at:', new Date().toISOString());
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers: {
@@ -100,6 +102,9 @@ class CartApiService {
           ...options.headers,
         },
       });
+
+      const fetchTime = performance.now() - startTime;
+      console.log(`Cart API: Fetch completed in ${fetchTime.toFixed(2)}ms`);
 
       // Check if response is ok before trying to parse JSON
       if (!response.ok) {
@@ -154,27 +159,32 @@ class CartApiService {
     console.log('🌐 ============ cartApi.getCartWithCustomizations CALLED ============');
     console.log('🌐 Timestamp:', new Date().toISOString());
 
-    const result = await this.makeRequest('/cart/with-customizations');
+    try {
+      const result = await this.makeRequest('/cart/with-customizations');
 
-    console.log('🌐 getCartWithCustomizations response:', {
-      success: result.success,
-      hasData: !!result.data,
-      itemCount: Array.isArray(result.data) ? result.data.length : 'N/A'
-    });
+      console.log('🌐 getCartWithCustomizations response:', {
+        success: result.success,
+        hasData: !!result.data,
+        itemCount: Array.isArray(result.data) ? result.data.length : 'N/A'
+      });
 
-    if (result.success && Array.isArray(result.data)) {
-      console.log('🌐 Cart items from server:', result.data.map((item: any) => ({
-        id: item.id,
-        product_id: item.product_id,
-        size: item.size,
-        quantity: item.quantity,
-        customization_id: item.customization_id
-      })));
+      if (result.success && Array.isArray(result.data)) {
+        console.log('🌐 Cart items from server:', result.data.map((item: any) => ({
+          id: item.id,
+          product_id: item.product_id,
+          size: item.size,
+          quantity: item.quantity,
+          customization_id: item.customization_id
+        })));
+      }
+
+      console.log('🌐 ============ cartApi.getCartWithCustomizations COMPLETED ============');
+
+      return result;
+    } catch (error) {
+      console.error('🌐 ❌ getCartWithCustomizations FAILED:', error);
+      throw error;
     }
-
-    console.log('🌐 ============ cartApi.getCartWithCustomizations COMPLETED ============');
-
-    return result;
   }
 
   // Add item to server cart
