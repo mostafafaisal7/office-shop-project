@@ -437,6 +437,11 @@ export default function OrderDetailsPage() {
         }
 
         const handleDownloadFile = async (fileType: 'svg' | 'canvas' | 'elements' | 'design-package') => {
+          if (!order) {
+            message.error('Order data not loaded');
+            return;
+          }
+
           try {
             const response = await fetch(
               `/api/orders/${order.id}/items/${record.id}/download-${fileType}`,
