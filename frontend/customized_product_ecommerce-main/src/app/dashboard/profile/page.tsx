@@ -58,12 +58,17 @@ export default function DashboardProfilePage() {
       if (response.success && response.data) {
         // Handle different response structures
         const userData = response.data.user || response.data;
-        
+
+        // Check if userData has a name property (is a User object)
+        const hasName = userData && typeof (userData as any).name === 'string';
+
         // Normalize the updated user data
         const updatedUser = {
           ...user!,
-          name: userData.name || editedName.trim(),
-          updatedAt: (userData as any).updated_at || (userData as any).updatedAt || new Date().toISOString(),
+          name: hasName ? (userData as any).name : editedName.trim(),
+          updatedAt: hasName
+            ? ((userData as any).updatedAt || (userData as any).updated_at || new Date().toISOString())
+            : new Date().toISOString(),
         };
 
         setUser(updatedUser);
