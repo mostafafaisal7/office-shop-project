@@ -1580,10 +1580,11 @@ const handleReviewViewChange = async (area: string) => {
                 </div>
               </div>
             ) : (
-              <DesignCanvas 
+              <DesignCanvas
                 key={`canvas-${productId}-${activeView}`}
-                productImage={productImage} 
-                onCanvasReady={handleCanvasReady} 
+                productImage={productImage}
+                view={activeView}
+                onCanvasReady={handleCanvasReady}
               />
             )}
             

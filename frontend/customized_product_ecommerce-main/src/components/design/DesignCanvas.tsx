@@ -8,7 +8,7 @@ import type { Canvas as FabricCanvas, Image as FabricImageType } from "fabric";
 // Dynamic import for fabric.js to avoid SSR issues
 let fabric: any = null;
 let Canvas: typeof FabricCanvas;
-let FabricImage: typeof FabricImageType;
+let FabricImage: FabricImageTypeType;
 let FabricText: any = null;
 let filters: any = null;
 let Rect: any = null;
@@ -33,7 +33,7 @@ interface DesignCanvasProps {
   // onCanvasReady?: (canvas: any) => void;
 }
 
-const DesignCanvas = forwardRef(({ productImage, onCanvasReady }: DesignCanvasProps, ref) => {
+const DesignCanvas = forwardRef(({ productImage, view, onCanvasReady }: DesignCanvasProps, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
 
@@ -212,7 +212,7 @@ useEffect(() => {
     if (!url) return;
 
     try {
-      const img: FabricImage = await FabricImage.fromURL(url, {
+      const img: FabricImageType = await FabricImage.fromURL(url, {
         crossOrigin: "anonymous",
       });
 
@@ -379,7 +379,7 @@ useEffect(() => {
 //     if (!url) return;
 
 //     try {
-//       const img: FabricImage = await FabricImage.fromURL(url, {
+//       const img: FabricImageType = await FabricImage.fromURL(url, {
 //         crossOrigin: "anonymous",
 //       });
 
@@ -479,7 +479,7 @@ useEffect(() => {
 
   const activeObject = canvas.getActiveObject();
 
-  const loadImage = (url: string, callback: (img: FabricImage) => void) => {
+  const loadImage = (url: string, callback: (img: FabricImageType) => void) => {
     const imagePromise = FabricImage.fromURL(url, { crossOrigin: 'anonymous' });
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Image loading timeout')), 10000)
@@ -518,7 +518,7 @@ useEffect(() => {
       // ✅ DEBUG: Log image being added
       console.log('🎨 Adding image with URL:', originalImageUrl?.substring(0, 50) + '...');
 
-      loadImage(designJson.content, (img: FabricImage) => {
+      loadImage(designJson.content, (img: FabricImageType) => {
         // ✅ FIX: Set standard properties first
         img.set({
           left: canvas.getWidth() / 2,

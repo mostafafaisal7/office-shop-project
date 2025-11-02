@@ -8,6 +8,9 @@ interface LeftSidebarProps {
   onAddText: (text: string) => void;
   onImageUpload: (fileOrUrl: File | string) => void;      // callback with File object or server URL
   onImageClick: (imageUrl: string) => void; // callback when user clicks uploaded image
+  onDesignColor?: (color: string) => void; // callback for design color changes
+  onElements?: () => void; // callback for elements panel
+  onNames?: () => void; // callback for names panel
 }
 
 // Endpoints
