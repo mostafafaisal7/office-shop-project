@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, XCircle, Mail, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useShippingStore } from '@/store/shippingStore';
 import { useToast } from '@/contexts/ToastContext';
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
@@ -227,5 +227,25 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full space-y-8 p-8">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="h-8 w-8 text-blue-600 animate-pulse" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900">Loading...</h2>
+            <p className="mt-2 text-gray-600">Please wait while we prepare your verification.</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }

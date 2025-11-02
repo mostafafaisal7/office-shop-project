@@ -88,7 +88,7 @@ export interface ProductFilters {
 export async function fetchProducts(): Promise<ApiProduct[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/products/`, {
-      cache: 'no-store', // Ensure fresh data for SSR
+      next: { revalidate: 3600 }, // Revalidate every hour (for static generation)
     });
     
     if (!response.ok) {
