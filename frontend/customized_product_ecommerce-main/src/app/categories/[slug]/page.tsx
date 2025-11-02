@@ -4,16 +4,19 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CategoryPageClient } from "./CategoryPageClient";
 
 interface CategoryPageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   try {
+    // Await params first (Next.js 15 requirement)
+    const { slug } = await params;
+
     // Fetch category by slug and all categories for breadcrumb/navigation
     const [currentCategory, categories] = await Promise.all([
-      fetchCategoryBySlug(params.slug),
+      fetchCategoryBySlug(slug),
       fetchCategories()
     ]);
 

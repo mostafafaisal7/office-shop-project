@@ -10,9 +10,9 @@ import { Breadcrumb } from '../../../components/ui/Breadcrumb';
 
 // Define the props type for the page component
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 const ProductPage = async ({ params }: Props) => {
