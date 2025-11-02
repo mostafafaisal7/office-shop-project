@@ -1,5 +1,6 @@
 import { fetchCategories } from "@/services/api";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import Link from "next/link";
 
 export default async function CategoriesPage() {
@@ -83,12 +84,7 @@ export default async function CategoriesPage() {
           <p className="text-gray-600 text-center max-w-md mb-6">
             We're having trouble loading the categories. Please try refreshing the page or contact support if the problem persists.
           </p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Refresh Page
-          </button>
+          <RefreshButton />
         </div>
       </div>
     );
