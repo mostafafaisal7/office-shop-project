@@ -4,11 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -17,8 +17,9 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    const { id } = await params;
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}/status`, {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
       method: 'PATCH',
       headers: {
         'Authorization': authHeader,

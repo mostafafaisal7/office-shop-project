@@ -4,11 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -26,7 +26,8 @@ export async function POST(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}/cancel`, {
+    const { id } = await params;
+    const response = await fetch(`${API_BASE_URL}/orders/${id}/cancel`, {
       method: 'POST',
       headers: {
         'Authorization': authHeader,

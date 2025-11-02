@@ -4,11 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -16,7 +16,8 @@ export async function GET(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}/invoice`, {
+    const { id } = await params;
+    const response = await fetch(`${API_BASE_URL}/orders/${id}/invoice`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -38,7 +39,7 @@ export async function GET(
     return new NextResponse(blob, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="invoice-${params.id}.pdf"`,
+        'Content-Disposition': `attachment; filename="invoice-${id}.pdf"`,
       },
     });
   } catch (error) {

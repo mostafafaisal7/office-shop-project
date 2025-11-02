@@ -4,11 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -16,7 +16,8 @@ export async function GET(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}`, {
+    const { id } = await params;
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -45,11 +46,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -58,8 +59,9 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    const { id } = await params;
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
       method: 'PATCH',
       headers: {
         'Authorization': authHeader,
@@ -89,11 +91,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Authorization header required' },
@@ -101,7 +103,8 @@ export async function DELETE(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/orders/${params.id}`, {
+    const { id } = await params;
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': authHeader,

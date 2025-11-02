@@ -4,16 +4,18 @@ const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { productId: string } }
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url);
     const page = searchParams.get('page') || '1';
     const limit = searchParams.get('limit') || '10';
-    
+
+    const { productId } = await params;
+
     // For now, we'll use the product endpoint to get reviews
     // In a real implementation, you'd have a dedicated reviews endpoint
-    const apiUrl = `${API_BASE_URL}/products/${params.productId}`;
+    const apiUrl = `${API_BASE_URL}/products/${productId}`;
     
     const response = await fetch(apiUrl, {
       method: 'GET',
