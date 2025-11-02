@@ -1,8 +1,13 @@
 import { Editor } from '@tinymce/tinymce-react';
 import React, { useRef } from 'react';
 
-const RichTextEditor = ({ value, onChange }) => {
-  const editorRef = useRef(null);
+interface RichTextEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange }) => {
+  const editorRef = useRef<any>(null);
 
   return (
     <Editor
