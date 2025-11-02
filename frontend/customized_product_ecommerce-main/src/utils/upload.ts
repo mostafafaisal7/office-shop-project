@@ -64,7 +64,7 @@ export async function saveDesignPreviewToServer(
   previewBlob: Blob,
   filename?: string
 ): Promise<string> {
-  const token = await useAuthStore.getState().getValidToken();
+  const token = useAuthStore.getState().tokens?.accessToken;
   if (!token) throw new Error('User not authenticated');
 
   const result = await uploadDesignPreview(previewBlob, productId, token, filename);

@@ -5,22 +5,24 @@
  * for print-ready designs.
  */
 
-import { fabric } from 'fabric';
+import { Canvas } from 'fabric';
 
 export class SVGExporter {
   /**
    * Generate SVG string from Fabric.js canvas
    */
-  static generateSVG(canvas: fabric.Canvas, options?: {
+  static generateSVG(canvas: Canvas, options?: {
     width?: number;
     height?: number;
     viewBox?: { x: number; y: number; width: number; height: number };
   }): string {
     try {
+      const width = options?.width || canvas.width || 800;
+      const height = options?.height || canvas.height || 600;
       const svgString = canvas.toSVG({
         suppressPreamble: false,
-        width: options?.width || canvas.width || 800,
-        height: options?.height || canvas.height || 600,
+        width: String(width),
+        height: String(height),
         viewBox: options?.viewBox ? {
           x: options.viewBox.x,
           y: options.viewBox.y,
@@ -39,7 +41,7 @@ export class SVGExporter {
   /**
    * Generate SVG with custom metadata for print specifications
    */
-  static generateSVGWithMetadata(canvas: fabric.Canvas, metadata?: {
+  static generateSVGWithMetadata(canvas: Canvas, metadata?: {
     designArea?: string;
     productId?: string;
     variationId?: number;
@@ -65,7 +67,7 @@ Design Metadata:
   /**
    * Extract text elements from canvas for easy reference
    */
-  static extractTextElements(canvas: fabric.Canvas): Array<{
+  static extractTextElements(canvas: Canvas): Array<{
     type: string;
     text: string;
     fontFamily?: string;
@@ -117,7 +119,7 @@ Design Metadata:
   }
 }
 
-export function generateCanvasSVG(canvas: fabric.Canvas | null): string | undefined {
+export function generateCanvasSVG(canvas: Canvas | null): string | undefined {
   if (!canvas) {
     console.warn('Canvas not available for SVG generation');
     return undefined;
@@ -132,7 +134,7 @@ export function generateCanvasSVG(canvas: fabric.Canvas | null): string | undefi
 }
 
 export function generateCanvasSVGWithMetadata(
-  canvas: fabric.Canvas | null,
+  canvas: Canvas | null,
   metadata?: {
     designArea?: string;
     productId?: string;
@@ -153,7 +155,7 @@ export function generateCanvasSVGWithMetadata(
   }
 }
 
-export function extractCanvasTextElements(canvas: fabric.Canvas | null) {
+export function extractCanvasTextElements(canvas: Canvas | null) {
   if (!canvas) {
     console.warn('Canvas not available for text extraction');
     return [];

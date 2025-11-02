@@ -6,7 +6,7 @@ import { useDesignStore } from '@/store/designStore';
 
 export const useDesignSync = () => {
   const { isAuthenticated, user } = useAuthStore();
-  const { syncDesigns, pendingSyncs, lastSyncTime } = useDesignStore();
+  const { syncDesigns, pendingSyncs } = useDesignStore();
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastAuthStateRef = useRef(isAuthenticated);
 
@@ -96,7 +96,6 @@ export const useDesignSync = () => {
   return {
     isAuthenticated,
     pendingSyncsCount: pendingSyncs.size,
-    lastSyncTime,
     manualSync: syncDesigns
   };
 };

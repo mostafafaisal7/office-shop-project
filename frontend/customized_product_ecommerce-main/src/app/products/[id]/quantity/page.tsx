@@ -355,8 +355,8 @@ const handleAddToCart = async () => {
         let hasAnyDesign = false;
         for (const view of availableViews) {
           const designData = await loadDesign(
-            productId, 
-            selectedVariation.variationId, 
+            String(productId),
+            String(selectedVariation.variationId),
             view.area
           );
           if (designData && designData.canvas_data && designData.canvas_data.objects && designData.canvas_data.objects.length > 0) {
@@ -373,8 +373,8 @@ const handleAddToCart = async () => {
           for (const view of availableViews) {
             try {
               const designData = await loadDesign(
-                productId, 
-                selectedVariation.variationId, 
+                String(productId),
+                String(selectedVariation.variationId),
                 view.area
               );
               

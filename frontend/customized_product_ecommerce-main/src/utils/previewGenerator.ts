@@ -112,16 +112,18 @@ export class PreviewGenerator {
 
     if (canvas.backgroundImage) {
       const bg = canvas.backgroundImage as FabricImage;
-      if (!bg.getElement().complete) {
-        promises.push(new Promise(res => bg.getElement().onload = () => res()));
+      const bgElement = bg.getElement() as HTMLImageElement;
+      if (bgElement && 'complete' in bgElement && !bgElement.complete) {
+        promises.push(new Promise(res => bgElement.onload = () => res()));
       }
     }
 
     canvas.getObjects().forEach(obj => {
       if (obj.type === 'image') {
         const imgObj = obj as FabricImage;
-        if (!imgObj.getElement().complete) {
-          promises.push(new Promise(res => imgObj.getElement().onload = () => res()));
+        const imgElement = imgObj.getElement() as HTMLImageElement;
+        if (imgElement && 'complete' in imgElement && !imgElement.complete) {
+          promises.push(new Promise(res => imgElement.onload = () => res()));
         }
       }
     });

@@ -8,7 +8,7 @@ import type { Canvas as FabricCanvas, Image as FabricImageType } from "fabric";
 // Dynamic import for fabric.js to avoid SSR issues
 let fabric: any = null;
 let Canvas: typeof FabricCanvas;
-let FabricImage: FabricImageTypeType;
+let FabricImage: any;
 let FabricText: any = null;
 let filters: any = null;
 let Rect: any = null;
@@ -28,9 +28,7 @@ const loadFabric = async () => {
 interface DesignCanvasProps {
   productImage: string;
   view: string; // can be "front", "back", "left", "right", etc.
-  onCanvasReady?: (canvas: fabric.Canvas) => void;
-  
-  // onCanvasReady?: (canvas: any) => void;
+  onCanvasReady?: (canvas: any) => void;
 }
 
 const DesignCanvas = forwardRef(({ productImage, view, onCanvasReady }: DesignCanvasProps, ref) => {
@@ -296,7 +294,7 @@ useEffect(() => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
 
-      if (designData?.canvas_data?.objects?.length > 0) {
+      if (designData?.canvas_data?.objects && designData.canvas_data.objects.length > 0) {
         const fixedCanvasData = { ...designData.canvas_data };
 
         // Remove blob background
@@ -543,7 +541,7 @@ useEffect(() => {
       break;
 
     case 'clear':
-      canvas.getObjects().forEach((obj) => {
+      canvas.getObjects().forEach((obj: any) => {
         if (obj !== canvas.backgroundImage) canvas.remove(obj);
       });
       renderCanvas();
@@ -551,7 +549,7 @@ useEffect(() => {
 
     case 'format':
       if (!activeObject || activeObject.type !== 'text') return;
-      const textObj = activeObject as FabricText;
+      const textObj = activeObject as any;
       switch (designJson.format) {
         case 'bold': textObj.set('fontWeight', textObj.fontWeight === 'bold' ? 'normal' : 'bold'); break;
         case 'italic': textObj.set('fontStyle', textObj.fontStyle === 'italic' ? 'normal' : 'italic'); break;
@@ -582,19 +580,19 @@ useEffect(() => {
 
     case 'textColor':
       if (!activeObject || activeObject.type !== 'text' || !designJson.color) return;
-      (activeObject as FabricText).set('fill', designJson.color);
+      (activeObject as any).set('fill', designJson.color);
       renderCanvas();
       break;
 
     case 'fontFamily':
       if (!activeObject || activeObject.type !== 'text' || !designJson.fontFamily) return;
-      (activeObject as FabricText).set('fontFamily', designJson.fontFamily);
+      (activeObject as any).set('fontFamily', designJson.fontFamily);
       renderCanvas();
       break;
 
     case 'fontSize':
       if (!activeObject || activeObject.type !== 'text' || !designJson.fontSize) return;
-      (activeObject as FabricText).set('fontSize', designJson.fontSize);
+      (activeObject as any).set('fontSize', designJson.fontSize);
       renderCanvas();
       break;
 
@@ -658,20 +656,20 @@ useEffect(() => {
 
     case 'imageAdjust':
       if (!activeObject || activeObject.type !== 'image' || !designJson.property) return;
-      const imgObj = activeObject as FabricImage;
+      const imgObj = activeObject as any;
       imgObj.filters = imgObj.filters || [];
 
       switch (designJson.property) {
         case 'hue':
-          imgObj.filters = imgObj.filters.filter(f => f.type !== 'HueRotation');
+          imgObj.filters = imgObj.filters.filter((f: any) => f.type !== 'HueRotation');
           if (designJson.value !== 0) imgObj.filters.push(new filters.HueRotation({ rotation: (designJson.value * Math.PI) / 180 }));
           break;
         case 'saturation':
-          imgObj.filters = imgObj.filters.filter(f => f.type !== 'Saturation');
+          imgObj.filters = imgObj.filters.filter((f: any) => f.type !== 'Saturation');
           if (designJson.value !== 100) imgObj.filters.push(new filters.Saturation({ saturation: (designJson.value - 100) / 100 }));
           break;
         case 'brightness':
-          imgObj.filters = imgObj.filters.filter(f => f.type !== 'Brightness');
+          imgObj.filters = imgObj.filters.filter((f: any) => f.type !== 'Brightness');
           if (designJson.value !== 100) imgObj.filters.push(new filters.Brightness({ brightness: (designJson.value - 100) / 100 }));
           break;
         case 'opacity':

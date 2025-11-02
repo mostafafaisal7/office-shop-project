@@ -111,16 +111,21 @@ export const useProducts = (initialParams: PaginationParams = {}) => {
 
   const uploadProductMedia = async (productId: number, files: File[]) => {
     try {
-      const data = await productService.uploadProductMedia(productId, files);
-      const uploadedFiles = data.files || data;
+      // Upload files one by one since the service expects a single file
+      const uploadedFilesWithFullUrl: any[] = [];
+      for (const file of files) {
+        const data = await productService.uploadProductMedia(productId, file);
+        const uploadedFile = data.file || data;
 
-      if (!uploadedFiles || uploadedFiles.length === 0) throw new Error('Upload failed');
+        // Normalize URL
+        const normalizedFile = {
+          ...uploadedFile,
+          file_path: uploadedFile.file_path?.startsWith('http') ? uploadedFile.file_path : `${BASE_URL}${uploadedFile.file_path}`,
+        };
+        uploadedFilesWithFullUrl.push(normalizedFile);
+      }
 
-      // Normalize URLs
-      const uploadedFilesWithFullUrl = uploadedFiles.map((file) => ({
-        ...file,
-        file_path: file.file_path.startsWith('http') ? file.file_path : `${BASE_URL}${file.file_path}`,
-      }));
+      if (uploadedFilesWithFullUrl.length === 0) throw new Error('Upload failed');
 
       setProducts((prev) =>
         prev.map((p) =>

@@ -311,12 +311,13 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       let backendPreviewUrl = previewImageUrl;
       if (previewImageUrl && variationId) {
         try {
-          backendPreviewUrl = await designApi.savePreviewImageToBackend(
+          const uploadedUrl = await designApi.savePreviewImageToBackend(
             previewImageUrl,
             state.productId,
             variationId,
             state.currentDesignArea
           );
+          backendPreviewUrl = uploadedUrl || previewImageUrl;
         } catch (uploadError) {
           console.error('❌ Preview upload failed, continuing with data URL:', uploadError);
           // Continue with original preview URL if upload fails
@@ -494,15 +495,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     }
   },
 
-  clearLocalStorageDesigns: () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      set({ savedDesigns: new Map() });
-    } catch (error) {
-      console.error('Failed to clear localStorage designs:', error);
-    }
-  },
-
   syncDesigns: async () => {
     // Import auth store dynamically to avoid circular dependencies
     const { useAuthStore } = await import('@/store/authStore');
@@ -587,7 +579,10 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     productId,
     variationIdKey,
     availableViews,
-    (prodId, varId, area) => state.loadDesign(prodId, varId, area)?.canvas_data || null
+    async (prodId, varId, area) => {
+      const design = await state.loadDesign(prodId, varId, area);
+      return design?.canvas_data || null;
+    }
   );
 
   for (const [area, previewUrl] of Object.entries(allPreviews)) {

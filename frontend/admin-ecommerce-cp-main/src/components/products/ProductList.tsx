@@ -156,7 +156,7 @@ const showDeleteConfirm = (id: number, productName: string) => {
   const draftProducts = stats.draft_products || 0;
   const totalValue = stats.total_value || 0;
 
-  const getActionMenuItems = (record: ProductResponse) => [
+  const getActionMenuItems = (record: ProductResponse): any[] => [
     {
       key: 'view',
       icon: <EyeOutlined />,
@@ -178,15 +178,15 @@ const showDeleteConfirm = (id: number, productName: string) => {
     {
       type: 'divider' as const,
     },
-   {
-    key: 'delete',
-    icon: <DeleteOutlined />,
-    label: (
-      <span
-        style={{ color: '#ff4d4f', cursor: 'pointer' }}
-        onClick={() => showDeleteConfirm(record.id, record.name)}
-      >
-        Delete Product
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: (
+        <span
+          style={{ color: '#ff4d4f', cursor: 'pointer' }}
+          onClick={() => showDeleteConfirm(record.id, record.name)}
+        >
+          Delete Product
       </span>
     ),
   },

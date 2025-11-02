@@ -528,7 +528,7 @@ class DesignApiService {
     }
   }
 
-  async deleteCustomizationOption(optionId: number): Promise<void> {
+  async deleteUserCustomizationOption(optionId: number): Promise<void> {
     try {
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/products/users/me/options/${optionId}`, {

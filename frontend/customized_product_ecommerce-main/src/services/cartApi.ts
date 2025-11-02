@@ -29,11 +29,12 @@ export interface CartApiItemWithCustomizations {
   guest_id?: string;
   product_id: number;
   product_name: string;
-  product_price: number;
+  product_price: number | string;
   quantity: number;
   size?: string;
   color?: string;
   customization_id?: number;
+  customized_images?: string[] | null;
   customization_details?: {
     client_reference_id: string;
     user_id: number;
@@ -50,6 +51,7 @@ export interface CartApiItemWithCustomizations {
       canvas_width: number;
       canvas_height: number;
       product_image_url: string;
+      preview_image_url?: string;
       created_at?: string;
       updated_at?: string;
       design_name: string;

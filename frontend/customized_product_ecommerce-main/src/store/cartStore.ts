@@ -410,7 +410,7 @@ export const useCartStore = create<CartStore>()(
                     parsedPrice = apiItem.product_price;
                   } else if (typeof apiItem.product_price === 'string') {
                     // More robust string parsing - handle Decimal strings, currency, etc.
-                    let cleanPrice = apiItem.product_price.toString().trim();
+                    let cleanPrice = apiItem.product_price.trim();
                     
                     // Remove currency symbols and common formatting
                     cleanPrice = cleanPrice.replace(/[$৳,\s]/g, '');
