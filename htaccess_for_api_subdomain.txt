@@ -1,0 +1,38 @@
+# .htaccess for api.yourdomain.com subdomain
+# Place this file in the document root of your api subdomain
+# Usually: ~/public_html/api/.htaccess
+
+# Enable Rewrite Engine
+RewriteEngine On
+
+# Proxy all requests to FastAPI running on localhost:8000
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ http://127.0.0.1:8000/$1 [P,L]
+
+# CORS Headers - Allow requests from your Vercel frontends
+<IfModule mod_headers.c>
+    # Allow all origins (or specify your Vercel domains)
+    Header always set Access-Control-Allow-Origin "*"
+
+    # Allow HTTP methods
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+
+    # Allow headers
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+
+    # Expose headers
+    Header always set Access-Control-Expose-Headers "Content-Disposition"
+
+    # Allow credentials
+    Header always set Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# Handle preflight OPTIONS requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+# Force HTTPS (optional, but recommended)
+# Uncomment these lines if you want to force HTTPS
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
